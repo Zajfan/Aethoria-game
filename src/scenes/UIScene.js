@@ -250,13 +250,13 @@ export class UIScene extends Phaser.Scene {
     if (questSystem && Math.random() < 0.4)
       this.time.delayedCall(1200, () => questSystem.generateQuest(playerStats, npc.npcData.name));
 
-    document.getElementById('dialogue-overlay').classList.add('show');
+    document.getElementById('dlg-overlay').classList.add('show');
     document.getElementById('dialogue-text').focus();
   }
 
   _closeDialogue() {
     this.dlgPanel.setVisible(false);
-    document.getElementById('dialogue-overlay').classList.remove('show');
+    document.getElementById('dlg-overlay').classList.remove('show');
     this.dialogueNPC = null;
     this.worldScene?.audio?.sfxUIClose();
   }
