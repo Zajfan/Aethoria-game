@@ -25,6 +25,13 @@ const cfg = {
 
 window.AethoriaGame = new Phaser.Game(cfg);
 
+// Signal to the error overlay that Phaser started successfully
+window.AethoriaGame.events.once('ready', () => {
+  window.dispatchEvent(new Event('phaser-ready'));
+  const ov = document.getElementById('err-overlay');
+  if (ov) ov.style.display = 'none';
+});
+
 window.addEventListener('resize', () => {
   window.AethoriaGame.scale.resize(window.innerWidth, window.innerHeight);
 });

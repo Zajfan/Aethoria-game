@@ -54,6 +54,19 @@
 <body>
 <div id="game-container"></div>
 
+<!-- Error overlay — visible if JS crashes before Phaser starts -->
+<div id="err-overlay" style="display:none;position:fixed;inset:0;background:#0a0a0f;z-index:9999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:Courier New,monospace;color:#ff6666;padding:32px;text-align:center;">
+  <div style="font-size:22px;color:#d4af37;margin-bottom:16px;">AETHORIA — Load Error</div>
+  <div id="err-msg" style="font-size:13px;max-width:600px;line-height:1.8;color:#cc8888;"></div>
+  <button onclick="localStorage.clear();location.reload(true)" style="margin-top:24px;
+    background:#d4af37;color:#0a0a0f;border:none;padding:10px 24px;
+    font-family:Courier New;font-size:13px;cursor:pointer;border-radius:3px;">
+    Clear cache &amp; retry
+  </button>
+</div>
+
 <!-- API Key Modal -->
 <div id="api-modal">
   <div class="modal-box">
@@ -94,6 +107,25 @@
   document.getElementById('api-input').onkeydown = (e) => {
     if (e.key === 'Enter') document.getElementById('api-save').click();
   };
+</script>
+<script>
+// Make the error overlay visible by default, hide once Phaser renders
+var _errOverlay = document.getElementById('err-overlay');
+if(_errOverlay) _errOverlay.style.display = 'flex';
+window.addEventListener('phaser-ready', function(){ if(_errOverlay) _errOverlay.style.display='none'; });
+
+window.onerror = function(msg, src, line, col, err) {
+  var el = document.getElementById('err-msg');
+  if(el) el.textContent = (err ? err.stack : msg) + '\n\n('+src+':'+line+')';
+  var ov = document.getElementById('err-overlay');
+  if(ov) ov.style.display = 'flex';
+};
+window.addEventListener('unhandledrejection', function(e) {
+  var el = document.getElementById('err-msg');
+  if(el) el.textContent = 'Unhandled promise: ' + (e.reason?.stack || e.reason);
+  var ov = document.getElementById('err-overlay');
+  if(ov) ov.style.display = 'flex';
+});
 </script>
 </body>
 </html>

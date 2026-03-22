@@ -11,6 +11,7 @@ import { AIMemory          } from '../systems/AIMemory.js';
 import { Player            } from '../entities/Player.js';
 import { Enemy             } from '../entities/Enemy.js';
 import { NPC               } from '../entities/NPC.js';
+import { WorldObjects      } from '../systems/WorldObjects.js';
 
 export class WorldScene extends Phaser.Scene {
   constructor() { super('WorldScene'); }
