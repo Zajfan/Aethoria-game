@@ -8,70 +8,76 @@
   <title>Aethoria</title>
   <link rel="manifest" href="manifest.json">
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { background:#0a0a0f; overflow:hidden; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; }
-    #game-container { width:100%; height:100%; }
-    canvas { display:block; margin:0 auto; image-rendering:pixelated; }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:#0a0a0f;overflow:hidden;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;font-family:'Courier New',monospace}
+    #game-container{width:100%;height:100%}
+    canvas{display:block;margin:0 auto;image-rendering:pixelated}
 
-    #api-modal {
-      display:none; position:fixed; inset:0;
-      background:rgba(0,0,0,0.88); z-index:2000;
-      align-items:center; justify-content:center;
-      font-family:'Courier New',monospace; color:#d4af37;
-    }
-    #api-modal.show { display:flex; }
-    .modal-box { background:#0d1117; border:1px solid #d4af37; padding:36px 44px; max-width:480px; width:92%; border-radius:4px; }
-    .modal-box h2 { font-size:18px; margin-bottom:8px; }
-    .modal-box p  { font-size:12px; color:#777; margin-bottom:22px; line-height:1.7; }
-    .modal-box input { width:100%; background:#161b22; border:1px solid #444; color:#fff; padding:10px 14px; font-family:monospace; font-size:13px; border-radius:3px; margin-bottom:16px; outline:none; }
-    .modal-box input:focus { border-color:#d4af37; }
-    .modal-box .btn-row { display:flex; gap:10px; }
-    .modal-box button { background:#d4af37; color:#0a0a0f; border:none; padding:10px 22px; font-family:monospace; font-size:13px; font-weight:bold; cursor:pointer; border-radius:3px; }
-    .modal-box .skip { background:transparent; color:#666; border:1px solid #444; }
+    /* Loading screen — shown until Phaser takes over */
+    #loading{position:fixed;inset:0;background:#0a0a0f;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;color:#d4af37;font-family:'Courier New',monospace}
+    #loading h1{font-size:clamp(24px,5vw,52px);margin-bottom:12px;letter-spacing:4px}
+    #loading p{font-size:13px;color:#555;margin-bottom:6px}
+    #loading-dots{font-size:20px;color:#d4af37;letter-spacing:6px;animation:blink 1.2s infinite}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 
-    #dialogue-overlay {
-      display:none; position:fixed; inset:0;
-      background:rgba(0,0,0,0.45); z-index:1500;
-      align-items:flex-end; justify-content:center; padding-bottom:180px;
-    }
-    #dialogue-overlay.show { display:flex; }
-    #dialogue-input-box {
-      background:#0d1117; border:1px solid #d4af37;
-      border-radius:3px; display:flex; gap:8px;
-      padding:8px 12px; width:min(600px, 94vw);
-    }
-    #dialogue-input-box input {
-      flex:1; background:transparent; border:none; outline:none;
-      color:#fff; font-family:monospace; font-size:14px;
-    }
-    #dialogue-input-box button {
-      background:#d4af37; border:none; color:#0a0a0f;
-      padding:6px 16px; font-family:monospace; font-size:12px;
-      font-weight:bold; cursor:pointer; border-radius:2px;
-    }
+    /* Error overlay */
+    #error-box{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99999;align-items:center;justify-content:center;padding:24px}
+    #error-box.show{display:flex}
+    #error-inner{background:#1a0000;border:1px solid #cc2222;padding:28px 32px;max-width:640px;width:100%;border-radius:4px;color:#ff8888}
+    #error-inner h2{font-size:16px;color:#ff4444;margin-bottom:12px}
+    #error-inner pre{font-size:11px;line-height:1.6;white-space:pre-wrap;word-break:break-all;color:#ffaaaa;max-height:300px;overflow:auto}
+    #error-inner .hint{margin-top:14px;font-size:11px;color:#888;line-height:1.7}
+    #error-inner button{margin-top:16px;background:#cc2222;color:#fff;border:none;padding:8px 20px;font-family:monospace;cursor:pointer;border-radius:3px}
+
+    /* Panels (API modal + dialogue) */
+    #api-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:2000;align-items:center;justify-content:center}
+    #api-modal.show{display:flex}
+    .modal-box{background:#0d1117;border:1px solid #d4af37;padding:36px 44px;max-width:480px;width:92%;border-radius:4px;color:#d4af37}
+    .modal-box h2{font-size:18px;margin-bottom:8px}
+    .modal-box p{font-size:12px;color:#777;margin-bottom:22px;line-height:1.7}
+    .modal-box input{width:100%;background:#161b22;border:1px solid #444;color:#fff;padding:10px 14px;font-family:monospace;font-size:13px;border-radius:3px;margin-bottom:16px;outline:none}
+    .modal-box input:focus{border-color:#d4af37}
+    .modal-box .btn-row{display:flex;gap:10px}
+    .modal-box button{background:#d4af37;color:#0a0a0f;border:none;padding:10px 22px;font-family:monospace;font-size:13px;font-weight:bold;cursor:pointer;border-radius:3px}
+    .modal-box .skip{background:transparent;color:#666;border:1px solid #444}
+
+    #dialogue-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1500;align-items:flex-end;justify-content:center;padding-bottom:180px}
+    #dialogue-overlay.show{display:flex}
+    #dialogue-input-box{background:#0d1117;border:1px solid #d4af37;border-radius:3px;display:flex;gap:8px;padding:8px 12px;width:min(600px,94vw)}
+    #dialogue-input-box input{flex:1;background:transparent;border:none;outline:none;color:#fff;font-family:monospace;font-size:14px}
+    #dialogue-input-box button{background:#d4af37;border:none;color:#0a0a0f;padding:6px 16px;font-family:monospace;font-size:12px;font-weight:bold;cursor:pointer;border-radius:2px}
   </style>
 </head>
 <body>
-<div id="game-container"></div>
 
-<!-- Error overlay — visible if JS crashes before Phaser starts -->
-<div id="err-overlay" style="display:none;position:fixed;inset:0;background:#0a0a0f;z-index:9999;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  font-family:Courier New,monospace;color:#ff6666;padding:32px;text-align:center;">
-  <div style="font-size:22px;color:#d4af37;margin-bottom:16px;">AETHORIA — Load Error</div>
-  <div id="err-msg" style="font-size:13px;max-width:600px;line-height:1.8;color:#cc8888;"></div>
-  <button onclick="localStorage.clear();location.reload(true)" style="margin-top:24px;
-    background:#d4af37;color:#0a0a0f;border:none;padding:10px 24px;
-    font-family:Courier New;font-size:13px;cursor:pointer;border-radius:3px;">
-    Clear cache &amp; retry
-  </button>
+<!-- Loading screen -->
+<div id="loading">
+  <h1>AETHORIA</h1>
+  <p id="loading-status">Loading engine...</p>
+  <div id="loading-dots">...</div>
 </div>
+
+<!-- Error overlay (shown if anything crashes) -->
+<div id="error-box">
+  <div id="error-inner">
+    <h2>&#9888; Failed to load</h2>
+    <pre id="error-msg"></pre>
+    <div class="hint">
+      Try a hard refresh: <strong>Ctrl+Shift+R</strong> (Windows) or <strong>Cmd+Shift+R</strong> (Mac)<br>
+      Or open DevTools (F12) → Console for more detail.
+    </div>
+    <button onclick="location.reload(true)">Reload</button>
+  </div>
+</div>
+
+<!-- Game canvas target -->
+<div id="game-container"></div>
 
 <!-- API Key Modal -->
 <div id="api-modal">
   <div class="modal-box">
     <h2>Claude API Key</h2>
-    <p>Aethoria uses Claude AI to power NPC dialogue, dynamic quests, and living world events. Enter your Anthropic API key to enable these features. You can skip and play without AI (NPCs will use scripted responses).</p>
+    <p>Aethoria uses Claude AI for NPC dialogue and quests. Enter your Anthropic API key, or skip to play with scripted responses.</p>
     <input type="password" id="api-input" placeholder="sk-ant-api03-..." autocomplete="off">
     <div class="btn-row">
       <button id="api-save">Enable AI</button>
@@ -80,7 +86,7 @@
   </div>
 </div>
 
-<!-- Dialogue Input Overlay -->
+<!-- Dialogue Input -->
 <div id="dialogue-overlay">
   <div id="dialogue-input-box">
     <input type="text" id="dialogue-text" placeholder="Say something to the NPC..." maxlength="200">
@@ -88,44 +94,87 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/phaser@3.88.2/dist/phaser.min.js"></script>
-<script type="module" src="src/main.js"></script>
-
+<!-- Step 1: Catch global errors BEFORE anything loads -->
 <script>
-  // API modal logic
-  const modal = document.getElementById('api-modal');
+window.onerror = function(msg, src, line, col, err) {
+  var box = document.getElementById('error-box');
+  var pre = document.getElementById('error-msg');
+  if (box && pre) {
+    pre.textContent = (err ? err.stack : msg) + '
+
+Source: ' + src + ':' + line;
+    box.classList.add('show');
+  }
+};
+window.addEventListener('unhandledrejection', function(e) {
+  var box = document.getElementById('error-box');
+  var pre = document.getElementById('error-msg');
+  if (box && pre) {
+    pre.textContent = 'Unhandled Promise rejection:
+' + (e.reason?.stack || e.reason || e);
+    box.classList.add('show');
+  }
+});
+</script>
+
+<!-- Step 2: Load Phaser from CDN -->
+<script>
+document.getElementById('loading-status').textContent = 'Loading Phaser engine...';
+</script>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"
+        onerror="document.getElementById('error-msg').textContent='Failed to load Phaser from CDN.
+Check your internet connection.';document.getElementById('error-box').classList.add('show');"></script>
+
+<!-- Step 3: Load game modules -->
+<script>
+if (window.Phaser) {
+  document.getElementById('loading-status').textContent = 'Loading game...';
+} else {
+  document.getElementById('error-msg').textContent = 'Phaser did not load. CDN may be blocked or unavailable.';
+  document.getElementById('error-box').classList.add('show');
+}
+</script>
+<script type="module">
+import('/src/main.js').then(() => {
+  // Game started — hide loading screen after a short delay
+  // (Phaser's BootScene will take over the canvas)
+  setTimeout(() => {
+    const l = document.getElementById('loading');
+    if (l) l.style.display = 'none';
+  }, 800);
+}).catch(err => {
+  document.getElementById('error-msg').textContent = 'Module load failed:
+' + (err.stack || err);
+  document.getElementById('error-box').classList.add('show');
+});
+</script>
+
+<!-- Step 4: API modal + SW registration -->
+<script>
+// API modal
+(function() {
+  var modal = document.getElementById('api-modal');
   if (!localStorage.getItem('aethoria_api_key') && !localStorage.getItem('aethoria_no_ai')) {
     modal.classList.add('show');
   }
-  document.getElementById('api-save').onclick = () => {
-    const k = document.getElementById('api-input').value.trim();
+  document.getElementById('api-save').onclick = function() {
+    var k = document.getElementById('api-input').value.trim();
     if (k) { localStorage.setItem('aethoria_api_key', k); modal.classList.remove('show'); }
   };
-  document.getElementById('api-skip').onclick = () => {
+  document.getElementById('api-skip').onclick = function() {
     localStorage.setItem('aethoria_no_ai','1'); modal.classList.remove('show');
   };
-  document.getElementById('api-input').onkeydown = (e) => {
+  document.getElementById('api-input').onkeydown = function(e) {
     if (e.key === 'Enter') document.getElementById('api-save').click();
   };
-</script>
-<script>
-// Make the error overlay visible by default, hide once Phaser renders
-var _errOverlay = document.getElementById('err-overlay');
-if(_errOverlay) _errOverlay.style.display = 'flex';
-window.addEventListener('phaser-ready', function(){ if(_errOverlay) _errOverlay.style.display='none'; });
+})();
 
-window.onerror = function(msg, src, line, col, err) {
-  var el = document.getElementById('err-msg');
-  if(el) el.textContent = (err ? err.stack : msg) + '\n\n('+src+':'+line+')';
-  var ov = document.getElementById('err-overlay');
-  if(ov) ov.style.display = 'flex';
-};
-window.addEventListener('unhandledrejection', function(e) {
-  var el = document.getElementById('err-msg');
-  if(el) el.textContent = 'Unhandled promise: ' + (e.reason?.stack || e.reason);
-  var ov = document.getElementById('err-overlay');
-  if(ov) ov.style.display = 'flex';
-});
+// Service worker registration
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js', { scope: '/' })
+    .then(function(reg) { console.log('SW registered:', reg.scope); })
+    .catch(function(err) { console.warn('SW registration failed (non-fatal):', err); });
+}
 </script>
 </body>
 </html>
