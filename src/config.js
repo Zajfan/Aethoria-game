@@ -58,16 +58,6 @@ export const CONFIG = {
     scroll: { name:'Lore Scroll',     type:'readable',  value:30 },
     crystal:{ name:'Void Crystal',   type:'material',  value:180 },
   },
-    sword:  { name:'Iron Sword',    type:'weapon',    atk:5,  value:50 },
-    shield: { name:'Wood Shield',   type:'armor',     def:3,  value:30 },
-    hide:   { name:'Animal Hide',   type:'material',  value:10 },
-    bones:  { name:'Bones',         type:'material',  value:5 },
-    fang:   { name:'Wolf Fang',     type:'material',  value:15 },
-    gem:    { name:'Gemstone',      type:'material',  value:100 },
-    club:   { name:'Troll Club',    type:'weapon',    atk:10, value:80 },
-    herb:   { name:'Healing Herb',  type:'consumable',heal:25, value:25 },
-    potion: { name:'Health Potion', type:'consumable',heal:60, value:60 },
-  },
 
   RECIPES: [
     { result:'potion',   materials:{ herb:2 },                 label:'Brew Health Potion'   },
