@@ -83,7 +83,7 @@ export class WorldScene extends Phaser.Scene {
     this.worldObjects.spawnSigns([
       { x:(mx-6)*T, y:(my+2)*T, text:'Hearthmoor — the last beacon. Enter with hope.' },
       { x:(mx+5)*T, y:(my-2)*T, text:'Eastern Road: Dungeon 2km. Travel at own peril.' },
-      { x:(mx-2)*T, y:(my+6)*T, text:'Mira's herbs are the finest in three kingdoms.' },
+      { x:(mx-2)*T, y:(my+6)*T, text:"Mira's herbs are the finest in three kingdoms." },
     ]);
     // Campfires in town
     this.worldObjects.spawnCampfire((mx+2)*T, (my+2)*T);
