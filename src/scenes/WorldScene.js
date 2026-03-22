@@ -87,10 +87,14 @@ export class WorldScene extends Phaser.Scene {
     this.mKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
 
     this.input.on('pointerdown', ptr => {
-      if (ptr.wasTouch || !this.player.attackTarget) {
-        const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
-        this.player.moveTarget = { x: wp.x, y: wp.y };
-      }
+      // Only move if clicking empty ground — not enemies, NPCs, loot, or UI
+      const hits = this.input.hitTestPointer(ptr);
+      if (hits.length > 0) return;
+      // Also skip if any UI panel is open
+      const ui = this.scene.get('UIScene');
+      if (ui?.invOpen || ui?.questOpen || ui?.skillOpen || ui?.mapOpen || ui?.statsOpen || ui?.tradeOpen) return;
+      const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+      this.player.moveTarget = { x: wp.x, y: wp.y };
     });
 
     // First interaction unlocks AudioContext
