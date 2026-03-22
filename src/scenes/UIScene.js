@@ -1,5 +1,7 @@
 import { CONFIG       } from '../config.js';
 import { ACHIEVEMENTS } from '../systems/AchievementSystem.js';
+import { LORE, randomScroll } from '../systems/LoreDatabase.js';
+import { ACTS } from '../systems/StorySystem.js';
 
 export class UIScene extends Phaser.Scene {
   constructor() { super({ key:'UIScene', active:false }); }
@@ -223,7 +225,8 @@ export class UIScene extends Phaser.Scene {
     this.dlgPanel.add([this.dlgBg, this.dlgName, this.dlgText, this.dlgTyping, tradeBtn, closeBtn]);
   }
 
-  async openDialogue(npc, playerStats, questSystem, tradeSystem, worldEvents) {
+  async openDialogue(npc, playerStats, questSystem, tradeSystem, worldEvents, storySystem) {
+    this._storySystem = storySystem;
     this.dialogueNPC  = npc;
     this._playerStats = playerStats;
     this._questSystem = questSystem;
@@ -622,6 +625,121 @@ export class UIScene extends Phaser.Scene {
     this.time.addEvent({delay:16,loop:true,callback:()=>{ const p=this.worldScene?.player; if(!p||!this._joy.active) return; p.setVelocity(this._joy.dx*p.stats.speed,this._joy.dy*p.stats.speed); }});
   }
 
+  // ── Act banner ─────────────────────────────────────────── */
+  showActBanner(act) {
+    if (!act) return;
+    const W = this.cameras.main.width;
+    const banner = this.add.container(W/2, -80).setDepth(115);
+    const bg  = this.add.rectangle(0, 0, Math.min(560, W-24), 60, 0x0a0020, 0.96)
+      .setStrokeStyle(2, 0xffd700, 0.9);
+    const t1  = this.add.text(0, -12, act.name.toUpperCase(), {
+      fontFamily:'Courier New', fontSize:'11px', color:'#888844',
+    }).setOrigin(0.5);
+    const t2  = this.add.text(0, 6, act.title, {
+      fontFamily:'Courier New', fontSize:'16px', color:'#ffd700',
+    }).setOrigin(0.5);
+    banner.add([bg, t1, t2]);
+    this.tweens.add({
+      targets: banner, y: 70, duration: 500, ease: 'Back.Out',
+      onComplete: () => {
+        this.tweens.add({ targets: banner, alpha:0, y:50, delay:3000, duration:800,
+          onComplete: () => banner.destroy() });
+      },
+    });
+  }
+
+  // ── Lore popup ─────────────────────────────────────────── */
+  showLorePopup(title, text, color = '#aaaaff') {
+    const W = this.cameras.main.width, H = this.cameras.main.height;
+    const PW = Math.min(520, W-32), PH = 180;
+    const pop = this.add.container(W/2, H/2).setDepth(120);
+    const bg  = this.add.rectangle(0, 0, PW, PH, 0x05050f, 0.97).setStrokeStyle(1, 0xaaaaff, 0.7);
+    const hdr = this.add.text(0, -PH/2+14, title, {
+      fontFamily:'Courier New', fontSize:'14px', color,
+    }).setOrigin(0.5);
+    const body = this.add.text(0, -PH/2+38, text, {
+      fontFamily:'Courier New', fontSize:'10px', color:'#aaaaaa',
+      wordWrap:{ width: PW-28 }, lineSpacing: 5,
+    }).setOrigin(0.5, 0);
+    const close = this.add.text(PW/2-12, -PH/2+12, 'X', {
+      fontFamily:'Courier New', fontSize:'13px', color:'#884444',
+    }).setOrigin(1,0).setInteractive({ useHandCursor:true });
+    close.on('pointerdown', () => pop.destroy());
+    pop.add([bg, hdr, body, close]);
+    this.tweens.add({ targets: pop, alpha:0, delay:12000, duration:800,
+      onComplete: () => pop.destroy() });
+  }
+
+  // ── Story quest panel ──────────────────────────────────── */
+  refreshStoryQuests(storySystem) {
+    if (!storySystem) return;
+    // Update quest tracker in HUD
+    const sq = storySystem.getActiveStoryQuests()[0];
+    if (this.questTracker && sq) {
+      this.questTracker.setText('[ ' + sq.title + ' ]').setColor('#ffd700');
+    }
+    // If journal open, refresh it
+    if (this.questOpen) this.refreshQuests(this.worldScene?.questSystem);
+  }
+
+  // ── Codex panel ────────────────────────────────────────── */
+  _buildCodex() {
+    const W = this.cameras.main.width, H = this.cameras.main.height;
+    const CW = Math.min(540, W-24), CH = Math.min(500, H-80);
+    this.codexPanel = this.add.container(W/2, H/2).setVisible(false).setDepth(96);
+    const bg = this.add.rectangle(0,0,CW,CH,0x050510,0.97).setStrokeStyle(1,0xaaaaff,0.7);
+    const t  = this.add.text(-CW/2+14,-CH/2+14,'[ CODEX ]  L to close',{fontFamily:'Courier New',fontSize:'12px',color:'#aaaaff'});
+    const cl = this.add.text(CW/2-14,-CH/2+14,'X',{fontFamily:'Courier New',fontSize:'14px',color:'#884444'})
+      .setOrigin(1,0).setInteractive({useHandCursor:true});
+    cl.on('pointerdown',()=>{ this.codexOpen=false; this.codexPanel.setVisible(false); });
+    this.codexContent = this.add.container(0,0);
+    this.codexPanel.add([bg,t,cl,this.codexContent]);
+    this._CW = CW; this._CH = CH;
+    this.codexOpen = false;
+  }
+
+  toggleCodex(storySystem) {
+    this.codexOpen = !this.codexOpen;
+    this.codexPanel?.setVisible(this.codexOpen);
+    if (this.codexOpen) this._renderCodex(storySystem);
+    else this.codexContent?.removeAll(true);
+  }
+
+  _renderCodex(storySystem) {
+    this.codexContent.removeAll(true);
+    const CW = this._CW, CH = this._CH, ox = -CW/2+14;
+    let y = -CH/2+46;
+    const F = { fontFamily:'Courier New' };
+
+    // Act progress
+    const act = storySystem?.getCurrentAct();
+    if (act) {
+      this.codexContent.add(this.add.text(ox,y,'-- STORY PROGRESS --',{...F,fontSize:'11px',color:'#ffd700'})); y+=20;
+      this.codexContent.add(this.add.text(ox,y,act.name+': '+act.title,{...F,fontSize:'12px',color:'#ddcc44'})); y+=16;
+      this.codexContent.add(this.add.text(ox+10,y,act.desc,{...F,fontSize:'9px',color:'#666644',wordWrap:{width:CW-30}})); y+=28;
+    }
+
+    // Shards
+    this.codexContent.add(this.add.text(ox,y,'-- CRYSTAL SHARDS --',{...F,fontSize:'11px',color:'#88aaff'})); y+=18;
+    LORE.shards.forEach((s,i) => {
+      const col = storySystem?.shardFlags?.[i+1] ? '#ffd700' : '#444444';
+      const mark = storySystem?.shardFlags?.[i+1] ? '[x]' : '[ ]';
+      this.codexContent.add(this.add.text(ox,y,mark+' '+s.name,{...F,fontSize:'10px',color:col})); y+=14;
+      if (storySystem?.shardFlags?.[i+1]) {
+        this.codexContent.add(this.add.text(ox+18,y,s.lore.slice(0,80)+'...',{...F,fontSize:'9px',color:'#555555',wordWrap:{width:CW-40}})); y+=22;
+      }
+    });
+
+    y += 8;
+    // World history
+    this.codexContent.add(this.add.text(ox,y,'-- WORLD HISTORY --',{...F,fontSize:'11px',color:'#88aa66'})); y+=18;
+    LORE.history.slice(0,3).forEach(h => {
+      this.codexContent.add(this.add.text(ox,y,h.title,{...F,fontSize:'10px',color:'#88aa66'})); y+=14;
+      this.codexContent.add(this.add.text(ox+14,y,h.text.slice(0,90)+'...',{...F,fontSize:'9px',color:'#445544',wordWrap:{width:CW-30}})); y+=22;
+    });
+  }
+
+
   _touchBtn(x,y,label,color,cb){
     const b=this.add.circle(x,y,28,color,0.22).setDepth(200).setStrokeStyle(1,color,0.5).setInteractive({useHandCursor:true});
     this.add.text(x,y,label,{fontFamily:'Courier New',fontSize:'10px',color:'#ffffff'}).setOrigin(0.5).setDepth(201);
@@ -636,14 +754,19 @@ export class UIScene extends Phaser.Scene {
       if (e.key==='Escape') this._closeDialogue();
       e.stopPropagation();
     });
+    this._buildCodex();
+
     this.input.keyboard.on('keydown-Q', () => { if(this.worldScene) this.toggleQuestJournal(this.worldScene.questSystem); });
     this.input.keyboard.on('keydown-K', () => this.toggleSkillTree(this._activePlayer||this.worldScene?.player));
     this.input.keyboard.on('keydown-M', () => { if(this.worldScene) this.toggleWorldMap(this.worldScene.mapData); });
     this.input.keyboard.on('keydown-C', () => { if(this.worldScene) this.toggleStatsScreen(this.worldScene.player, this.worldScene.achievements); });
     this.input.keyboard.on('keydown-T', () => { if(this.worldScene?.nearbyNPC && this._tradeSystem) this._openTradeFromNPC(this.worldScene.nearbyNPC); });
+    this.input.keyboard.on('keydown-L', () => {
+      if (this.worldScene) this.toggleCodex(this.worldScene.storySystem);
+    });
     this.input.keyboard.on('keydown-ESC', () => {
       this._closeDialogue();
-      [this.questPanel,this.skillPanel,this.mapPanel,this.statsPanel,this.tradePanel].forEach(p=>p?.setVisible(false));
+      [this.questPanel,this.skillPanel,this.mapPanel,this.statsPanel,this.tradePanel,this.codexPanel].forEach(p=>p?.setVisible(false));
       this.questOpen=this.skillOpen=this.mapOpen=this.statsOpen=this.tradeOpen=false;
     });
   }

@@ -68,17 +68,34 @@ export const CONFIG = {
   ],
 
   NPCS_DATA: [
-    { name:'Elder Lyra',  role:'Village Elder',  color:0xffd700, bio:'Ancient keeper of Aethoria\'s lore, has guided the village through countless crises' },
-    { name:'Gareth',      role:'Blacksmith',     color:0xff8c00, bio:'Master smith who forges legendary blades; gruff but fair' },
-    { name:'Mira',        role:'Herbalist',      color:0x66cc44, bio:'Gentle healer who knows every plant in the realm and their secret properties' },
-    { name:'Dorin',       role:'Merchant',       color:0xaaaaff, bio:'Wily traveling trader with rare goods and even rarer information for sale' },
-    { name:'Capt. Vel',   role:'Guard Captain',  color:0x4488ff, bio:'Veteran warrior, undefeated in battle, sworn to protect Hearthmoor at any cost' },
+    {
+      name:'Elder Lyra', role:'Village Elder', color:0xffd700,
+      bio:'The oldest person in Hearthmoor — possibly the oldest in Aethoria. She knows more about the Voidlords than she has ever told anyone. She performed the Sealing that keeps the village alive. She is waiting for someone capable enough to trust with the full truth.',
+      hint:'Ask Lyra about the Crystal Crown, the Sealing, or the Voidlords to unlock story content.',
+    },
+    {
+      name:'Gareth', role:'Blacksmith', color:0xff8c00,
+      bio:'A soldier-turned-smith who lost his right arm in the Battle of the Ember Road and taught himself to forge left-handed. Gruff because he has buried too many people he cared about. Has spent twenty years building a replica of the Crystal Crown that does not work — he keeps trying.',
+      hint:'Gareth gives weapon quests and unlocks crafting upgrades. Bring him boss materials.',
+    },
+    {
+      name:'Mira', role:'Herbalist', color:0x66cc44,
+      bio:'Remembers the name of every plant and every patient she has ever had. Does not remember the name of her birth village — the Forgetting took it. Has discovered a herb she calls Nullwort that grows near Void traces. Has not told anyone what it does because she is afraid of the answer.',
+      hint:'Mira gives healing quests and unlocks potion crafting. She reacts to world events with medical concern.',
+    },
+    {
+      name:'Dorin', role:'Merchant', color:0xaaaaff,
+      bio:'Has visited 43 settlements across Aethoria. 39 of them are gone. Keeps maps of where they were. Has been inside the Void Gate and returned, which should be impossible. Will not explain how. Sometimes reaches for something at his side that is not there.',
+      hint:'Dorin sells rare items and gives collection quests. He knows more about the Void than he admits.',
+    },
+    {
+      name:'Capt. Vel', role:'Guard Captain', color:0x4488ff,
+      bio:'Held the line at four settlements before Hearthmoor, each of which eventually fell anyway. Not pessimistic — precise. Has a standing order from Lyra she has never spoken aloud. She will follow it. She is still trying to understand why.',
+      hint:'Vel gives combat quests and bounties. Talk to her after major kills for story reactions.',
+    },
   ],
 
-  WORLD_LORE: `Aethoria is an ancient realm shattered by the Voidlords who rose from the Deep.
-The Crystal Crown that once unified the land was broken into five shards scattered across the world.
-The village of Hearthmoor is the last beacon of light. Heroes rise to gather the shards and restore order.
-Magic flows through leylines beneath the earth — those attuned to them gain power beyond mortal reckoning.`,
+  WORLD_LORE: `Aethoria is an ancient realm. Three hundred years ago, the Crystal Crown was shattered by the Voidlords — beings from beyond the leylines who were invited here by a scholar who thought they would teach and not consume. She was wrong. The Crown broke into five shards. The kingdoms fell one by one, not to war but to forgetting. Hearthmoor survives because of a Sealing performed by Elder Lyra — an act whose true cost she has never revealed. The five shards must be gathered to restore the Crown and send the Voidlords back. The question no one has asked yet: what did the scholar promise them in exchange for the invitation?`,
 
   CLAUDE_MODEL: 'claude-sonnet-4-20250514',
 

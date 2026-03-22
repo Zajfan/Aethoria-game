@@ -12,6 +12,8 @@ import { Player            } from '../entities/Player.js';
 import { Enemy             } from '../entities/Enemy.js';
 import { NPC               } from '../entities/NPC.js';
 import { WorldObjects      } from '../systems/WorldObjects.js';
+import { StorySystem      } from '../systems/StorySystem.js';
+import { ShardSystem      } from '../systems/ShardSystem.js';
 
 export class WorldScene extends Phaser.Scene {
   constructor() { super('WorldScene'); }
@@ -73,6 +75,21 @@ export class WorldScene extends Phaser.Scene {
     this._spawnEnemies();
     this._spawnNPCs();
     this._buildDungeonPortal();
+
+    // Story + shard systems
+    this.storySystem = new StorySystem(this);
+    this.shardSystem = new ShardSystem(this);
+    this.shardSystem.spawnShards(this.mapData);
+
+    // Start prologue
+    this.time.delayedCall(1500, () => {
+      this.storySystem.advanceAct();
+      const ui = this.scene.get('UIScene');
+      if (ui) {
+        ui._logMsg('Elder Lyra is waiting for you in the village.', '#ffd700');
+        ui.showActBanner(this.storySystem.getCurrentAct());
+      }
+    });
 
     // World objects (chests, signs, campfires, well)
     this.worldObjects = new WorldObjects(this);
@@ -243,11 +260,35 @@ export class WorldScene extends Phaser.Scene {
       else if (w === 'CLEAR') this.audio.startAmbience('day');
     });
 
+    this.events.on('actAdvanced', act => {
+      const ui = this.scene.get('UIScene');
+      if (ui) { ui.showActBanner(act); ui.refreshStoryQuests(this.storySystem); }
+    });
+    this.events.on('storyQuestAdded', q => {
+      const ui = this.scene.get('UIScene');
+      if (ui) { ui._logMsg('[Story] ' + q.title, '#ffd700'); ui.refreshStoryQuests(this.storySystem); }
+      this.audio?.sfxQuestGet();
+    });
+    this.events.on('sideQuestAdded', q => {
+      const ui = this.scene.get('UIScene');
+      if (ui) { ui._logMsg('[Quest] ' + q.title, '#88aaff'); ui.refreshStoryQuests(this.storySystem); }
+    });
+    this.events.on('shardCollected', data => {
+      const ui = this.scene.get('UIScene');
+      if (ui) ui._logMsg('Shard ' + data.total + '/5 collected!', '#ffd700');
+      this.achievements?.track('shards');
+    });
+    this.events.on('loreUnlocked', id => {
+      const ui = this.scene.get('UIScene');
+      if (ui) ui._logMsg('Lore entry discovered.', '#aaaaff');
+    });
+
     this.events.on('bossKilled', name => {
       this.questSystem?.onKill(name);
       AIMemory.recordBossKill(name);
-      this.achievements.track('bosses');
-      this.audio.sfxBossDeath();
+      this.achievements?.track('bosses');
+      this.audio?.sfxBossDeath();
+      this.storySystem?.flagSet('boss_' + name);
     });
 
     this.events.on('achievement', ach => {
@@ -322,7 +363,12 @@ export class WorldScene extends Phaser.Scene {
   }
 
   async _doSave() {
-    try { await this.saveSystem.save(SaveSystem.snapshotPlayer(this.player, this.questSystem)); }
+    try {
+      const snap = SaveSystem.snapshotPlayer(this.player, this.questSystem);
+      snap.story = this.storySystem?.serialize();
+      snap.shards = this.storySystem?.shardFlags || {};
+      await this.saveSystem.save(snap);
+    }
     catch (_) {}
   }
 
