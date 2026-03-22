@@ -1,5 +1,5 @@
-import { CONFIG } from '../config.js';
-import { AethoriaAI } from '../ai/AethoriaAI.js';
+import { CONFIG      } from '../config.js';
+import { AethoriaAI  } from '../ai/AethoriaAI.js';
 
 export class NPC extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, npcIndex) {
@@ -15,19 +15,24 @@ export class NPC extends Phaser.Physics.Arcade.Sprite {
 
     this.history = [];
 
-    const hexColor = '#' + this.npcData.color.toString(16).padStart(6,'0');
-
+    const col = '#' + this.npcData.color.toString(16).padStart(6, '0');
     this.nameLabel = scene.add.text(x, y - 24, this.npcData.name, {
-      fontFamily:'Courier New', fontSize:'10px', color: hexColor,
+      fontFamily:'Courier New', fontSize:'10px', color: col,
     }).setOrigin(0.5).setDepth(14);
-
     this.roleLabel = scene.add.text(x, y - 14, '[' + this.npcData.role + ']', {
       fontFamily:'Courier New', fontSize:'9px', color:'#888888',
     }).setOrigin(0.5).setDepth(14);
-
-    this.hintLabel = scene.add.text(x, y - 36, '▸ Press E', {
+    this.hintLabel = scene.add.text(x, y - 36, '> Press E / Click', {
       fontFamily:'Courier New', fontSize:'9px', color:'#ffff88',
     }).setOrigin(0.5).setDepth(15).setVisible(false);
+
+    // Shop indicator
+    const tradeSystem = scene.tradeSystem;
+    if (tradeSystem?.hasShop(this.npcData.role)) {
+      scene.add.text(x, y - 44, '[shop]', {
+        fontFamily:'Courier New', fontSize:'8px', color:'#ffdd44',
+      }).setOrigin(0.5).setDepth(14);
+    }
   }
 
   setHintVisible(v) { this.hintLabel.setVisible(v); }
@@ -38,16 +43,26 @@ export class NPC extends Phaser.Physics.Arcade.Sprite {
     this.hintLabel.setPosition(this.x, this.y - 36);
   }
 
-  async talk(playerInput, playerStats) {
-    const sys = `You are ${this.npcData.name}, ${this.npcData.role} in Aethoria.
-Background: ${this.npcData.bio}
-World: ${CONFIG.WORLD_LORE}
-Player: Level ${playerStats?.level || 1}, HP ${playerStats?.hp || 100}/${playerStats?.maxHp || 100}, Gold ${playerStats?.gold || 0}.
-Respond in character — 2 to 3 short sentences max. Give quests, lore, or trade hints. Never break character or mention AI.`;
+  async talk(playerInput, playerStats, worldEventName = null) {
+    const tradeHint = this.scene.tradeSystem?.hasShop(this.npcData.role)
+      ? ' You also run a small shop — mention it naturally if asked about goods.'
+      : '';
 
-    this.history.push({ role:'user', content: playerInput });
-    const reply = await AethoriaAI.chat(sys, this.history);
-    this.history.push({ role:'assistant', content: reply });
+    const eventHint = worldEventName
+      ? ` The world event "${worldEventName}" is happening right now — react to it naturally.`
+      : '';
+
+    const sys =
+`You are ${this.npcData.name}, ${this.npcData.role} in the fantasy realm of Aethoria.
+Background: ${this.npcData.bio}
+World lore: ${CONFIG.WORLD_LORE}
+Player status: Level ${playerStats?.level || 1}, HP ${playerStats?.hp || 100}/${playerStats?.maxHp || 100}, Gold ${playerStats?.gold || 0}, Class ${playerStats?.class || 'unknown'}.
+${tradeHint}${eventHint}
+Respond in character in 2-3 sentences max. Be vivid, helpful, lore-rich. Never mention AI or break character.`;
+
+    this.history.push({ role: 'user', content: playerInput });
+    const reply = await AethoriaAI.chat(sys, this.history, this.npcData.name);
+    this.history.push({ role: 'assistant', content: reply });
     if (this.history.length > 20) this.history = this.history.slice(-20);
     return reply;
   }
