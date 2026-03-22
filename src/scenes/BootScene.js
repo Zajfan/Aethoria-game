@@ -17,6 +17,7 @@ export class BootScene extends Phaser.Scene {
     this._makeTileset();
     this._makePlayer();
     this._makeEnemies();
+    this._makeBosses();
     this._makeNPCs();
     this._makeLoot();
     this._makeParticle();
@@ -168,6 +169,34 @@ export class BootScene extends Phaser.Scene {
     g.fillStyle(0xffee44); g.fillRect(6, 5, 2, 2);
     g.generateTexture('loot', 16, 16);
     g.destroy();
+  }
+
+  /* ── Bosses ──────────────────────────────────────────────── */
+  _makeBosses() {
+    Object.entries(CONFIG.BOSS_TYPES).forEach(([key, d]) => {
+      const g = this.make.graphics({ add: false });
+      const S = d.sz * 2 + 8;
+      g.fillStyle(d.color);
+      if (key === 'VOID_KNIGHT') {
+        g.fillRect(4, 4, S-8, S-8);
+        g.fillStyle(0x220044);
+        g.fillRect(8, 8, S-16, S-16);
+        g.fillStyle(0xcc44ff);
+        g.fillCircle(S/2, S/2, S/4);
+        g.fillStyle(0xff88ff);
+        g.fillCircle(S/2-5, S/2-4, 4);
+        g.fillCircle(S/2+5, S/2-4, 4);
+      } else {
+        g.fillRect(2, 6, S-4, S-10);
+        g.fillStyle(Phaser.Display.Color.ValueToColor(d.color).darken(40).color);
+        g.fillRect(6, 10, S-12, S-20);
+        g.fillStyle(0xffdd66);
+        g.fillCircle(S/2-7, S/2-4, 5);
+        g.fillCircle(S/2+7, S/2-4, 5);
+      }
+      g.generateTexture('boss_' + key, S, S);
+      g.destroy();
+    });
   }
 
   /* ── Particle ────────────────────────────────────────────── */

@@ -1,7 +1,8 @@
-import { BootScene  } from './scenes/BootScene.js';
-import { MenuScene  } from './scenes/MenuScene.js';
-import { WorldScene } from './scenes/WorldScene.js';
-import { UIScene    } from './scenes/UIScene.js';
+import { BootScene    } from './scenes/BootScene.js';
+import { MenuScene    } from './scenes/MenuScene.js';
+import { WorldScene   } from './scenes/WorldScene.js';
+import { UIScene      } from './scenes/UIScene.js';
+import { DungeonScene } from './scenes/DungeonScene.js';
 
 const cfg = {
   type: Phaser.AUTO,
@@ -13,7 +14,7 @@ const cfg = {
     default: 'arcade',
     arcade: { gravity:{ y:0 }, debug:false },
   },
-  scene: [BootScene, MenuScene, WorldScene, UIScene],
+  scene: [BootScene, MenuScene, WorldScene, UIScene, DungeonScene],
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,

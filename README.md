@@ -20,15 +20,21 @@ python3 -m http.server 8080
 
 ---
 
-## ✨ Features (v0.1)
+## ✨ Features (v0.2)
 
 | System | Description |
 |---|---|
 | 🌍 Procedural world | 120×120 tile map with biomes: water, grasslands, forest, stone, sand, dungeon |
 | ⚔️ Combat | Click-to-attack enemies. Auto-attack when in range. Level up, gain stats |
 | 🤖 AI NPCs | 5 unique characters powered by Claude API — dynamic dialogue and quest hints |
-| 🎒 Inventory | Pick up loot, equip weapons/armor, brew potions, craft items |
-| 📱 PWA | Installable on Android and iOS. Works offline (minus AI dialogue) |
+| 📜 Quest system | AI-generated quests from NPCs, kill/collect/explore tracking, XP rewards |
+| 🗺️ World map & minimap | Press M for full map, corner minimap always visible |
+| 🏰 Dungeons & bosses | Procedural room-corridor dungeon with phase-based boss AI (slam, enrage) |
+| 🌳 Skill trees | Warrior, Mage, Ranger classes with 3 unique skills each — upgrade per level |
+| 💾 Save system | Auto-saves to IndexedDB every 30s, restores on return from dungeon |
+| 🌅 Day/night cycle | 4-minute day cycle, dynamic weather (rain, fog, storm), HUD clock |
+| 🎒 Inventory & crafting | Pick up loot, equip weapons/armor, brew potions, craft items |
+| 📱 Mobile PWA | Installable on Android and iOS. Virtual joystick + action buttons |
 
 ---
 
@@ -38,9 +44,14 @@ python3 -m http.server 8080
 |---|---|
 | `W A S D` / Arrow keys | Move |
 | `E` | Talk to nearby NPC |
-| `I` | Open/close inventory |
+| `I` | Inventory |
+| `Q` | Quest journal |
+| `K` | Skill tree |
+| `M` | World map |
+| `ESC` | Close all panels |
 | Click enemy | Target and auto-attack |
 | Click ground | Move to location (touch friendly) |
+| Walk into dungeon portal | Enter dungeon |
 
 ---
 
