@@ -25,8 +25,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.inventory  = {};
     this.equipment  = { weapon: null, armor: null };
     this.attackCooldown = 0;
+    this.attackCooldownBase = CONFIG.PLAYER.ATTACK_COOLDOWN;
+    this.attackRange = CONFIG.PLAYER.ATTACK_RANGE;
     this.attackTarget   = null;
     this.moveTarget     = null;
+    this.playerClass    = null;
+    this.skills         = {};
+    this.slamCD         = 0;
+    this.fireballCD     = 0;
+    this.dodgeChance    = 0;
 
     // Input
     this.cursors = scene.input.keyboard.createCursorKeys();
@@ -86,9 +93,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.hpFill.setSize(34 * ratio, 5);
 
     // ── Auto-attack ────────────────────────────────────────
+    // Fireball (Mage skill)
+    if (this.fireballCD > 0) this.fireballCD = Math.max(0, this.fireballCD - delta);
+    if (this.slamCD     > 0) this.slamCD     = Math.max(0, this.slamCD - delta);
+
     if (this.attackTarget && !this.attackTarget.isDead && this.attackCooldown === 0) {
       const dist = Phaser.Math.Distance.Between(this.x, this.y, this.attackTarget.x, this.attackTarget.y);
-      if (dist <= CONFIG.PLAYER.ATTACK_RANGE) {
+      if (dist <= this.attackRange) {
         this._doAttack(this.attackTarget);
       } else {
         // Walk toward target
@@ -102,19 +113,50 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.moveTarget   = null;
   }
 
+  applyClass(classKey) {
+    const cls = CONFIG.CLASSES[classKey];
+    if (!cls) return;
+    this.playerClass = classKey;
+    this.stats.maxHp   += cls.bonuses.hp;
+    this.stats.hp       = this.stats.maxHp;
+    this.stats.attack  += cls.bonuses.attack;
+    this.stats.defense += cls.bonuses.defense;
+    this.stats.speed   += cls.bonuses.speed;
+    this.scene.events.emit('statsChanged', this.stats);
+  }
+
+  learnSkill(key) {
+    const sk = CONFIG.SKILLS[key];
+    if (!sk) return false;
+    const rank = (this.skills[key] || 0) + 1;
+    if (rank > sk.maxRank) return false;
+    this.skills[key] = rank;
+    try { sk.effect(this, rank); } catch(_) {}
+    this.scene.events.emit('skillLearned', key, rank);
+    return true;
+  }
+
   _doAttack(enemy) {
     if (this.attackCooldown > 0 || !enemy || enemy.isDead) return;
     const eqAtk = this.equipment.weapon ? (CONFIG.ITEMS[this.equipment.weapon]?.atk || 0) : 0;
     const dmg   = Math.max(1, this.stats.attack + eqAtk + Phaser.Math.Between(-3, 3) - enemy.stats.def);
     enemy.takeDamage(dmg, this);
-    this.attackCooldown = CONFIG.PLAYER.ATTACK_COOLDOWN;
+    this.attackCooldown = this.attackCooldownBase;
     this.setTint(0xffffff);
     this.scene.time.delayedCall(100, () => { if (this.active) this.clearTint(); });
   }
 
   takeDamage(amount) {
+    // Dodge (Ranger evasion skill)
+    if (this.dodgeChance > 0 && Math.random() < this.dodgeChance) {
+      this.scene.events.emit('damage', this.x, this.y, 'DODGE', '#44ffcc');
+      return 0;
+    }
+    // Mana shield (Mage) — reduce damage
+    const shieldRank  = this.skills?.MANA_SHIELD || 0;
+    const reduction   = shieldRank * 0.15;
     const eqDef = this.equipment.armor ? (CONFIG.ITEMS[this.equipment.armor]?.def || 0) : 0;
-    const actual = Math.max(1, amount - Math.floor((this.stats.defense + eqDef) / 2));
+    const actual = Math.max(1, Math.floor(amount * (1 - reduction)) - Math.floor((this.stats.defense + eqDef) / 2));
     this.stats.hp = Math.max(0, this.stats.hp - actual);
 
     this.setTint(0xff4444);

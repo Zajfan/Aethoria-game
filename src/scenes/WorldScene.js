@@ -1,11 +1,19 @@
-import { CONFIG    } from '../config.js';
-import { WorldGen  } from '../systems/WorldGen.js';
-import { Player    } from '../entities/Player.js';
-import { Enemy     } from '../entities/Enemy.js';
-import { NPC       } from '../entities/NPC.js';
+import { CONFIG       } from '../config.js';
+import { WorldGen    } from '../systems/WorldGen.js';
+import { QuestSystem } from '../systems/QuestSystem.js';
+import { SaveSystem  } from '../systems/SaveSystem.js';
+import { DayNight    } from '../systems/DayNight.js';
+import { Player      } from '../entities/Player.js';
+import { Enemy       } from '../entities/Enemy.js';
+import { NPC         } from '../entities/NPC.js';
 
 export class WorldScene extends Phaser.Scene {
   constructor() { super('WorldScene'); }
+
+  init(data) {
+    this._dungeonReturn = data?.loadFromDungeon || false;
+    this._savedPlayer   = data?.savedPlayer     || null;
+  }
 
   create() {
     // ── World generation ────────────────────────────────────
@@ -21,7 +29,25 @@ export class WorldScene extends Phaser.Scene {
     const cx = Math.floor(CONFIG.MAP_WIDTH  / 2) * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2;
     const cy = Math.floor(CONFIG.MAP_HEIGHT / 2) * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2;
     this.player = new Player(this, cx, cy);
+    // Restore from dungeon return or saved game
+    if (this._savedPlayer) {
+      Object.assign(this.player.stats, this._savedPlayer.stats || {});
+      this.player.inventory   = { ...(this._savedPlayer.inventory || {}) };
+      this.player.equipment   = { ...(this._savedPlayer.equipment || {}) };
+      this.player.skills      = { ...(this._savedPlayer.skills    || {}) };
+      this.player.playerClass = this._savedPlayer.playerClass || null;
+    }
+
     this.physics.add.collider(this.player, this.groundLayer);
+
+    // Systems
+    this.questSystem = new QuestSystem(this);
+    this.saveSystem  = new SaveSystem();
+    this.saveSystem.init().catch(()=>{});
+    this.dayNight    = new DayNight(this);
+
+    // Auto-save every 30 seconds
+    this.time.addEvent({ delay:30000, loop:true, callback: () => this._doSave() });
 
     // ── Enemies ─────────────────────────────────────────────
     this._spawnEnemies();
@@ -134,6 +160,12 @@ export class WorldScene extends Phaser.Scene {
       }).setDepth(65).setOrigin(0.5);
       this.tweens.add({ targets:t, y:this.player.y-80, alpha:0, duration:2200, onComplete:()=>t.destroy() });
     });
+
+    this.events.on('questAdded',    q   => this._onQuestAdded(q));
+    this.events.on('questComplete', q   => this._onQuestComplete(q));
+    this.events.on('questProgress', q   => { const ui = this.scene.get('UIScene'); if(ui) ui.refreshQuests(this.questSystem); });
+    this.events.on('weatherChanged',w   => { const ui = this.scene.get('UIScene'); if(ui) ui._logMsg('Weather: '+w,'#aaccff'); });
+    this.events.on('bossKilled',    n   => { this.questSystem?.onKill(n); });
 
     this.events.on('playerDead', () => {
       this.cameras.main.shake(500, 0.012);

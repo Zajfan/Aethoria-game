@@ -67,4 +67,69 @@ The village of Hearthmoor is the last beacon of light. Heroes rise to gather the
 Magic flows through leylines beneath the earth — those attuned to them gain power beyond mortal reckoning.`,
 
   CLAUDE_MODEL: 'claude-sonnet-4-20250514',
+
+  CLASSES: {
+    WARRIOR: {
+      name: 'Warrior', color: 0xff6633,
+      desc: 'Unbreakable frontliner. High HP, melee power.',
+      bonuses: { hp: 40, attack: 4, defense: 6, speed: -10 },
+      skills: ['TOUGHNESS', 'SLAM', 'IRON_SKIN'],
+    },
+    MAGE: {
+      name: 'Mage', color: 0x8866ff,
+      desc: 'Master of arcane destruction. Ranged, fragile.',
+      bonuses: { hp: -10, attack: 8, defense: -2, speed: 5 },
+      skills: ['FIREBALL', 'MANA_SHIELD', 'ARCANE_POWER'],
+    },
+    RANGER: {
+      name: 'Ranger', color: 0x44cc88,
+      desc: 'Swift hunter. Attack speed and evasion.',
+      bonuses: { hp: 10, attack: 3, defense: 2, speed: 25 },
+      skills: ['SWIFT_SHOT', 'EVASION', 'EAGLE_EYE'],
+    },
+  },
+
+  SKILLS: {
+    // Warrior
+    TOUGHNESS:    { name:'Toughness',    class:'WARRIOR', desc:'Max HP +25 per rank', maxRank:3, effect:(p,r)=>{ p.stats.maxHp+=25; p.stats.hp=Math.min(p.stats.hp+25,p.stats.maxHp); } },
+    SLAM:         { name:'Slam',         class:'WARRIOR', desc:'AoE attack every 8s', maxRank:3, effect:()=>{} },
+    IRON_SKIN:    { name:'Iron Skin',    class:'WARRIOR', desc:'Defense +4 per rank',  maxRank:3, effect:(p,r)=>{ p.stats.defense+=4; } },
+    // Mage
+    FIREBALL:     { name:'Fireball',     class:'MAGE',    desc:'Ranged attack 180px',  maxRank:3, effect:()=>{} },
+    MANA_SHIELD:  { name:'Mana Shield',  class:'MAGE',    desc:'15% dmg reduction/rank', maxRank:3, effect:()=>{} },
+    ARCANE_POWER: { name:'Arcane Power', class:'MAGE',    desc:'Attack +6 per rank',   maxRank:3, effect:(p,r)=>{ p.stats.attack+=6; } },
+    // Ranger
+    SWIFT_SHOT:   { name:'Swift Shot',   class:'RANGER',  desc:'Atk speed +15% / rank', maxRank:3, effect:(p,r)=>{ p.attackCooldownBase = Math.max(300, (p.attackCooldownBase||850) - 130); } },
+    EVASION:      { name:'Evasion',      class:'RANGER',  desc:'20% dodge chance/rank', maxRank:3, effect:()=>{} },
+    EAGLE_EYE:    { name:'Eagle Eye',    class:'RANGER',  desc:'Attack range +20/rank', maxRank:3, effect:(p,r)=>{ p.attackRange = (p.attackRange||54) + 20; } },
+  },
+
+  BOSS_TYPES: {
+    VOID_KNIGHT: {
+      name:'Void Knight', hp:600, atk:28, def:12, xp:500, spd:44, color:0x6600aa, sz:28,
+      loot:['gem','gem','sword','gold'],
+      phases:[
+        { threshold:0.66, msg:'The Void Knight awakens!' },
+        { threshold:0.33, msg:'Void Knight enrages — darkness swells!' },
+      ],
+    },
+    STONE_COLOSSUS: {
+      name:'Stone Colossus', hp:900, atk:36, def:20, xp:750, spd:28, color:0x887755, sz:36,
+      loot:['gem','gem','club','shield','gold'],
+      phases:[
+        { threshold:0.5, msg:'The Colossus cracks — and grows faster!' },
+      ],
+    },
+  },
+
+  QUEST_TEMPLATES: [
+    { type:'KILL',    title:'Cull the {{enemy}}s', desc:'Slay {{count}} {{enemy}}s threatening the village.', target:'enemy', count:[3,5,8] },
+    { type:'COLLECT', title:'Gather {{item}}',     desc:'Bring {{count}} {{item}} to Hearthmoor.',            target:'item',  count:[2,4]   },
+    { type:'EXPLORE', title:'Scout the Ruins',     desc:'Reach the dungeon and return alive.',                target:'tile',  count:[1]     },
+    { type:'TALK',    title:'A Message for {{npc}}', desc:'Deliver a message to {{npc}} in Hearthmoor.',     target:'npc',   count:[1]     },
+  ],
+
+  WEATHER_TYPES: ['CLEAR','CLEAR','CLEAR','RAIN','FOG','STORM'],
+
+  DAY_CYCLE_SECONDS: 240,
 };
