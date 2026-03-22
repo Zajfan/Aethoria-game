@@ -6,6 +6,12 @@ import { DungeonScene } from './scenes/DungeonScene.js';
 
 const cfg = {
   type: Phaser.AUTO,
+  callbacks: {
+    postBoot: (game) => {
+      // Surface any errors Phaser swallows during scene boot
+      game.events.on('boot', () => console.log('Phaser boot OK'));
+    }
+  },
   width:  window.innerWidth,
   height: window.innerHeight,
   backgroundColor: '#0a0a0f',
