@@ -10,7 +10,7 @@ const ASSETS = [
   '/src/systems/SaveSystem.js','/src/systems/DayNight.js',
   '/src/systems/AudioSystem.js','/src/systems/TradeSystem.js',
   '/src/systems/WorldEvents.js','/src/systems/AchievementSystem.js',
-  '/src/systems/AIMemory.js','/src/ai/AethoriaAI.js',
+  '/src/systems/AIMemory.js','/src/systems/WorldObjects.js','/src/ai/AethoriaAI.js',
   '/assets/tileset.png','/assets/player.png','/assets/loot.png','/assets/particle.png',
   '/assets/enemy_GOBLIN.png','/assets/enemy_WOLF.png',
   '/assets/enemy_SKELETON.png','/assets/enemy_TROLL.png',

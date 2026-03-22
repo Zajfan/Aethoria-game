@@ -92,13 +92,22 @@ export class UIScene extends Phaser.Scene {
   _updateStats(s) {
     const hp = Math.max(0, s.hp / s.maxHp);
     const xp = s.xp / s.xpNeeded;
-    this.hpFill.setSize(130 * hp, 10);
+    this.hpFill.setSize(160 * hp, 11);
+    // Color-code HP bar: red→orange→green
+    const hpColor = hp > 0.6 ? 0x22cc44 : hp > 0.3 ? 0xdd8800 : 0xdd2222;
+    this.hpFill.setFillStyle(hpColor);
     this.hpTxt.setText(s.hp + '/' + s.maxHp);
-    this.xpFill.setSize(130 * xp, 6);
+    this.xpFill.setSize(160 * xp, 7);
     this.lvTxt.setText('Lv.' + s.level);
     this.gldTxt.setText((s.gold || 0) + 'g');
     const p = this._activePlayer;
     if (p?.playerClass) this.clsTxt.setText('[' + (CONFIG.CLASSES[p.playerClass]?.name || '') + ']');
+
+    // Quest tracker: show first active quest
+    if (this.questTracker && this.worldScene?.questSystem) {
+      const q = this.worldScene.questSystem.active[0];
+      this.questTracker.setText(q ? q.title + ' ' + q.progress + '/' + q.needed : '');
+    }
   }
 
   _logMsg(msg, color = '#888888') {

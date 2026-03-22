@@ -1,11 +1,11 @@
 import { CONFIG } from '../config.js';
 
 const SHOP_STOCK = {
-  'Village Elder': { items: ['herb', 'potion'],          mult: 0.9  },
-  'Blacksmith':    { items: ['sword', 'shield'],         mult: 1.2  },
-  'Herbalist':     { items: ['herb', 'herb', 'potion'],  mult: 0.85 },
-  'Merchant':      { items: ['gem', 'potion', 'sword', 'shield', 'herb'], mult: 1.5 },
-  'Guard Captain': { items: ['sword', 'shield'],         mult: 1.1  },
+  'Village Elder': { items: ['herb','potion','scroll'],                                  mult:0.9  },
+  'Blacksmith':    { items: ['sword','axe','shield','chainmail','leather'],              mult:1.15 },
+  'Herbalist':     { items: ['herb','herb','potion','elixir'],                           mult:0.82 },
+  'Merchant':      { items: ['gem','potion','elixir','sword','bow','staff','shield','robes'], mult:1.45 },
+  'Guard Captain': { items: ['sword','shield','chainmail','bow'],                        mult:1.05 },
 };
 
 export class TradeSystem {

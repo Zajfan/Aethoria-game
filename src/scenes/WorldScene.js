@@ -72,14 +72,35 @@ export class WorldScene extends Phaser.Scene {
     this._spawnEnemies();
     this._spawnNPCs();
     this._buildDungeonPortal();
+
+    // World objects (chests, signs, campfires, well)
+    this.worldObjects = new WorldObjects(this);
+    this.worldObjects.spawnChests(this.mapData, 14);
+    const T = CONFIG.TILE_SIZE;
+    const mx = Math.floor(CONFIG.MAP_WIDTH/2), my = Math.floor(CONFIG.MAP_HEIGHT/2);
+    // Signs around town
+    this.worldObjects.spawnSigns([
+      { x:(mx-6)*T, y:(my+2)*T, text:'Hearthmoor — the last beacon. Enter with hope.' },
+      { x:(mx+5)*T, y:(my-2)*T, text:'Eastern Road: Dungeon 2km. Travel at own peril.' },
+      { x:(mx-2)*T, y:(my+6)*T, text:'Mira's herbs are the finest in three kingdoms.' },
+    ]);
+    // Campfires in town
+    this.worldObjects.spawnCampfire((mx+2)*T, (my+2)*T);
+    this.worldObjects.spawnCampfire((mx-3)*T, (my-1)*T);
+    // Well in town center
+    this.worldObjects.spawnWell(mx*T, (my-2)*T);
     this.lootGroup = this.add.group();
 
     // Camera
     this.cameras.main
-      .startFollow(this.player, true, 0.09, 0.09)
+      .startFollow(this.player, true, 0.08, 0.08)
       .setBounds(0, 0, WW, WH)
-      .setZoom(1.6)
+      .setZoom(1.8)
       .fadeIn(900, 0, 0, 0);
+    this._baseZoom    = 1.8;
+    this._combatZoom  = 2.1;
+    this._inCombat    = false;
+    this._combatTimer = 0;
 
     // Input
     this.eKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
@@ -375,6 +396,25 @@ export class WorldScene extends Phaser.Scene {
     if (this._portalPos && !this._portalUsed) {
       if (Phaser.Math.Distance.Between(this.player.x, this.player.y, this._portalPos.x, this._portalPos.y) < 32)
         this._enterDungeon();
+    }
+
+    // Combat zoom
+    const nearEnemy = this.enemies.some(e => !e.isDead &&
+      Phaser.Math.Distance.Between(this.player.x, this.player.y, e.x, e.y) < 100);
+    if (nearEnemy) {
+      this._combatTimer = 2200;
+      if (!this._inCombat) {
+        this._inCombat = true;
+        this.tweens.add({ targets: this.cameras.main,
+          zoom: this._combatZoom, duration: 400, ease: 'Sine.Out' });
+      }
+    } else if (this._combatTimer > 0) {
+      this._combatTimer -= delta;
+      if (this._combatTimer <= 0) {
+        this._inCombat = false;
+        this.tweens.add({ targets: this.cameras.main,
+          zoom: this._baseZoom, duration: 700, ease: 'Sine.InOut' });
+      }
     }
 
     // Quest kill tracking + achievements + audio + VFX on kill
