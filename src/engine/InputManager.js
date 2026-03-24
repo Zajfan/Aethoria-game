@@ -100,6 +100,12 @@ export class InputManager {
    * @param {HTMLCanvasElement} canvas
    */
   attach(canvas) {
+    if (!(canvas instanceof EventTarget)) {
+      throw new TypeError(
+        `[InputManager] attach() requires a valid HTMLCanvasElement; received ${canvas}. ` +
+        `Ensure the renderer is fully initialized before calling attach().`
+      );
+    }
     this._canvas = canvas;
 
     window.addEventListener('keydown',   this._onKeyDown,   { passive: false });

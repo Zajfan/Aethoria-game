@@ -109,19 +109,19 @@ eventBus.on('exitDungeon',  ({ savedPlayer }) => exitDungeon(savedPlayer));
 
 // ── Menu ──────────────────────────────────────────────────────────────────────
 const menuEl     = document.getElementById('menu-screen');
-const beginBtn   = document.getElementById('menu-begin');
-const continueBtn= document.getElementById('menu-continue');
-const apiBtn     = document.getElementById('menu-api');
-const classCards = document.querySelectorAll('.class-card');
+const beginBtn   = document.getElementById('btn-start');
+const continueBtn= document.getElementById('btn-continue');
+const apiBtn     = document.getElementById('btn-api');
+const classCards = document.querySelectorAll('.class-box');
 let   selectedClass = 'WARRIOR';
 
 classCards.forEach(card => {
   card.addEventListener('click', () => {
     classCards.forEach(c => c.classList.remove('selected'));
     card.classList.add('selected');
-    selectedClass = card.dataset.cls;
+    selectedClass = card.dataset.class;
   });
-  if (card.dataset.cls === selectedClass) card.classList.add('selected');
+  if (card.dataset.class === selectedClass) card.classList.add('selected');
 });
 
 if (beginBtn) {
@@ -150,6 +150,11 @@ if (apiBtn) {
 async function init() {
   // Attach input to the canvas once it exists
   const canvas = renderer.canvas;
+  if (!canvas) {
+    throw new Error(
+      '[Aethoria] Canvas is unavailable — WebGL may not be supported in this browser.'
+    );
+  }
   inputManager.attach(canvas);
 
   // Try to load a save
