@@ -250,29 +250,44 @@ export class NPC3D extends Entity3D {
    * @param {string}      playerInput
    * @param {object}      playerStats
    * @param {string|null} worldEventName
+   * @param {object|null} worldCtx       Full world context from GameScene._buildWorldContext()
    * @returns {Promise<string>}
    */
-  async talk(playerInput, playerStats, worldEventName = null) {
+  async talk(playerInput, playerStats, worldEventName = null, worldCtx = null) {
     const tradeHint = this.npcData.role.includes('Merchant')
       ? ' You also run a small shop — mention it naturally if asked about goods.'
-      : '';
-    const eventHint = worldEventName
-      ? ` The world event "${worldEventName}" is happening right now — react to it naturally.`
       : '';
 
     const sys =
 `You are ${this.npcData.name}, ${this.npcData.role} in the fantasy realm of Aethoria.
 Background: ${this.npcData.bio}
 World lore: ${CONFIG.WORLD_LORE}
-Player status: Level ${playerStats?.level || 1}, HP ${playerStats?.hp || 100}/${playerStats?.maxHp || 100}, Gold ${playerStats?.gold || 0}, Class ${playerStats?.class || 'unknown'}.
-${tradeHint}${eventHint}
-Respond in character in 2-3 sentences max. Be vivid, helpful, lore-rich. Never mention AI or break character.`;
+Player: Level ${playerStats?.level || 1} ${playerStats?.class || ''}, HP ${playerStats?.hp || 100}/${playerStats?.maxHp || 100}, Gold ${playerStats?.gold || 0}g.
+${tradeHint}`;
 
     this.history.push({ role: 'user', content: playerInput });
-    const reply = await AethoriaAI.chat(sys, this.history, this.npcData.name);
+    // v0.4 — pass full worldCtx and NPC name for persona + memory injection
+    const reply = await AethoriaAI.chat(sys, this.history, this.npcData.name, worldCtx);
     this.history.push({ role: 'assistant', content: reply });
     if (this.history.length > 20) this.history = this.history.slice(-20);
     return reply;
+  }
+
+  /**
+   * Generate and return a greeting when player walks into range (called once per visit).
+   * @param {object} playerStats
+   * @param {object|null} worldCtx
+   * @returns {Promise<string|null>}
+   */
+  async greet(playerStats, worldCtx = null) {
+    const playerState = {
+      level:   playerStats?.level ?? 1,
+      class:   playerStats?.class ?? null,
+      quests:  [],
+      lastVisitAgo: this._lastVisit ? (Date.now() - this._lastVisit) / 1000 : null,
+    };
+    this._lastVisit = Date.now();
+    return AethoriaAI.generateGreeting(this.npcData.name, playerState, worldCtx);
   }
 
   // ── Cleanup ───────────────────────────────────────────────────────────────

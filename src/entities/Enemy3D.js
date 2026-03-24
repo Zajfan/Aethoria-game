@@ -302,6 +302,15 @@ export class Enemy3D extends Entity3D {
     this.state  = S.DEAD;
     this.velocity.set(0, 0, 0);
 
+    // v0.4 — death explosion particle effect
+    const deathColor = this._data.color ?? 0xff4400;
+    this.eventBus.emit('enemyDeath', {
+      x: this.position.x, y: 0.5, z: this.position.z, color: deathColor,
+    });
+
+    // Track kills for quest and faction systems
+    this.eventBus.emit('enemyKilled', { typeKey: this.typeKey, name: this._data.name });
+
     // Loot drops — emit events, let the scene handle spawn
     for (const itemKey of (this._data.loot || [])) {
       if (Math.random() > 0.38) {
