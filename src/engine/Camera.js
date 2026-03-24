@@ -88,12 +88,16 @@ class Camera {
    * @param {import('./InputManager.js').InputManager} input
    */
   update(delta, input) {
-    // --- Yaw rotation (Q / E) --------------------------------------------
+    // --- Yaw rotation (Q / E keys or touch right-drag) -------------------
     if (input.isHeld(Keys.Q)) {
       this.yaw -= ROTATE_SPEED * delta;
     }
     if (input.isHeld(Keys.E)) {
       this.yaw += ROTATE_SPEED * delta;
+    }
+    // Touch-based camera rotation (right-side drag on mobile)
+    if (input.touchCameraYawDelta !== 0) {
+      this.yaw += input.touchCameraYawDelta;
     }
     // Keep yaw in [-π, π] for tidiness
     this.yaw = ((this.yaw + Math.PI) % (Math.PI * 2)) - Math.PI;

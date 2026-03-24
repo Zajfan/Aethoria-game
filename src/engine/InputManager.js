@@ -63,7 +63,7 @@ export class InputManager {
      * Populated by touch events when the stick zone is active.
      */
     this.joystick = { x: 0, y: 0 };
-    /** Raw active touch points keyed by identifier @type {Map<number,{x,y}>} */
+    /** Raw active touch points keyed by identifier @type {Map<number,{x,y,startX,startY,startTime}>} */
     this._touches = new Map();
     /** Starting position of a joystick-zone touch */
     this._joystickOrigin = null;
@@ -73,6 +73,19 @@ export class InputManager {
     this.joystickZoneRatio = 0.35;
     /** Radius in pixels before joystick reaches max deflection */
     this.joystickRadius = 60;
+
+    // ---- Touch camera rotation -------------------------------------------
+    /**
+     * Accumulated yaw delta (radians) from right-side touch drag since last update().
+     * Camera.js reads this each frame and Camera.update() indirectly clears it via input.update().
+     */
+    this.touchCameraYawDelta = 0;
+    /** Sensitivity for touch-drag camera rotation (radians per pixel). */
+    this.touchCameraSpeed = 0.007;
+    /** Touch identifier being used for camera rotation */
+    this._cameraTouchId = null;
+    /** Last screen position of the camera rotation touch */
+    this._cameraTouchLast = null;
 
     // ---- Misc ------------------------------------------------------------
     this._canvas = null; // set by attach()
@@ -157,6 +170,7 @@ export class InputManager {
     this.mousePressed.clear();
     this.mouseReleased.clear();
     this.wheelDelta = 0;
+    this.touchCameraYawDelta = 0;
   }
 
   // -------------------------------------------------------------------------
@@ -207,6 +221,16 @@ export class InputManager {
   isMouseHeld(btn)     { return this.mouseButtons.has(btn); }
   isMousePressed(btn)  { return this.mousePressed.has(btn); }
   isMouseReleased(btn) { return this.mouseReleased.has(btn); }
+
+  // -------------------------------------------------------------------------
+  // Touch state query helpers
+  // -------------------------------------------------------------------------
+
+  /** True while a joystick touch is active. */
+  get joystickIsActive() { return this._joystickTouchId !== null; }
+
+  /** Screen-space origin of the current joystick touch, or null. */
+  get joystickOrigin()   { return this._joystickOrigin; }
 
   // -------------------------------------------------------------------------
   // Private event handlers — Keyboard
@@ -276,17 +300,26 @@ export class InputManager {
   _onTouchStart(e) {
     e.preventDefault();
     for (const t of e.changedTouches) {
-      this._touches.set(t.identifier, { x: t.clientX, y: t.clientY });
+      // Record full start state for tap detection
+      this._touches.set(t.identifier, {
+        x: t.clientX, y: t.clientY,
+        startX: t.clientX, startY: t.clientY,
+        startTime: Date.now(),
+      });
 
-      // Determine if this touch is in the joystick zone (left side of screen)
-      const isJoystickZone =
-        this._joystickTouchId === null &&
-        t.clientX < window.innerWidth * this.joystickZoneRatio;
+      const isLeftZone = t.clientX < window.innerWidth * this.joystickZoneRatio;
 
-      if (isJoystickZone) {
+      // Left zone → virtual joystick
+      if (this._joystickTouchId === null && isLeftZone) {
         this._joystickTouchId = t.identifier;
         this._joystickOrigin  = { x: t.clientX, y: t.clientY };
         this.joystick = { x: 0, y: 0 };
+      }
+
+      // Right zone → camera rotation (any non-left touch)
+      if (this._cameraTouchId === null && !isLeftZone) {
+        this._cameraTouchId   = t.identifier;
+        this._cameraTouchLast = { x: t.clientX, y: t.clientY };
       }
     }
   }
@@ -294,7 +327,14 @@ export class InputManager {
   _onTouchMove(e) {
     e.preventDefault();
     for (const t of e.changedTouches) {
-      this._touches.set(t.identifier, { x: t.clientX, y: t.clientY });
+      // Preserve start info while updating current position.
+      // If (rarely) touchmove fires before touchstart, use a stale startTime
+      // so tap detection won't falsely trigger.
+      const existing = this._touches.get(t.identifier);
+      this._touches.set(t.identifier, {
+        ...(existing || { startX: t.clientX, startY: t.clientY, startTime: 0 }),
+        x: t.clientX, y: t.clientY,
+      });
 
       if (t.identifier === this._joystickTouchId && this._joystickOrigin) {
         const dx = t.clientX - this._joystickOrigin.x;
@@ -309,18 +349,46 @@ export class InputManager {
           y:  Math.sin(angle) * norm, // positive Y = down (matches keyboard)
         };
       }
+
+      // Camera rotation: horizontal drag on right-zone touch
+      if (t.identifier === this._cameraTouchId && this._cameraTouchLast) {
+        const dx = t.clientX - this._cameraTouchLast.x;
+        this.touchCameraYawDelta += dx * this.touchCameraSpeed;
+        this._cameraTouchLast.x = t.clientX;
+        this._cameraTouchLast.y = t.clientY;
+      }
     }
   }
 
   _onTouchEnd(e) {
     e.preventDefault();
     for (const t of e.changedTouches) {
+      const data = this._touches.get(t.identifier);
+
+      // Tap detection: short, small-movement touches that are NOT the joystick
+      // fire a synthetic click so attack/loot/interact still works on touch.
+      if (data && this._canvas && t.identifier !== this._joystickTouchId) {
+        const dist     = Math.hypot(t.clientX - data.startX, t.clientY - data.startY);
+        const duration = Date.now() - data.startTime;
+        if (dist < 12 && duration < 350) {
+          this._canvas.dispatchEvent(new MouseEvent('click', {
+            bubbles: true, cancelable: true, view: window,
+            clientX: t.clientX, clientY: t.clientY,
+          }));
+        }
+      }
+
       this._touches.delete(t.identifier);
 
       if (t.identifier === this._joystickTouchId) {
         this._joystickTouchId = null;
         this._joystickOrigin  = null;
         this.joystick = { x: 0, y: 0 };
+      }
+
+      if (t.identifier === this._cameraTouchId) {
+        this._cameraTouchId   = null;
+        this._cameraTouchLast = null;
       }
     }
   }

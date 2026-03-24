@@ -10,7 +10,7 @@
     *{margin:0;padding:0;box-sizing:border-box}
     body{background:#0a0a0f;overflow:hidden;width:100vw;height:100vh;font-family:"Courier New",monospace}
     #game-container{position:absolute;inset:0;width:100%;height:100%}
-    #game-container canvas{display:block;width:100%!important;height:100%!important}
+    #game-container canvas{display:block;width:100%!important;height:100%!important;touch-action:none}
     /* UI overlay: click-through by default; children may override */
     #ui-overlay{position:fixed;inset:0;pointer-events:none;z-index:10}
     #ui-overlay .interactive{pointer-events:auto}
@@ -108,8 +108,10 @@
   </div>
 
   <div id="menu-controls">
-    WASD / Arrow Keys — Move &nbsp;|&nbsp; Left-drag — Rotate Camera &nbsp;|&nbsp;
+    WASD / Arrow Keys — Move &nbsp;|&nbsp; Q/E — Rotate Camera &nbsp;|&nbsp;
     Scroll — Zoom &nbsp;|&nbsp; E — Interact &nbsp;|&nbsp; I — Inventory &nbsp;|&nbsp; M — Map
+    <br>
+    <span style="color:#777;font-size:9px">📱 Touch: Left-drag — Move &nbsp;|&nbsp; Right-drag — Rotate Camera &nbsp;|&nbsp; Tap — Attack/Interact</span>
   </div>
 </div>
 
