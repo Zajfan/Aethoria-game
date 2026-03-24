@@ -859,7 +859,7 @@ export class HUD {
         if (!canCraft) return;
         Object.entries(recipe.materials).forEach(([k, v]) => this._player.removeItem(k, v));
         this._player.addItem(recipe.result);
-        this.eventBus?.emit('achievement', { name: 'Artisan', desc: 'Crafted an item' });
+        this.eventBus?.emit('craftedItem', { result: recipe.result });
         this._renderCrafting();
         this.logMsg('Crafted: ' + (info?.name || recipe.result), '#88ff88');
       };

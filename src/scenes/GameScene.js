@@ -540,6 +540,15 @@ export class GameScene {
     this.saveSystem    = new SaveSystem();
     this.saveSystem.init().catch(() => {});
 
+    // Auto-save every 60 s; _saveInterval is cleared in dispose().
+    // Errors are intentionally suppressed: a save failure must never interrupt gameplay.
+    const AUTO_SAVE_MS = 60_000;
+    this._saveInterval = setInterval(() => {
+      this._doSave().then(() => {
+        this.hud?.logMsg('Game auto-saved.', '#888899');
+      }).catch(() => {});
+    }, AUTO_SAVE_MS);
+
     this.dayNight = new DayNight3D(this.eventBus, this.scene3d);
     this.dayNight.setWorld3D(this.world3d);
     this._sceneProxy.dayNight = this.dayNight;
@@ -564,8 +573,9 @@ export class GameScene {
     this.shardSystem.spawnShards(this.mapData);
 
     // Restore saved state
-    if (savedPlayerData?.quests) this.questSystem.deserialize(savedPlayerData.quests);
-    if (savedPlayerData?.story)  this.storySystem.deserialize(savedPlayerData.story);
+    if (savedPlayerData?.quests)       this.questSystem.deserialize(savedPlayerData.quests);
+    if (savedPlayerData?.story)        this.storySystem.deserialize(savedPlayerData.story);
+    if (savedPlayerData?.achievements) this.achievements.deserialize(savedPlayerData.achievements);
     if (savedPlayerData?.shards) {
       const ids = Object.entries(savedPlayerData.shards)
         .filter(([, v]) => v).map(([k]) => Number(k));
@@ -755,6 +765,10 @@ export class GameScene {
     bus.on('achievement', ach => {
       this.audio?.sfxAchieve();
       this.hud?.showAchievement(ach);
+    });
+
+    bus.on('craftedItem', () => {
+      this.achievements?.track('crafts');
     });
 
     bus.on('worldEvent', ev => {
@@ -1052,14 +1066,15 @@ export class GameScene {
   async _doSave() {
     try {
       await this.saveSystem?.save({
-        stats:       { ...this.player.stats },
-        inventory:   { ...this.player.inventory },
-        equipment:   { ...this.player.equipment },
-        skills:      { ...(this.player.skills || {}) },
-        playerClass: this.player.playerClass,
-        quests:      this.questSystem?.serialize(),
-        story:       this.storySystem?.serialize(),
-        shards:      this.storySystem?.shardFlags || {},
+        stats:        { ...this.player.stats },
+        inventory:    { ...this.player.inventory },
+        equipment:    { ...this.player.equipment },
+        skills:       { ...(this.player.skills || {}) },
+        playerClass:  this.player.playerClass,
+        quests:       this.questSystem?.serialize(),
+        story:        this.storySystem?.serialize(),
+        shards:       this.storySystem?.shardFlags || {},
+        achievements: this.achievements?.serialize() || {},
       });
     } catch (_) {}
   }

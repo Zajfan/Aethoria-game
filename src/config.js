@@ -141,7 +141,7 @@ export const CONFIG = {
     // Ranger
     SWIFT_SHOT:   { name:'Swift Shot',   class:'RANGER',  desc:'Atk speed +15% / rank', maxRank:3, effect:(p,r)=>{ p.attackCooldownBase = Math.max(300, (p.attackCooldownBase||850) - 130); } },
     EVASION:      { name:'Evasion',      class:'RANGER',  desc:'20% dodge chance/rank', maxRank:3, effect:(p,r)=>{ p.dodgeChance = r * 0.20; } },
-    EAGLE_EYE:    { name:'Eagle Eye',    class:'RANGER',  desc:'Attack range +20/rank', maxRank:3, effect:(p,r)=>{ p.attackRange = (p.attackRange||54) + 20; } },
+    EAGLE_EYE:    { name:'Eagle Eye',    class:'RANGER',  desc:'Attack range +20/rank', maxRank:3, effect:(p,r)=>{ p.attackRange = CONFIG.PLAYER.ATTACK_RANGE / 16 + r * 1.25; } },
   },
 
   BOSS_TYPES: {
