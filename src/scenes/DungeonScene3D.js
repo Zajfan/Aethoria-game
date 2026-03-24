@@ -422,6 +422,21 @@ export class DungeonScene3D {
       this.hud?.logMsg('You have fallen in the dungeon…', '#ff4444');
       setTimeout(() => this._exitDungeon(), 1600);
     });
+
+    bus.on('playerSlam', ({ x, z, range, dmg }) => {
+      const origin = new THREE.Vector3(x, 0, z);
+      [...this.enemies, ...this.bosses]
+        .filter(e => !e.isDead && e.position.distanceTo(origin) <= range)
+        .forEach(e => e.takeDamage(dmg, this.player));
+      this.hud?.logMsg('⚔ SLAM!', '#ff9944');
+    });
+
+    bus.on('playerFireball', ({ target, dmg }) => {
+      if (!target.isDead) {
+        target.takeDamage(dmg, this.player);
+        this.hud?.logMsg('🔥 Fireball! -' + dmg, '#ff6633');
+      }
+    });
   }
 
   // ── Loot ─────────────────────────────────────────────────────────────────
