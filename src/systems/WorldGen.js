@@ -3,7 +3,7 @@ import { CONFIG } from '../config.js';
 export class WorldGen {
   generate(W, H) {
     const T   = CONFIG.TILES;
-    const seed = Math.random() * 999;
+    const seed = CONFIG.WORLD_SEED;
     const data = [];
 
     for (let y = 0; y < H; y++) {
@@ -74,7 +74,7 @@ export class WorldGen {
       const y = Math.round(y1 + (y2-y1)*t);
       if (y >= 0 && y < data.length && x >= 0 && x < data[0].length) {
         data[y][x] = tileType;
-        if (Math.random() > 0.55 && y+1 < data.length) data[y+1][x] = tileType;
+        if (this._noise(x, y + 0.5) > 0.55 && y+1 < data.length) data[y+1][x] = tileType;
       }
     }
   }
