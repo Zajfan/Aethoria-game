@@ -97,6 +97,9 @@ export class Player3D extends Entity3D {
     // Cached tile size in world units — the 3D world maps 1 tile to exactly 1 world unit.
     this._tileSize = CONFIG.WORLD_3D.TILE_SIZE;
 
+    // Collision radius for character-vs-NPC push-away (half torso width ≈ 0.30)
+    this._collisionRadius = 0.30;
+
     // ── Build ──────────────────────────────────────────────────────────────
     this._buildModel();
     this.addToScene(scene3d);
@@ -168,7 +171,7 @@ export class Player3D extends Entity3D {
   // ── Update ────────────────────────────────────────────────────────────────
 
   /** @param {number} delta  Seconds since last frame */
-  update(delta) {
+  update(delta, npcs) {
     if (this.isDead) return;
 
     const deltaMs = delta * 1000;
@@ -243,7 +246,7 @@ export class Player3D extends Entity3D {
     }
 
     // Collision + position update
-    this._applyVelocityWithCollision(delta);
+    this._applyVelocityWithCollision(delta, npcs);
 
     // Walk animation + facing
     const speed2d = Math.hypot(this.velocity.x, this.velocity.z);
@@ -265,7 +268,7 @@ export class Player3D extends Entity3D {
     }
   }
 
-  _applyVelocityWithCollision(delta) {
+  _applyVelocityWithCollision(delta, npcs) {
     if (!this.world?.isBlocked) {
       this.position.addScaledVector(this.velocity, delta);
       return;
@@ -280,21 +283,43 @@ export class Player3D extends Entity3D {
     const curX  = Math.floor(this.position.x / TILE);
     const curZ  = Math.floor(this.position.z / TILE);
 
-    if (!this.world.isBlocked(tileX, tileZ)) {
+    // Combined world-tile + NPC-body blockage check
+    const blocked = (tx, tz, wx, wz) =>
+      this.world.isBlocked(tx, tz) || this._collidesWithNPC(wx, wz, npcs);
+
+    if (!blocked(tileX, tileZ, nx, nz)) {
       this.position.x = nx;
       this.position.z = nz;
     } else {
       // Sliding: try each axis independently
-      if (!this.world.isBlocked(tileX, curZ)) {
+      if (!blocked(tileX, curZ, nx, this.position.z)) {
         this.position.x = nx;
         this.velocity.z = 0;
-      } else if (!this.world.isBlocked(curX, tileZ)) {
+      } else if (!blocked(curX, tileZ, this.position.x, nz)) {
         this.position.z = nz;
         this.velocity.x = 0;
       } else {
         this.velocity.set(0, 0, 0);
       }
     }
+  }
+
+  /**
+   * Returns true if the world position (wx, wz) is inside the collision
+   * radius of any NPC in the provided array.
+   * @param {number}    wx
+   * @param {number}    wz
+   * @param {Array|null} npcs
+   */
+  _collidesWithNPC(wx, wz, npcs) {
+    if (!npcs || npcs.length === 0) return false;
+    for (const npc of npcs) {
+      const minDist = this._collisionRadius + (npc.collisionRadius ?? 0.55);
+      const dx = wx - npc.position.x;
+      const dz = wz - npc.position.z;
+      if (dx * dx + dz * dz < minDist * minDist) return true;
+    }
+    return false;
   }
 
   _animateWalk(delta, speed) {
