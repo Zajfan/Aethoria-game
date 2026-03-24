@@ -39,6 +39,19 @@ function _randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+// ── Active-skill tuning constants ─────────────────────────────────────────
+const SLAM_COOLDOWN_MS        = 8000;   // 8 s between AoE pulses
+const SLAM_BASE_RANGE_TILES   = 2.5;    // inner radius at rank 1
+const SLAM_RANGE_PER_RANK     = 1.0;    // extra tiles per rank
+const SLAM_DAMAGE_MULT        = 0.8;    // fraction of attack stat per rank
+
+const FIREBALL_RANGE_PX       = 180;    // max cast range in original pixels
+const FIREBALL_BASE_CD_MS     = 4000;   // cooldown at rank 1
+const FIREBALL_CD_REDUCTION   = 700;    // ms reduction per rank
+const FIREBALL_MIN_CD_MS      = 2000;   // hard floor on cooldown
+const FIREBALL_BASE_DMG_MULT  = 0.8;    // base damage multiplier
+const FIREBALL_DMG_PER_RANK   = 0.5;    // extra multiplier per rank
+
 // ── Player3D ─────────────────────────────────────────────────────────────
 export class Player3D extends Entity3D {
   /**
@@ -178,6 +191,33 @@ export class Player3D extends Entity3D {
     this.attackCooldown = Math.max(0, this.attackCooldown - deltaMs);
     if (this.fireballCD > 0) this.fireballCD = Math.max(0, this.fireballCD - deltaMs);
     if (this.slamCD     > 0) this.slamCD     = Math.max(0, this.slamCD     - deltaMs);
+
+    // ── Active skills ──────────────────────────────────────────────────────
+    // SLAM (Warrior): AoE hit on all nearby enemies every 8s
+    if (this.skills?.SLAM && this.slamCD === 0) {
+      const rank  = this.skills.SLAM;
+      const range = (SLAM_BASE_RANGE_TILES + rank * SLAM_RANGE_PER_RANK) * this._tileSize;
+      const dmg   = Math.max(1, Math.floor(this.stats.attack * SLAM_DAMAGE_MULT * rank));
+      this.eventBus.emit('playerSlam', { x: this.position.x, z: this.position.z, range, dmg });
+      this.slamCD = SLAM_COOLDOWN_MS;
+    }
+
+    // FIREBALL (Mage): ranged shot at current attack target when within 180 px
+    if (this.skills?.FIREBALL && this.fireballCD === 0 &&
+        this.attackTarget && !this.attackTarget.isDead) {
+      const rank    = this.skills.FIREBALL;
+      const fbRange = FIREBALL_RANGE_PX * PX;
+      if (this.distanceTo(this.attackTarget) <= fbRange) {
+        const dmg = Math.max(1, Math.floor(
+          this.stats.attack * (FIREBALL_BASE_DMG_MULT + rank * FIREBALL_DMG_PER_RANK),
+        ));
+        this.eventBus.emit('playerFireball', { target: this.attackTarget, dmg });
+        this.fireballCD = Math.max(
+          FIREBALL_MIN_CD_MS,
+          FIREBALL_BASE_CD_MS - rank * FIREBALL_CD_REDUCTION,
+        );
+      }
+    }
 
     const sp = this.stats.speed;
     const mv = this.input.getMovementVector(); // { x, y } normalised [-1,1]

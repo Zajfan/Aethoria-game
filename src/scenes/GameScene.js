@@ -799,6 +799,23 @@ export class GameScene {
     bus.on('skillLearned', (k, r) => {
       this.hud?.logMsg('Skill: ' + (CONFIG.SKILLS[k]?.name || k) + ' rank ' + r, '#aaddff');
     });
+
+    bus.on('playerSlam', ({ x, z, range, dmg }) => {
+      const origin = new THREE.Vector3(x, 0, z);
+      this.enemies
+        .filter(e => !e.isDead && e.position.distanceTo(origin) <= range)
+        .forEach(e => e.takeDamage(dmg, this.player));
+      this.audio?.sfxPlayerHit();
+      this.hud?.logMsg('⚔ SLAM!', '#ff9944');
+    });
+
+    bus.on('playerFireball', ({ target, dmg }) => {
+      if (!target.isDead) {
+        target.takeDamage(dmg, this.player);
+        this.audio?.sfxPlayerHit();
+        this.hud?.logMsg('🔥 Fireball! -' + dmg, '#ff6633');
+      }
+    });
   }
 
   // ── Loot ────────────────────────────────────────────────────────────────────
