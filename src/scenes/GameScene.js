@@ -884,7 +884,19 @@ export class GameScene {
     const shardMeshes = this.shardSystem?.getMeshes() || [];
     const lootMeshes  = this._lootMeshes.map(l => l.mesh);
 
-    const allMeshes = [...enemyMeshes, ...shardMeshes, ...lootMeshes];
+    // NPC meshes — clicking an NPC opens dialogue
+    const npcMeshes = [];
+    const npcByMesh = new Map();
+    (this.npcs || []).forEach(npc => {
+      npc.group.traverse(m => {
+        if (m.isMesh) {
+          npcMeshes.push(m);
+          npcByMesh.set(m, npc);
+        }
+      });
+    });
+
+    const allMeshes = [...enemyMeshes, ...shardMeshes, ...lootMeshes, ...npcMeshes];
     const hits      = this._raycaster.intersectObjects(allMeshes, false);
     if (hits.length === 0) return;
 
@@ -910,6 +922,13 @@ export class GameScene {
       if (this.player.position.distanceTo(lootHit.mesh.position) <= 70) {
         this._pickupLoot(lootHit);
       }
+      return;
+    }
+
+    // NPC? — open dialogue on click
+    const clickedNPC = npcByMesh.get(hitMesh);
+    if (clickedNPC) {
+      this._openDialogue(clickedNPC);
     }
   }
 
@@ -1039,7 +1058,7 @@ export class GameScene {
     this.player.camera = this.camera.threeCamera;
 
     // Player
-    this.player.update(delta);
+    this.player.update(delta, this.npcs);
 
     // Camera follow
     this.camera.follow(this.player.position);

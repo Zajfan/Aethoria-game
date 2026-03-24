@@ -58,6 +58,9 @@ export class NPC3D extends Entity3D {
     // Interaction range in world units (~72 original pixels)
     this._interactRange = 72 / 16;
 
+    // Solid collision radius — prevents the player from walking through the NPC
+    this.collisionRadius = 0.55;
+
     this.position.set(x, 0, z);
 
     // Override label name colour to match NPC colour
