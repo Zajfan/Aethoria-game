@@ -345,6 +345,65 @@ function injectCSS() {
     .hud-panel ::-webkit-scrollbar        { width:5px; }
     .hud-panel ::-webkit-scrollbar-track  { background:#111; }
     .hud-panel ::-webkit-scrollbar-thumb  { background:#333; border-radius:3px; }
+
+    /* ── Mobile touch controls ── */
+    #mobile-joystick {
+      position: fixed;
+      width: 120px; height: 120px;
+      border-radius: 50%;
+      border: 2px solid rgba(212,175,55,0.45);
+      background: rgba(255,255,255,0.06);
+      pointer-events: none;
+      display: none;
+      z-index: 92;
+      transform: translate(-50%, -50%);
+    }
+    #mobile-joystick-knob {
+      position: absolute;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: rgba(212,175,55,0.5);
+      border: 2px solid rgba(212,175,55,0.8);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    #mobile-buttons {
+      position: fixed;
+      bottom: 220px; right: 14px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      pointer-events: none;
+      z-index: 95;
+    }
+    .mobile-btn {
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: rgba(8,8,20,0.88);
+      border: 2px solid rgba(212,175,55,0.6);
+      color: ${THEME.gold};
+      font-size: 22px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      pointer-events: auto;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+      flex-shrink: 0;
+    }
+    .mobile-btn:active { background: rgba(212,175,55,0.22); transform: scale(0.93); }
+    #mobile-btn-label {
+      font-size: 8px; color: rgba(212,175,55,0.5);
+      pointer-events: none; letter-spacing: 0.05em;
+      text-align: center; margin-top: -4px;
+    }
+    /* Show mobile controls only on touch devices */
+    @media (hover: none) and (pointer: coarse) {
+      #mobile-buttons { display: flex; }
+    }
   `;
   document.head.appendChild(style);
 }
@@ -420,6 +479,7 @@ export class HUD {
     this._buildAchievementPopup();
     this._buildEventBanner();
     this._buildHint();
+    this._buildMobileControls();
   }
 
   _el(tag, cls, parent) {
@@ -1272,11 +1332,84 @@ export class HUD {
   _buildHint() {
     const el = document.createElement('div');
     el.id = 'hud-hint';
-    el.textContent = 'WASD/Arrows: Move  |  Left-click: Attack/Loot  |  E: Talk  |  I: Inv  |  M: Map  |  Q: Quests  |  K: Skills';
+    const isTouchDevice = (navigator.maxTouchPoints > 0) || ('ontouchstart' in window);
+    el.textContent = isTouchDevice
+      ? 'Left-drag: Move  |  Right-drag: Rotate Camera  |  Tap: Attack/Loot  |  ⚔ Attack  |  💬 Talk (E)  |  📦 Inventory'
+      : 'WASD/Arrows: Move  |  Q/E: Rotate  |  Left-click: Attack/Loot  |  E: Talk  |  I: Inv  |  M: Map  |  Q: Quests  |  K: Skills';
     document.body.appendChild(el);
   }
 
-  // ── Floating text (for damage numbers) ───────────────────────────────────────
+  // ── Mobile touch controls ─────────────────────────────────────────────────────
+
+  _buildMobileControls() {
+    // Floating joystick visual — positioned dynamically in update()
+    const joystickBase = document.createElement('div');
+    joystickBase.id = 'mobile-joystick';
+    const joystickKnob = document.createElement('div');
+    joystickKnob.id = 'mobile-joystick-knob';
+    joystickBase.appendChild(joystickKnob);
+    document.body.appendChild(joystickBase);
+    this._joystickBaseEl = joystickBase;
+    this._joystickKnobEl = joystickKnob;
+
+    // Action button container (always in DOM; CSS shows only on touch devices)
+    const buttons = document.createElement('div');
+    buttons.id = 'mobile-buttons';
+
+    // ── Attack nearest enemy button ──
+    const btnAttack = this._el('button', 'mobile-btn', buttons);
+    btnAttack.id = 'mobile-btn-attack';
+    btnAttack.title = 'Attack Nearest Enemy';
+    btnAttack.textContent = '⚔';
+    btnAttack.addEventListener('touchstart', () => {
+      this._mobileAttack();
+    }, { passive: true });
+    btnAttack.addEventListener('click', () => this._mobileAttack());
+
+    // ── Interact / E-key button ──
+    const btnInteract = this._el('button', 'mobile-btn', buttons);
+    btnInteract.id = 'mobile-btn-interact';
+    btnInteract.title = 'Interact (E)';
+    btnInteract.textContent = '💬';
+    const _fireE = () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', bubbles: true }));
+      setTimeout(
+        () => window.dispatchEvent(new KeyboardEvent('keyup', { key: 'e', bubbles: true })),
+        60,
+      );
+    };
+    btnInteract.addEventListener('touchstart', _fireE, { passive: true });
+    btnInteract.addEventListener('click', _fireE);
+
+    // ── Inventory button ──
+    const btnInv = this._el('button', 'mobile-btn', buttons);
+    btnInv.id = 'mobile-btn-inventory';
+    btnInv.title = 'Inventory (I)';
+    btnInv.textContent = '📦';
+    const _fireInv = () => this.toggleInventory(this._player);
+    btnInv.addEventListener('touchstart', _fireInv, { passive: true });
+    btnInv.addEventListener('click', _fireInv);
+
+    document.body.appendChild(buttons);
+    this._mobileButtonsEl = buttons;
+    this._mobileEls = [joystickBase, buttons];
+  }
+
+  /** Target and move toward the nearest living enemy within range. */
+  _mobileAttack() {
+    if (!this._gameScene || !this._player) return;
+    let nearest = null;
+    let nearestDist = Infinity;
+    this._gameScene.enemies?.forEach(e => {
+      if (!e.isDead) {
+        const d = e.position.distanceTo(this._player.position);
+        if (d < nearestDist) { nearestDist = d; nearest = e; }
+      }
+    });
+    if (nearest && nearestDist < 25) {
+      this._player.setTarget(nearest);
+    }
+  }
 
   /**
    * Show a floating text at screen coordinates.
@@ -1398,6 +1531,23 @@ export class HUD {
     if (this._clockEl && gs.dayNight) {
       this._clockEl.textContent = gs.dayNight.getTimeString();
     }
+
+    // Mobile joystick visual
+    if (this._joystickBaseEl && gs.input) {
+      const input = gs.input;
+      if (input.joystickIsActive && input.joystickOrigin) {
+        const origin = input.joystickOrigin;
+        this._joystickBaseEl.style.display = 'block';
+        this._joystickBaseEl.style.left    = origin.x + 'px';
+        this._joystickBaseEl.style.top     = origin.y + 'px';
+        const jx = input.joystick.x * input.joystickRadius;
+        const jy = input.joystick.y * input.joystickRadius;
+        this._joystickKnobEl.style.transform =
+          `translate(calc(-50% + ${jx}px), calc(-50% + ${jy}px))`;
+      } else {
+        this._joystickBaseEl.style.display = 'none';
+      }
+    }
   }
 
   // ── Cleanup ───────────────────────────────────────────────────────────────────
@@ -1426,5 +1576,9 @@ export class HUD {
       document.getElementById('hud-hint'),
       document.getElementById('hud-trade'),
     ].forEach(el => el?.parentNode?.removeChild(el));
+
+    // Remove mobile controls
+    this._mobileEls?.forEach(el => el?.parentNode?.removeChild(el));
+    this._mobileEls = [];
   }
 }
