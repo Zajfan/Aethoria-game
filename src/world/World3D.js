@@ -178,16 +178,18 @@ export class World3D {
       .setHex(0xfff8e0)
       .lerp(new THREE.Color(0xff9040), warmth);
 
-    // Ambient: near-black at night, soft blue-grey at noon
-    this._ambientLight.intensity = 0.05 + dayFactor * 0.35;
+    // Ambient: moonlight floor at night, soft blue-grey at noon.
+    // Minimum raised so the world is navigable without a torch.
+    this._ambientLight.intensity = 0.18 + dayFactor * 0.22;
     this._ambientLight.color
       .setHex(0x101030)
       .lerp(new THREE.Color(0x404060), dayFactor);
 
-    // Hemisphere sky colour: deep night → clear blue sky
-    this._hemiLight.intensity = 0.15 + dayFactor * 0.45;
+    // Hemisphere sky colour: deep night → clear blue sky.
+    // Night floor raised to give faint moonlit definition to terrain.
+    this._hemiLight.intensity = 0.25 + dayFactor * 0.35;
     this._hemiLight.color
-      .setHex(0x050510)
+      .setHex(0x050d1a)
       .lerp(new THREE.Color(0x89c4f4), dayFactor);
   }
 
