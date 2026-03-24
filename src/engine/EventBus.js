@@ -9,7 +9,11 @@ class EventBus {
     /** @type {Map<string, Set<Function>>} */
     this._listeners = new Map();
 
-    /** @type {Map<string, Set<Function>>} tracks once-wrappers for cleanup */
+    /**
+     * Maps event name → Map<originalCallback, wrapperCallback>.
+     * Allows off(event, original) to locate and remove the generated wrapper.
+     * @type {Map<string, Map<Function, Function>>}
+     */
     this._onceWrappers = new Map();
   }
 
@@ -37,11 +41,15 @@ class EventBus {
   off(event, callback) {
     const set = this._listeners.get(event);
     if (set) {
-      set.delete(callback);
+      // If this callback was registered via once(), the actual listener is its
+      // generated wrapper — remove that, not the original.
+      const wrapperMap = this._onceWrappers.get(event);
+      const wrapper = wrapperMap?.get(callback);
+      set.delete(wrapper ?? callback);
       if (set.size === 0) this._listeners.delete(event);
     }
 
-    // Also clean up any once-wrapper registered for this callback
+    // Clean up wrapper → original mapping
     const wrappers = this._onceWrappers.get(event);
     if (wrappers) {
       wrappers.delete(callback);
