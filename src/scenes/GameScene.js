@@ -21,6 +21,9 @@ import { TradeSystem }       from '../systems/TradeSystem.js';
 import { AchievementSystem } from '../systems/AchievementSystem.js';
 import { StorySystem }       from '../systems/StorySystem.js';
 import { AIMemory }          from '../systems/AIMemory.js';
+import { ParticleSystem3D }  from '../systems/ParticleSystem3D.js';
+import { AnimationSystem }   from '../systems/AnimationSystem.js';
+import { FactionSystem }     from '../systems/FactionSystem.js';
 
 // Map dimensions (override config for 3D world)
 const MAP_W = 256;
@@ -469,6 +472,9 @@ export class GameScene {
     this.achievements   = null;
     this.storySystem    = null;
     this.shardSystem    = null;
+    this.particles      = null;   // v0.4
+    this.animSystem     = null;   // v0.4
+    this.factionSystem  = null;   // v0.4
     this._sceneProxy    = null;
 
     /** @type {import('../ui/HUD.js').HUD|null} */
@@ -559,6 +565,11 @@ export class GameScene {
     this.tradeSystem = new TradeSystem();
     this._sceneProxy.tradeSystem = this.tradeSystem;
 
+    // v0.4 — FactionSystem (must come before TradeSystem.setFactionSystem)
+    this.factionSystem = new FactionSystem(this.eventBus);
+    this.tradeSystem.setFactionSystem(this.factionSystem);
+    if (savedPlayerData?.factions) this.factionSystem.deserialize(savedPlayerData.factions);
+
     this.worldEvents = new WorldEvents3D(this.eventBus, this.scene3d, this._sceneProxy);
     this.worldEvents.setSpawnFn(({ x, z, type }) => {
       const e = new Enemy3D(this.scene3d, x, z, type, this.eventBus, this.world3d);
@@ -571,6 +582,14 @@ export class GameScene {
 
     this.shardSystem = new ShardSystem3D(this.eventBus, this.scene3d, this.camera.threeCamera);
     this.shardSystem.spawnShards(this.mapData);
+
+    // v0.4 — Particle effects engine
+    this.particles = new ParticleSystem3D(this.scene3d, this.camera.threeCamera);
+    this.particles.attachToEventBus(this.eventBus, this.player);
+    this.particles.seedFireflies(cx, cz, 35);
+
+    // v0.4 — Animation system
+    this.animSystem = new AnimationSystem(this.scene3d);
 
     // Restore saved state
     if (savedPlayerData?.quests)       this.questSystem.deserialize(savedPlayerData.quests);
@@ -688,7 +707,13 @@ export class GameScene {
   _setupEvents() {
     const bus = this.eventBus;
 
-    bus.on('spawnLoot',       data => this._spawnLoot(data));
+    bus.on('spawnLoot', data => {
+      this._spawnLoot(data);
+      if (this.particles) {
+        const col = data.itemKey === 'gold' ? 0xffd700 : data.itemKey === 'gem' ? 0xcc44ff : 0x44ffcc;
+        this.particles.lootGlow(data.x, data.y ?? 0, data.z, col);
+      }
+    });
 
     bus.on('damage', (x, y, amount, color) => {
       // y may be a world-Y; we project from a world position above the hit point
@@ -710,6 +735,13 @@ export class GameScene {
         window.innerHeight * 0.4,
         '★ LEVEL ' + lv + '! ★', '#ffd700',
       );
+      // v0.4 — particle burst at player position
+      if (this.particles && this.player) {
+        this.particles.levelUpBurst(
+          this.player.position.x, this.player.position.y, this.player.position.z,
+        );
+      }
+      AIMemory.recordPlayerSnapshot(this.player.stats);
     });
 
     bus.on('questAdded', q => {
@@ -749,6 +781,39 @@ export class GameScene {
       }, 1800);
     });
 
+    // v0.4 — Enemy death particle burst
+    bus.on('enemyDeath', ({ x, y, z, color }) => {
+      if (this.particles) this.particles.deathExplosion(x, y, z, color);
+    });
+
+    // v0.4 — Enemy killed → quest + faction tracking
+    bus.on('enemyKilled', ({ typeKey, name }) => {
+      this.questSystem?.onKill(name ?? typeKey);
+      this.factionSystem?.onKill(typeKey);
+    });
+
+    // v0.4 — Faction events
+    bus.on('factionStandingChange', ({ factionId, standing }) => {
+      const colors = { HONORED:'#ffd700', FRIENDLY:'#44ff88', NEUTRAL:'#aaaaaa', HOSTILE:'#ff8800', ENEMY:'#ff2222' };
+      const fnames = { HEARTHMOOR:'Hearthmoor', GUILD:'Guild', ORDER:'The Order', VOIDBORN:'Voidborn' };
+      const col = colors[standing] ?? '#aaaaaa';
+      this.hud?.logMsg(`${fnames[factionId] ?? factionId}: now ${standing}`, col);
+    });
+    bus.on('factionRepChanged', () => this.hud?.refreshFactions?.());
+
+    // v0.4 — World event → economy event
+    bus.on('worldEvent', ev => {
+      this.tradeSystem?.setEconomyEvent(ev.id);
+      const msg = this.tradeSystem?.getEconomyMessage();
+      if (msg) this.hud?.logMsg(`Economy: ${msg}`, '#ffdd88');
+    });
+    bus.on('worldEventEnd', () => this.tradeSystem?.clearEconomyEvent());
+
+    // v0.4 — Quest complete → faction
+    bus.on('questComplete', q => {
+      this.factionSystem?.onQuestComplete(q);
+    });
+
     bus.on('bossKilled', name => {
       this.questSystem?.onKill(name);
       AIMemory.recordBossKill(name);
@@ -756,6 +821,12 @@ export class GameScene {
       this.audio?.sfxBossDeath();
       this.storySystem?.flagSet('boss_' + name);
       this.hud?.logMsg('★ ' + name + ' DEFEATED! ★', '#dd88ff');
+      this.factionSystem?.onKill(name.replace(' ', '_').toUpperCase());
+      if (this.particles && this.player) {
+        this.particles.deathExplosion(
+          this.player.position.x, 0.5, this.player.position.z, 0xdd88ff,
+        );
+      }
     });
 
     bus.on('bossPhase', msg => {
@@ -1058,10 +1129,27 @@ export class GameScene {
 
   _openDialogue(npc) {
     this.audio?.sfxUIOpen();
-    this.hud?.openDialogue(npc, this.player, this.questSystem, this.tradeSystem, this.worldEvents);
+    const worldCtx = this._buildWorldContext();
+    this.hud?.openDialogue(npc, this.player, this.questSystem, this.tradeSystem, this.worldEvents, worldCtx, this.factionSystem);
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────────
+
+  _buildWorldContext() {
+    return {
+      time:    this.dayNight?.getTimeString() ?? '12:00 PM',
+      weather: this.dayNight?.getCurrentWeather() ?? 'CLEAR',
+      worldEvent: this.worldEvents?.current ?? null,
+      playerLevel: this.player?.stats.level ?? 1,
+      playerClass: this.player?.playerClass ?? 'WARRIOR',
+      act: this.storySystem?.currentAct ?? 0,
+      factionStanding: this.factionSystem ? {
+        HEARTHMOOR: this.factionSystem.standingFor('HEARTHMOOR'),
+        GUILD:      this.factionSystem.standingFor('GUILD'),
+        ORDER:      this.factionSystem.standingFor('ORDER'),
+      } : {},
+    };
+  }
 
   async _doSave() {
     try {
@@ -1075,6 +1163,7 @@ export class GameScene {
         story:        this.storySystem?.serialize(),
         shards:       this.storySystem?.shardFlags || {},
         achievements: this.achievements?.serialize() || {},
+        factions:    this.factionSystem?.serialize()  ?? {},
       });
     } catch (_) {}
   }
@@ -1157,6 +1246,21 @@ export class GameScene {
 
     // World events
     this.worldEvents?.update(delta);
+
+    // v0.4 — Particle system
+    if (this.particles) {
+      this.particles.update(delta);
+      this.particles.weatherFollow(this.player.position.x, this.player.position.z);
+      this.particles.updateFireflyCenter(this.player.position.x, this.player.position.z);
+      // Dust on movement
+      const pspd = Math.hypot(this.player.velocity.x, this.player.velocity.z);
+      if (pspd > 1.5 && Math.random() < 0.15) {
+        this.particles.dustCloud(this.player.position.x, 0, this.player.position.z);
+      }
+    }
+
+    // v0.4 — Animation system
+    this.animSystem?.update(delta);
 
     // Shards (floating animation)
     this.shardSystem?.setCamera(this.camera.threeCamera);
@@ -1246,6 +1350,9 @@ export class GameScene {
       this._torchLight.dispose();
       this._torchLight = null;
     }
+
+    this.particles?.dispose();
+    this.animSystem?.dispose();
 
     this.world3d?.dispose();
 

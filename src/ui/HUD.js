@@ -428,9 +428,10 @@ export class HUD {
    * @param {import('../systems/TradeSystem.js').TradeSystem|null}  tradeSystem
    */
   constructor(eventBus, questSystem = null, tradeSystem = null) {
-    this.eventBus    = eventBus;
-    this.questSystem = questSystem;
-    this.tradeSystem = tradeSystem;
+    this.eventBus      = eventBus;
+    this.questSystem   = questSystem;
+    this.tradeSystem   = tradeSystem;
+    this.factionSystem = null;   // v0.4 — set via openDialogue / bindGame
 
     this._gameScene   = null;
     this._player      = null;
@@ -440,13 +441,15 @@ export class HUD {
     this._mmInterval  = null;
     this._logLines    = [];   // [{ text, color }]
     this._achTimer    = null;
+    this._worldCtx    = null;  // v0.4
 
     // Panel state flags
-    this.invOpen   = false;
-    this.mapOpen   = false;
-    this.questOpen = false;
-    this.skillOpen = false;
-    this.tradeOpen = false;
+    this.invOpen      = false;
+    this.mapOpen      = false;
+    this.questOpen    = false;
+    this.skillOpen    = false;
+    this.tradeOpen    = false;
+    this.factionOpen  = false;  // v0.4
 
     injectCSS();
     this._ensureOverlay();
@@ -479,6 +482,7 @@ export class HUD {
     this._buildAchievementPopup();
     this._buildEventBanner();
     this._buildHint();
+    this._buildFactions();
     this._buildMobileControls();
   }
 
@@ -948,12 +952,14 @@ export class HUD {
    * @param {import('../systems/TradeSystem.js').TradeSystem} tradeSystem
    * @param {object} worldEvents
    */
-  async openDialogue(npc, player, questSystem, tradeSystem, worldEvents) {
+  async openDialogue(npc, player, questSystem, tradeSystem, worldEvents, worldCtx = null, factionSystem = null) {
     this._dialogueNPC  = npc;
     this._player       = player;
     this._questSystem  = questSystem || this.questSystem;
     this._tradeSystem  = tradeSystem || this.tradeSystem;
     this._worldEvents  = worldEvents;
+    this._worldCtx     = worldCtx;
+    if (factionSystem) this.factionSystem = factionSystem;
 
     const nd  = npc.npcData;
     const col = '#' + (nd.color || 0xd4af37).toString(16).padStart(6, '0');
@@ -975,7 +981,7 @@ export class HUD {
 
     const currentEvent = worldEvents?.getCurrent()?.name || null;
     try {
-      const reply = await npc.talk('Hello, I approach you.', player?.stats, currentEvent);
+      const reply = await npc.talk('Hello, I approach you.', player?.stats, currentEvent, this._worldCtx);
       this._dlgTyping.style.display = 'none';
       this._dlgText.textContent = reply;
       this.logMsg(nd.name + ': ' + reply.slice(0, 55) + (reply.length > 55 ? '…' : ''), col);
@@ -984,10 +990,10 @@ export class HUD {
       this._dlgText.textContent = 'Greetings, traveller.';
     }
 
-    // Offer a quest occasionally
+    // Offer a quest occasionally (v0.4: pass worldCtx for smarter flavor)
     if (this._questSystem && Math.random() < 0.4) {
       setTimeout(() => {
-        this._questSystem.generateQuest(player?.stats, nd.name);
+        this._questSystem.generateQuest(player?.stats, nd.name, this._worldCtx);
       }, 1200);
     }
 
@@ -1016,7 +1022,7 @@ export class HUD {
 
     const currentEvent = this._worldEvents?.getCurrent()?.name || null;
     try {
-      const reply = await this._dialogueNPC.talk(msg, this._player?.stats, currentEvent);
+      const reply = await this._dialogueNPC.talk(msg, this._player?.stats, currentEvent, this._worldCtx);
       this._dlgTyping.style.display = 'none';
       this._dlgText.style.opacity   = '1';
       this._dlgText.textContent     = reply;
@@ -1059,7 +1065,31 @@ export class HUD {
     this._tradeContent.innerHTML = '';
     const shop = this._tradeSystem.getShop(npc.npcData.role);
 
-    if (!shop.items.length) {
+    // v0.4 — show economy / faction status
+    const econMsg = this._tradeSystem.getEconomyMessage?.();
+    if (econMsg) {
+      const msg = document.createElement('div');
+      msg.style.cssText = 'color:#ffdd88;font-size:11px;margin-bottom:8px;text-align:center;';
+      msg.textContent = '⚡ ' + econMsg;
+      this._tradeContent.appendChild(msg);
+    }
+    if (this.factionSystem) {
+      const mult = this._tradeSystem.priceMultiplier?.(npc.npcData.role) ?? 1;
+      if (mult !== 1) {
+        const rep = document.createElement('div');
+        const cheaper = mult < 1;
+        rep.style.cssText = `color:${cheaper ? '#44ff88' : '#ff8844'};font-size:10px;margin-bottom:6px;text-align:center;`;
+        rep.textContent = cheaper
+          ? `★ Faction discount: ${Math.round((1 - mult) * 100)}% off`
+          : `⚠ Faction surcharge: +${Math.round((mult - 1) * 100)}%`;
+        this._tradeContent.appendChild(rep);
+      }
+    }
+
+    // Use getAvailableStock if available (v0.4), else fallback
+    const items = this._tradeSystem.getAvailableStock?.(npc.npcData.role) ?? shop.items ?? [];
+
+    if (!items.length) {
       const msg = this._el('div', '', this._tradeContent);
       msg.style.cssText = 'color:#555566;font-size:11px;';
       msg.textContent = 'Nothing for sale.';
@@ -1069,7 +1099,7 @@ export class HUD {
     // Buy section
     const buyTitle = this._el('div', 'trade-title', this._tradeContent);
     buyTitle.textContent = 'BUY';
-    shop.items.forEach(key => {
+    [...new Set(items)].forEach(key => {
       const info  = CONFIG.ITEMS[key];
       if (!info) return;
       const price = this._tradeSystem.buyPrice(key, npc.npcData.role);
@@ -1335,8 +1365,99 @@ export class HUD {
     const isTouchDevice = (navigator.maxTouchPoints > 0) || ('ontouchstart' in window);
     el.textContent = isTouchDevice
       ? 'Left-drag: Move  |  Right-drag: Rotate Camera  |  Tap: Attack/Loot  |  ⚔ Attack  |  💬 Talk (E)  |  📦 Inventory'
-      : 'WASD/Arrows: Move  |  Q/E: Rotate  |  Left-click: Attack/Loot  |  E: Talk  |  I: Inv  |  M: Map  |  Q: Quests  |  K: Skills';
+      : 'WASD/Arrows: Move  |  Q/E: Rotate  |  Left-click: Attack/Loot  |  E: Talk  |  I: Inv  |  M: Map  |  Q: Quests  |  K: Skills  |  F: Factions';
     document.body.appendChild(el);
+  }
+
+
+  // ── v0.4: Factions Panel ──────────────────────────────────────────────────────
+
+  _buildFactions() {
+    const panel = document.createElement('div');
+    panel.id = 'hud-factions';
+    panel.style.cssText = `
+      display:none; position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(8,8,18,0.97); border:1px solid #334;
+      border-radius:6px; padding:20px 24px; z-index:8000;
+      min-width:380px; max-width:480px; color:#ccc;
+      font-family:'Courier New',monospace;
+      box-shadow:0 0 30px rgba(0,0,0,0.8);
+    `;
+    panel.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <span style="color:#aaddff;font-size:15px;letter-spacing:2px;">// FACTIONS</span>
+        <button id="hud-factions-close" style="background:none;border:1px solid #445;color:#aaa;
+          border-radius:3px;padding:2px 8px;cursor:pointer;font-family:inherit;">✕</button>
+      </div>
+      <div id="hud-factions-body"></div>
+      <div style="margin-top:14px;font-size:9px;color:#556;border-top:1px solid #223;padding-top:8px;">
+        Reputation affects prices, quest rewards, and NPC behaviour.
+      </div>
+    `;
+    document.body.appendChild(panel);
+    this._factionPanel = panel;
+    this._factionBody  = panel.querySelector('#hud-factions-body');
+
+    panel.querySelector('#hud-factions-close').onclick = () => this.toggleFactions();
+  }
+
+  toggleFactions() {
+    this.factionOpen = !this.factionOpen;
+    if (!this._factionPanel) return;
+    this._factionPanel.style.display = this.factionOpen ? 'block' : 'none';
+    if (this.factionOpen) this.refreshFactions();
+  }
+
+  refreshFactions() {
+    if (!this._factionBody) return;
+    const summary = this.factionSystem?.getSummary?.();
+    if (!summary) {
+      this._factionBody.innerHTML = '<div style="color:#556;font-size:11px;">No faction data yet.</div>';
+      return;
+    }
+
+    this._factionBody.innerHTML = '';
+    for (const f of summary) {
+      const row = document.createElement('div');
+      row.style.cssText = 'margin-bottom:14px;';
+
+      const repPct  = Math.round(((f.rep + 1000) / 2000) * 100);
+      const barColor = f.standingData?.color ?? '#aaaaaa';
+
+      row.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+          <span style="color:${f.color};font-size:12px;font-weight:bold;">${f.name}</span>
+          <span style="color:${barColor};font-size:10px;">${f.standingData?.label ?? f.standing}</span>
+        </div>
+        <div style="background:#111;border-radius:2px;height:6px;position:relative;overflow:hidden;margin-bottom:5px;">
+          <div style="height:100%;width:${repPct}%;background:${barColor};border-radius:2px;
+            transition:width 0.4s;"></div>
+          <div style="position:absolute;left:50%;top:0;height:100%;width:1px;background:#334;"></div>
+        </div>
+        <div style="font-size:9px;color:#667;margin-bottom:4px;">${f.rep > 0 ? '+' : ''}${f.rep} / 1000</div>
+        ${f.unlocks.length ? `
+          <div style="font-size:9px;color:#88aaff;">
+            ${f.unlocks.map(u => `✓ <span title="${u.desc}">${u.label}</span>`).join('  ')}
+          </div>
+        ` : ''}
+      `;
+      this._factionBody.appendChild(row);
+    }
+
+    // Recent rep log
+    const log = this.factionSystem?.getRecentLog?.(5);
+    if (log?.length) {
+      const logDiv = document.createElement('div');
+      logDiv.style.cssText = 'margin-top:10px;font-size:9px;color:#445;border-top:1px solid #223;padding-top:8px;';
+      logDiv.innerHTML = '<div style="color:#556;margin-bottom:4px;">Recent changes:</div>' +
+        log.map(l => {
+          const sign = l.delta > 0 ? '+' : '';
+          const col  = l.delta > 0 ? '#44ff88' : '#ff6644';
+          return `<div><span style="color:${col}">${sign}${l.delta}</span> ${l.factionId} — ${l.reason}</div>`;
+        }).join('');
+      this._factionBody.appendChild(logDiv);
+    }
   }
 
   // ── Mobile touch controls ─────────────────────────────────────────────────────
@@ -1461,11 +1582,13 @@ export class HUD {
         case 'm': this.toggleMap();        break;
         case 'q': this.toggleQuests();     break;
         case 'k': this.toggleSkillTree(this._player); break;
+        case 'f': this.toggleFactions(); break;
         case 'escape':
           if (this.invOpen)   this.toggleInventory();
           if (this.mapOpen)   this.toggleMap();
           if (this.skillOpen) this.toggleSkillTree();
           if (this.tradeOpen) { this.tradeOpen = false; const t = document.getElementById('hud-trade'); if(t) t.style.display='none'; }
+          if (this.factionOpen) this.toggleFactions();
           this._closeDialogue();
           break;
       }
@@ -1497,6 +1620,9 @@ export class HUD {
    * @param {import('../scenes/GameScene.js').GameScene} gameScene
    */
   bindGame(gameScene) {
+    if (gameScene.factionSystem) {
+      this.factionSystem = gameScene.factionSystem;
+    }
     this._gameScene   = gameScene;
     this._player      = gameScene.player;
     this._mapData     = gameScene.mapData;

@@ -20,6 +20,29 @@ python3 -m http.server 8080
 
 ---
 
+## ✨ Features (v0.4)
+
+| System | Description |
+| --- | --- |
+| 🌍 3D Procedural world | 256×256 tile map rendered in full 3D with Three.js — biomes: water, grasslands, forest, stone, sand, dungeon |
+| 🎥 Isometric camera | RuneScape/Albion Online style perspective camera — rotate with Q/E, zoom with mouse wheel |
+| ⚔️ Combat | Click-to-attack enemies in 3D. Auto-attack when in range. Level up, gain stats |
+| 🤖 AI NPCs | 5 unique characters powered by Claude API — per-NPC personality profiles, hidden secrets, world-context-aware dialogue |
+| 📜 Quest system | AI-generated quests with world context, level scaling, faction bonuses, kill/collect/explore tracking |
+| 🗺️ World map & minimap | Press M for full map, corner minimap always visible |
+| 🏰 3D Dungeons & bosses | Procedural 3D room-corridor dungeon with phase-based boss AI |
+| 🌳 Skill trees | Warrior, Mage, Ranger classes with 3 unique skills each |
+| 💾 Save system | Auto-saves to IndexedDB including faction standings and quest state |
+| 🌅 Day/night cycle | Dynamic lighting cycle, weather (rain, fog, storm) |
+| 🎒 Inventory & crafting | Pick up loot, equip weapons/armor, brew potions, craft items |
+| 📱 Mobile PWA | Installable on Android and iOS. Virtual joystick + action buttons |
+| ✨ **NEW** Particle effects | Hit sparks, death explosions, slam shockwaves, fireball trails, level-up bursts, rain, fireflies, floating damage numbers |
+| 🎬 **NEW** Animation system | GLTF model loading with cache + fallback, enhanced procedural animations (idle breathing, attack windup/slash, hit stagger, death collapse) |
+| ⚔️ **NEW** Faction system | 4 factions (Hearthmoor, Guild, Order, Voidborn) with -1000→+1000 rep, standing tiers, unlocks, rival faction tradeoffs |
+| 🏪 **NEW** Dynamic economy | Faction-based pricing, specialty discounts, economy events, rare stock unlocks, Guild-boosted sell rates |
+
+---
+
 ## ✨ Features (v0.3)
 
 | System | Description |
@@ -51,6 +74,7 @@ python3 -m http.server 8080
 | `Q` | Quest journal |
 | `K` | Skill tree |
 | `M` | World map |
+| `F` | Faction standings |
 | `ESC` | Close all panels |
 | Click enemy | Target and auto-attack |
 | Right-click ground | Move to location |
@@ -182,6 +206,7 @@ python3 -m http.server 8080
 | `Q` | Quest journal |
 | `K` | Skill tree |
 | `M` | World map |
+| `F` | Faction standings |
 | `ESC` | Close all panels |
 | Click enemy | Target and auto-attack |
 | Click ground | Move to location (touch friendly) |
