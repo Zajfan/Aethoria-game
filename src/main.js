@@ -43,27 +43,13 @@ function loop() {
   const delta = renderer.getDelta();
   if (!delta || delta > 0.2) return;   // skip huge frames (tab was hidden)
 
+  // Each scene manages its own camera, input flush, and render internally.
   if (activeScene) {
     activeScene.update(delta);
-    // Sync camera to player position
-    if (activeScene.player) {
-      camCtrl.follow(activeScene.player.position);
-    }
-    camCtrl.update(delta, inputManager);
-    // Sync world chunk visibility
-    if (activeScene.world && activeScene.player) {
-      const p = activeScene.player.position;
-      activeScene.world.updateVisibleChunks(p.x, p.z);
-    }
   }
 
-  inputManager.update();
-
+  // HUD is bound externally (scene.hud is null); update it here each frame.
   if (hud && activeScene) hud.update(activeScene);
-
-  // Render
-  const scene3d = activeScene?.scene3d;
-  if (scene3d) renderer.render(scene3d, camCtrl.threeCamera);
 }
 
 // ── Start a world game (new or from save) ────────────────────────────────────

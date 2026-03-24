@@ -94,8 +94,8 @@ export class Player3D extends Entity3D {
     this._groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this._clickTarget = null; // { x, z } world position
 
-    // Cached tile size in world units (CONFIG.TILE_SIZE px × PX units/px)
-    this._tileSize = CONFIG.TILE_SIZE * PX;
+    // Cached tile size in world units — the 3D world maps 1 tile to exactly 1 world unit.
+    this._tileSize = CONFIG.WORLD_3D.TILE_SIZE;
 
     // ── Build ──────────────────────────────────────────────────────────────
     this._buildModel();
