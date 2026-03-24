@@ -87,8 +87,8 @@ export class WorldGen {
     let tries = 0;
 
     while (spawns.length < count && tries < count * 15) {
-      const x = Phaser.Math.Between(4, data[0].length - 4);
-      const y = Phaser.Math.Between(4, data.length    - 4);
+      const x = Math.floor(Math.random() * (data[0].length - 8)) + 4;
+      const y = Math.floor(Math.random() * (data.length    - 8)) + 4;
       const d = Math.sqrt((x-cx)**2 + (y-cy)**2);
       if (!blocked.has(data[y][x]) && d > 18) spawns.push({ x, y });
       tries++;

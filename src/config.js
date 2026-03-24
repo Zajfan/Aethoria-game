@@ -1,7 +1,16 @@
 export const CONFIG = {
   TILE_SIZE: 32,
-  MAP_WIDTH:  120,
-  MAP_HEIGHT: 120,
+  MAP_WIDTH:  256,
+  MAP_HEIGHT: 256,
+
+  // 3D world settings (Three.js units)
+  WORLD_3D: {
+    TILE_SIZE:      1,    // Three.js units per tile
+    CHUNK_SIZE:     16,   // tiles per chunk side
+    VIEW_DISTANCE:  5,    // chunk radius to render around player
+    PLAYER_HEIGHT:  1.8,  // top of player model
+    ENTITY_SCALE:   0.9,  // entity to world scale
+  },
 
   TILES: {
     DEEP_WATER:    1,

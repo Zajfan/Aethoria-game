@@ -1,0 +1,1430 @@
+/**
+ * HUD.js
+ * HTML/CSS-based HUD for the Aethoria RPG.
+ *
+ * Fully DOM-driven — no Three.js or Phaser dependency.
+ * All styling uses a dark fantasy RPG theme:
+ *   background #0a0a0f, gold accents #d4af37, monospace font.
+ */
+
+import { CONFIG }            from '../config.js';
+import { ACHIEVEMENTS }      from '../systems/AchievementSystem.js';
+import { ACTS }              from '../systems/StorySystem.js';
+
+// ── Design constants ──────────────────────────────────────────────────────────
+
+const THEME = {
+  bg:        '#0a0a0f',
+  bgPanel:   'rgba(8,8,16,0.94)',
+  gold:      '#d4af37',
+  red:       '#cc3333',
+  blue:      '#3366cc',
+  green:     '#33aa55',
+  grey:      '#555566',
+  border:    '1px solid rgba(212,175,55,0.45)',
+  radius:    '4px',
+  font:      "'Courier New', Courier, monospace",
+};
+
+const MSG_COLORS = {
+  quest:  '#5588ff',
+  damage: '#ff6655',
+  story:  '#d4af37',
+  system: '#888899',
+  loot:   '#88ff88',
+  boss:   '#dd88ff',
+};
+
+// ── CSS injection (once) ───────────────────────────────────────────────────────
+
+let _cssInjected = false;
+function injectCSS() {
+  if (_cssInjected) return;
+  _cssInjected = true;
+  const style = document.createElement('style');
+  style.textContent = `
+    /* HUD root overlay */
+    #ui-overlay {
+      position: fixed; inset: 0;
+      pointer-events: none;
+      z-index: 100;
+      font-family: ${THEME.font};
+    }
+    #ui-overlay * { box-sizing: border-box; }
+
+    /* ── Panel base ── */
+    .hud-panel {
+      position: absolute;
+      background: ${THEME.bgPanel};
+      border: ${THEME.border};
+      border-radius: ${THEME.radius};
+      color: #ccccdd;
+      pointer-events: all;
+      backdrop-filter: blur(4px);
+    }
+
+    /* ── Stats bar ── */
+    #hud-stats {
+      top: 12px; left: 12px;
+      padding: 10px 14px 8px;
+      min-width: 200px;
+    }
+    #hud-stats .stat-name  { color: ${THEME.gold}; font-size:13px; margin-bottom:6px; }
+    #hud-stats .stat-class { color: #aaaacc; font-size:10px; }
+    .bar-wrap  { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+    .bar-label { color:#888899; font-size:10px; width:22px; text-align:right; }
+    .bar-track {
+      flex: 1; height:8px; background:#1a1a22;
+      border-radius:4px; overflow:hidden; border:1px solid #333;
+    }
+    .bar-fill  { height:100%; border-radius:4px; transition: width 0.15s ease; }
+    .bar-num   { color:#aaaacc; font-size:10px; min-width:58px; }
+    #bar-hp-fill  { background: #cc3333; }
+    #bar-xp-fill  { background: #336acc; }
+    #hud-gold  { color:#e8cc44; font-size:11px; margin-top:4px; }
+    #hud-level { color:${THEME.gold}; font-size:12px; }
+
+    /* ── Minimap ── */
+    #hud-minimap {
+      bottom: 12px; right: 12px;
+      padding: 8px;
+      width: 196px;
+    }
+    #hud-minimap canvas { display:block; border-radius:3px; image-rendering:pixelated; }
+    #minimap-label { text-align:center; font-size:8px; color:${THEME.grey}; margin-top:4px; }
+
+    /* ── Combat log ── */
+    #hud-log {
+      bottom: 12px; left: 12px;
+      padding: 8px 12px;
+      max-width: 380px;
+      pointer-events: none;
+    }
+    .log-line { font-size:11px; line-height:1.45; opacity:0.9; }
+
+    /* ── Quest tracker ── */
+    #hud-quests {
+      top: 12px; right: 12px;
+      padding: 10px 14px;
+      min-width: 240px;
+      max-width: 280px;
+    }
+    #hud-quests .qt-title { color:${THEME.gold}; font-size:11px; margin-bottom:8px; }
+    .qt-quest { margin-bottom:10px; }
+    .qt-name  { color:#aaccff; font-size:11px; }
+    .qt-desc  { color:#666677; font-size:9px; margin:2px 0 4px; }
+    .qt-prog-track { height:5px; background:#1a1a22; border-radius:3px; overflow:hidden; border:1px solid #333; }
+    .qt-prog-fill  { height:100%; background:#3366cc; border-radius:3px; transition:width 0.2s; }
+    .qt-prog-txt   { font-size:9px; color:#888899; margin-top:2px; }
+
+    /* ── Day/night clock ── */
+    #hud-clock {
+      top: 12px; left: 50%; transform: translateX(-50%);
+      padding: 5px 14px;
+      font-size: 11px;
+      color: #aaaacc;
+      pointer-events: none;
+    }
+
+    /* ── Full-screen overlays ── */
+    .hud-fullscreen {
+      position: fixed; inset: 0;
+      background: rgba(4,4,10,0.96);
+      z-index: 300;
+      display: flex; flex-direction:column;
+      align-items: center; justify-content: center;
+      pointer-events: all;
+      overflow-y: auto;
+    }
+    .hud-fullscreen .fs-title {
+      color: ${THEME.gold}; font-size:18px;
+      margin-bottom:20px; letter-spacing:2px;
+      text-shadow: 0 0 12px ${THEME.gold};
+    }
+    .hud-fullscreen .fs-close {
+      position:fixed; top:18px; right:22px;
+      font-size:20px; color:#884444; cursor:pointer;
+      background:none; border:none; font-family:${THEME.font};
+    }
+    .hud-fullscreen .fs-close:hover { color:#ff6666; }
+
+    /* ── Inventory ── */
+    #hud-inventory { display:none; }
+    .inv-tabs { display:flex; gap:6px; margin-bottom:14px; }
+    .inv-tab  {
+      padding:4px 14px; font-size:11px; cursor:pointer;
+      background:#111; border:1px solid #333; border-radius:3px;
+      color:#888; font-family:${THEME.font};
+    }
+    .inv-tab.active { border-color:${THEME.gold}; color:${THEME.gold}; }
+    .inv-grid {
+      display:grid; grid-template-columns: repeat(5,60px);
+      gap:6px; max-width:340px;
+    }
+    .inv-slot {
+      width:60px; height:60px;
+      background:#0d0d18; border:1px solid #333; border-radius:3px;
+      display:flex; flex-direction:column; align-items:center;
+      justify-content:center; cursor:pointer; padding:4px;
+      font-size:9px; color:#aaaacc; text-align:center;
+      transition: border-color 0.1s;
+    }
+    .inv-slot:hover        { border-color:${THEME.gold}; }
+    .inv-slot .slot-name   { font-size:8px; color:#aaaacc; margin-top:3px; word-break:break-word; }
+    .inv-slot .slot-icon   { font-size:20px; }
+    .inv-slot .slot-qty    { font-size:9px; color:${THEME.gold}; }
+    .inv-slot.equipped     { border-color:#44cc88; background:#061210; }
+    .inv-equip-row { display:flex; gap:20px; margin-bottom:18px; }
+    .inv-equip-box {
+      width:80px; height:80px;
+      background:#0d0d18; border:1px solid #334; border-radius:4px;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      font-size:9px; color:#666677; text-align:center;
+    }
+    .craft-grid { max-width:420px; }
+    .craft-row  {
+      display:flex; align-items:center; gap:12px;
+      padding:8px; border:1px solid #222; border-radius:3px;
+      margin-bottom:6px; cursor:pointer; transition:background 0.1s;
+    }
+    .craft-row:hover { background:#111; }
+    .craft-btn  {
+      padding:4px 10px; font-size:10px; cursor:pointer;
+      background:#111; border:1px solid ${THEME.gold};
+      color:${THEME.gold}; border-radius:3px; font-family:${THEME.font};
+    }
+    .craft-btn:hover { background:#1a1500; }
+    .craft-btn:disabled { border-color:#333; color:#444; cursor:default; }
+
+    /* ── Dialogue panel ── */
+    #hud-dialogue {
+      position:fixed;
+      bottom:0; left:0; right:0;
+      height:220px;
+      background:${THEME.bgPanel};
+      border-top:${THEME.border};
+      display:none; flex-direction:column;
+      padding:12px 18px;
+      z-index:280;
+      pointer-events:all;
+    }
+    #hud-dialogue.open { display:flex; }
+    #dlg-header { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+    #dlg-portrait {
+      width:52px; height:52px; border-radius:4px;
+      background:#1a1230; border:1px solid ${THEME.gold};
+      display:flex; align-items:center; justify-content:center;
+      font-size:24px; flex-shrink:0;
+    }
+    #dlg-npc-name  { color:${THEME.gold}; font-size:13px; }
+    #dlg-npc-role  { color:#888899; font-size:10px; }
+    #dlg-close     { margin-left:auto; cursor:pointer; color:#884444; font-size:18px; background:none; border:none; font-family:${THEME.font}; }
+    #dlg-close:hover { color:#ff6666; }
+    #dlg-text      { flex:1; color:#ccccdd; font-size:12px; overflow-y:auto; line-height:1.5; margin-bottom:8px; }
+    #dlg-typing    { color:#555566; font-size:12px; margin-bottom:8px; animation:blink 1s infinite; }
+    @keyframes blink { 50%{opacity:0} }
+    #dlg-input-row { display:flex; gap:8px; }
+    #dlg-input     {
+      flex:1; background:#0e0e18; border:1px solid #334; border-radius:3px;
+      color:#ccccdd; padding:6px 10px; font-family:${THEME.font}; font-size:12px;
+      outline:none;
+    }
+    #dlg-input:focus { border-color:${THEME.gold}; }
+    #dlg-send      {
+      padding:6px 14px; background:none; border:1px solid ${THEME.gold};
+      color:${THEME.gold}; cursor:pointer; border-radius:3px; font-family:${THEME.font};
+      font-size:12px;
+    }
+    #dlg-send:hover { background:#1a1500; }
+    #dlg-trade-btn {
+      padding:4px 12px; background:none; border:1px solid #cc9922;
+      color:#cc9922; cursor:pointer; border-radius:3px; font-family:${THEME.font};
+      font-size:11px; margin-left:8px;
+    }
+
+    /* ── World map ── */
+    #hud-map { display:none; }
+    #world-map-canvas { display:block; border-radius:4px; image-rendering:pixelated; max-width:90vw; max-height:80vh; }
+
+    /* ── Skill tree ── */
+    #hud-skills { display:none; }
+    .skill-grid { display:flex; flex-wrap:wrap; gap:12px; max-width:520px; justify-content:center; }
+    .skill-card {
+      width:150px; padding:10px 12px;
+      background:#0d0d18; border:1px solid #334; border-radius:4px;
+      display:flex; flex-direction:column; gap:4px;
+    }
+    .skill-card.own-class  { border-color:#336; }
+    .skill-card .sk-name   { color:#aaccff; font-size:12px; }
+    .skill-card .sk-desc   { color:#666677; font-size:9px; line-height:1.35; }
+    .skill-card .sk-ranks  { display:flex; gap:3px; margin-top:4px; }
+    .skill-card .sk-pip    { width:12px; height:5px; border-radius:2px; background:#1a1a22; border:1px solid #333; }
+    .skill-card .sk-pip.on { background:${THEME.gold}; }
+    .skill-learn {
+      padding:3px 8px; margin-top:6px; font-size:10px; cursor:pointer;
+      background:none; border:1px solid ${THEME.gold}; color:${THEME.gold};
+      border-radius:3px; font-family:${THEME.font};
+    }
+    .skill-learn:disabled { border-color:#333; color:#444; cursor:default; }
+
+    /* ── Act banner ── */
+    #hud-act-banner {
+      position:fixed; left:50%; top:30%;
+      transform:translate(-50%,-50%);
+      text-align:center;
+      pointer-events:none;
+      z-index:400;
+      opacity:0;
+      transition:opacity 0.5s;
+    }
+    #hud-act-banner.show { opacity:1; }
+    #hud-act-banner .act-tag   { font-size:11px; color:#888899; letter-spacing:3px; margin-bottom:6px; }
+    #hud-act-banner .act-title { font-size:28px; color:${THEME.gold}; text-shadow:0 0 20px ${THEME.gold}; letter-spacing:2px; }
+    #hud-act-banner .act-sub   { font-size:12px; color:#aaaacc; margin-top:8px; }
+
+    /* ── Achievement popup ── */
+    #hud-achievement {
+      position:fixed; top:-80px; right:16px;
+      width:300px; padding:12px 16px;
+      background:${THEME.bgPanel};
+      border:1px solid ${THEME.gold};
+      border-radius:4px;
+      transition:top 0.35s cubic-bezier(0.34,1.56,0.64,1);
+      pointer-events:none;
+      z-index:450;
+    }
+    #hud-achievement.show  { top:16px; }
+    #hud-achievement .ach-label { font-size:9px; color:${THEME.gold}; letter-spacing:2px; }
+    #hud-achievement .ach-name  { font-size:14px; color:#fff; margin-top:3px; }
+    #hud-achievement .ach-desc  { font-size:10px; color:#888899; margin-top:2px; }
+
+    /* ── World event banner ── */
+    #hud-event-banner {
+      position:fixed; left:50%; top:90px;
+      transform:translateX(-50%);
+      max-width:520px; width:90vw;
+      padding:14px 20px; text-align:center;
+      background:rgba(4,4,18,0.94);
+      border-radius:4px;
+      pointer-events:none; z-index:420;
+      opacity:0; transition:opacity 0.4s;
+    }
+    #hud-event-banner.show { opacity:1; }
+    #hud-event-banner .ev-name { font-size:14px; margin-bottom:4px; }
+    #hud-event-banner .ev-desc { font-size:11px; color:#aaaacc; }
+
+    /* ── Controls hint ── */
+    #hud-hint {
+      position:fixed; bottom:6px; left:50%;
+      transform:translateX(-50%);
+      font-size:9px; color:#333344;
+      pointer-events:none; z-index:90;
+      white-space:nowrap;
+    }
+
+    /* ── Trade panel ── */
+    #hud-trade { display:none; }
+    .trade-section { margin-bottom:18px; }
+    .trade-title   { color:${THEME.gold}; font-size:12px; margin-bottom:8px; }
+    .trade-row {
+      display:flex; align-items:center; gap:10px;
+      padding:6px; border-bottom:1px solid #1a1a22;
+    }
+    .trade-row:hover { background:#111; }
+    .trade-item-name { flex:1; font-size:11px; color:#ccccdd; }
+    .trade-price     { font-size:11px; color:#e8cc44; min-width:50px; text-align:right; }
+    .trade-btn       {
+      padding:3px 10px; font-size:10px; cursor:pointer;
+      background:none; border:1px solid ${THEME.gold}; color:${THEME.gold};
+      border-radius:3px; font-family:${THEME.font};
+    }
+    .trade-btn:hover { background:#1a1500; }
+
+    /* ── Scrollbars ── */
+    .hud-panel ::-webkit-scrollbar        { width:5px; }
+    .hud-panel ::-webkit-scrollbar-track  { background:#111; }
+    .hud-panel ::-webkit-scrollbar-thumb  { background:#333; border-radius:3px; }
+  `;
+  document.head.appendChild(style);
+}
+
+// ── Item type → icon emoji ─────────────────────────────────────────────────────
+
+const ITEM_ICONS = {
+  currency: '🪙', weapon: '⚔️', armor: '🛡️',
+  material: '🔩', consumable: '🧪', readable: '📜',
+};
+function itemIcon(itemKey) {
+  const item = CONFIG.ITEMS[itemKey];
+  return item ? (ITEM_ICONS[item.type] || '📦') : '📦';
+}
+
+// ── HUD class ──────────────────────────────────────────────────────────────────
+
+export class HUD {
+  /**
+   * @param {import('../engine/EventBus.js').EventBus} eventBus
+   * @param {import('../systems/QuestSystem.js').QuestSystem|null}  questSystem
+   * @param {import('../systems/TradeSystem.js').TradeSystem|null}  tradeSystem
+   */
+  constructor(eventBus, questSystem = null, tradeSystem = null) {
+    this.eventBus    = eventBus;
+    this.questSystem = questSystem;
+    this.tradeSystem = tradeSystem;
+
+    this._gameScene   = null;
+    this._player      = null;
+    this._mapData     = null;
+    this._dialogueNPC = null;
+    this._tradeNPC    = null;
+    this._mmInterval  = null;
+    this._logLines    = [];   // [{ text, color }]
+    this._achTimer    = null;
+
+    // Panel state flags
+    this.invOpen   = false;
+    this.mapOpen   = false;
+    this.questOpen = false;
+    this.skillOpen = false;
+    this.tradeOpen = false;
+
+    injectCSS();
+    this._ensureOverlay();
+    this._buildAll();
+    this._bindKeys();
+  }
+
+  _ensureOverlay() {
+    if (!document.getElementById('ui-overlay')) {
+      const el = document.createElement('div');
+      el.id = 'ui-overlay';
+      document.body.appendChild(el);
+    }
+    this._overlay = document.getElementById('ui-overlay');
+  }
+
+  // ── Build panels ────────────────────────────────────────────────────────────
+
+  _buildAll() {
+    this._buildStats();
+    this._buildMinimap();
+    this._buildLog();
+    this._buildQuestTracker();
+    this._buildClock();
+    this._buildInventory();
+    this._buildDialogue();
+    this._buildWorldMap();
+    this._buildSkillTree();
+    this._buildActBanner();
+    this._buildAchievementPopup();
+    this._buildEventBanner();
+    this._buildHint();
+  }
+
+  _el(tag, cls, parent) {
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (parent) parent.appendChild(el);
+    return el;
+  }
+
+  // ── Stats bar ───────────────────────────────────────────────────────────────
+
+  _buildStats() {
+    const panel = this._el('div', 'hud-panel', this._overlay);
+    panel.id = 'hud-stats';
+
+    const header = this._el('div', '', panel);
+    this._statName  = this._el('div', 'stat-name',  header);
+    this._statClass = this._el('div', 'stat-class', header);
+    this._statName.textContent  = 'Hero';
+    this._statClass.textContent = '[Warrior]';
+
+    this._hpFill  = this._addBar(panel, 'HP', 'bar-hp-fill');
+    this._hpNum   = this._hpFill.parentElement.nextElementSibling;
+    this._xpFill  = this._addBar(panel, 'XP', 'bar-xp-fill');
+    this._xpNum   = this._xpFill.parentElement.nextElementSibling;
+
+    const row     = this._el('div', '', panel);
+    row.style.cssText = 'display:flex;gap:14px;margin-top:4px;';
+    this._levelEl = this._el('div', '', row);
+    this._goldEl  = this._el('div', 'bar-num', row);
+    this._levelEl.style.cssText = 'color:#d4af37;font-size:12px;';
+    this._goldEl.style.cssText  = 'color:#e8cc44;font-size:11px;';
+    this._levelEl.textContent   = 'Lv.1';
+    this._goldEl.textContent    = '0g';
+  }
+
+  _addBar(parent, label, fillId) {
+    const wrap  = this._el('div', 'bar-wrap', parent);
+    const lbl   = this._el('div', 'bar-label', wrap);
+    lbl.textContent = label;
+    const track = this._el('div', 'bar-track', wrap);
+    const fill  = this._el('div', 'bar-fill', track);
+    fill.id = fillId;
+    fill.style.width = '100%';
+    const num = this._el('div', 'bar-num', wrap);
+    num.textContent = '—';
+    return fill;
+  }
+
+  _updateStats(s) {
+    if (!s) return;
+    this._statName.textContent  = s.name || 'Hero';
+    this._levelEl.textContent   = 'Lv.' + (s.level || 1);
+    this._goldEl.textContent    = (s.gold || 0) + 'g';
+
+    const hpPct = s.maxHp > 0 ? (Math.max(0, s.hp) / s.maxHp * 100).toFixed(1) : 0;
+    const xpPct = s.xpNeeded > 0 ? (s.xp / s.xpNeeded * 100).toFixed(1) : 0;
+
+    this._hpFill.style.width = hpPct + '%';
+    this._hpFill.style.background =
+      (s.hp / s.maxHp > 0.6) ? '#22aa44' :
+      (s.hp / s.maxHp > 0.3) ? '#cc8800' : '#cc3333';
+
+    const hpNum = this._hpFill.parentElement?.nextElementSibling;
+    if (hpNum) hpNum.textContent = s.hp + '/' + s.maxHp;
+
+    this._xpFill.style.width = xpPct + '%';
+    const xpNum = this._xpFill.parentElement?.nextElementSibling;
+    if (xpNum) xpNum.textContent = s.xp + '/' + s.xpNeeded;
+
+    if (this._player?.playerClass) {
+      const cls = CONFIG.CLASSES[this._player.playerClass];
+      this._statClass.textContent = cls ? '[' + cls.name + ']' : '';
+    }
+  }
+
+  // ── Minimap ─────────────────────────────────────────────────────────────────
+
+  _buildMinimap() {
+    const panel  = this._el('div', 'hud-panel', this._overlay);
+    panel.id = 'hud-minimap';
+
+    this._mmCanvas = this._el('canvas', '', panel);
+    this._mmCanvas.width  = 180;
+    this._mmCanvas.height = 180;
+    this._mmCanvas.style.cssText = 'width:180px;height:180px;';
+    this._mmCtx = this._mmCanvas.getContext('2d');
+
+    this._el('div', '', panel).id = 'minimap-label';
+    const lbl = document.getElementById('minimap-label') || panel.lastChild;
+    lbl.textContent = 'MAP';
+
+    this._mmInterval = setInterval(() => this._drawMinimap(), 500);
+  }
+
+  _drawMinimap() {
+    if (!this._mapData) return;
+    const ctx  = this._mmCtx;
+    const data = this._mapData;
+    const rows = data.length;
+    const cols = data[0].length;
+    const W    = 180;
+    const H    = 180;
+    const sw   = W / cols;
+    const sh   = H / rows;
+
+    const T  = CONFIG.TILES;
+    const CM = {
+      [T.DEEP_WATER]:    '#0d2137',
+      [T.WATER]:         '#1a4a80',
+      [T.SAND]:          '#c8a848',
+      [T.GRASS]:         '#2d6a30',
+      [T.FOREST]:        '#1a4520',
+      [T.STONE]:         '#5a5a5a',
+      [T.DUNGEON_FLOOR]: '#3a4550',
+      [T.DUNGEON_WALL]:  '#141414',
+      [T.PATH]:          '#7a5a3a',
+      [T.TOWN_FLOOR]:    '#8a9a8a',
+    };
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Draw tiles
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        ctx.fillStyle = CM[data[r][c]] || '#222233';
+        ctx.fillRect(c * sw, r * sh, Math.max(1, sw), Math.max(1, sh));
+      }
+    }
+
+    if (!this._player) return;
+    const px = this._player.position.x / cols * W;
+    const pz = this._player.position.z / rows * H;
+
+    // Player dot (white)
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(px, pz, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // NPC dots (gold)
+    if (this._gameScene?.npcs) {
+      this._gameScene.npcs.forEach(n => {
+        ctx.fillStyle = '#d4af37';
+        ctx.beginPath();
+        ctx.arc(n.position.x / cols * W, n.position.z / rows * H, 2, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    // Enemy dots (red, only living)
+    if (this._gameScene?.enemies) {
+      this._gameScene.enemies.forEach(e => {
+        if (e.isDead) return;
+        ctx.fillStyle = '#cc3333';
+        ctx.beginPath();
+        ctx.arc(e.position.x / cols * W, e.position.z / rows * H, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    // Portal dot (purple)
+    if (this._gameScene?._portalPos) {
+      const pp = this._gameScene._portalPos;
+      ctx.fillStyle = '#8800ff';
+      ctx.beginPath();
+      ctx.arc(pp.x / cols * W, pp.z / rows * H, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ── Combat log ──────────────────────────────────────────────────────────────
+
+  _buildLog() {
+    const panel = this._el('div', 'hud-panel', this._overlay);
+    panel.id = 'hud-log';
+    panel.style.pointerEvents = 'none';
+    this._logContainer = panel;
+  }
+
+  /**
+   * Add a message to the combat log.
+   * @param {string} text
+   * @param {string} [color='#888899']
+   */
+  logMsg(text, color = '#888899') {
+    this._logLines.push({ text, color });
+    if (this._logLines.length > 8) this._logLines.shift();
+    this._renderLog();
+  }
+
+  _renderLog() {
+    this._logContainer.innerHTML = '';
+    this._logLines.forEach(({ text, color }) => {
+      const line = this._el('div', 'log-line', this._logContainer);
+      line.style.color = color;
+      line.textContent = text;
+    });
+  }
+
+  // ── Quest tracker ────────────────────────────────────────────────────────────
+
+  _buildQuestTracker() {
+    const panel = this._el('div', 'hud-panel', this._overlay);
+    panel.id = 'hud-quests';
+    const title = this._el('div', 'qt-title', panel);
+    title.textContent = 'ACTIVE QUESTS';
+    this._questPanel = panel;
+    this._questBody  = this._el('div', '', panel);
+  }
+
+  refreshQuests() {
+    if (!this._questBody) return;
+    this._questBody.innerHTML = '';
+    const quests = (this.questSystem?.active || []).slice(0, 3);
+    if (quests.length === 0) {
+      const empty = this._el('div', '', this._questBody);
+      empty.style.cssText = 'font-size:10px;color:#444455;';
+      empty.textContent = 'No active quests.';
+      return;
+    }
+    quests.forEach(q => {
+      const wrap = this._el('div', 'qt-quest', this._questBody);
+      const name = this._el('div', 'qt-name', wrap);
+      name.textContent = q.title;
+      const desc = this._el('div', 'qt-desc', wrap);
+      desc.textContent = q.desc;
+      const track = this._el('div', 'qt-prog-track', wrap);
+      const fill  = this._el('div', 'qt-prog-fill', track);
+      const pct   = q.needed > 0 ? (q.progress / q.needed * 100) : 0;
+      fill.style.width = pct + '%';
+      const txt   = this._el('div', 'qt-prog-txt', wrap);
+      txt.textContent = q.progress + ' / ' + q.needed;
+    });
+  }
+
+  // ── Clock ────────────────────────────────────────────────────────────────────
+
+  _buildClock() {
+    const clock = this._el('div', 'hud-panel', this._overlay);
+    clock.id = 'hud-clock';
+    clock.style.pointerEvents = 'none';
+    this._clockEl = clock;
+  }
+
+  // ── Inventory panel ───────────────────────────────────────────────────────────
+
+  _buildInventory() {
+    const overlay = this._el('div', 'hud-fullscreen', document.body);
+    overlay.id = 'hud-inventory';
+    overlay.style.display = 'none';
+
+    const closeBtn = this._el('button', 'fs-close', overlay);
+    closeBtn.textContent = '✕';
+    closeBtn.onclick = () => this.toggleInventory();
+
+    const title = this._el('div', 'fs-title', overlay);
+    title.textContent = '// INVENTORY';
+
+    // Equipment row
+    this._invEquipRow = this._el('div', 'inv-equip-row', overlay);
+    const wpnBox = this._el('div', 'inv-equip-box', this._invEquipRow);
+    wpnBox.innerHTML = '<div style="font-size:20px">⚔️</div><div>Weapon</div>';
+    this._invWpnBox = wpnBox;
+    const armBox = this._el('div', 'inv-equip-box', this._invEquipRow);
+    armBox.innerHTML = '<div style="font-size:20px">🛡️</div><div>Armor</div>';
+    this._invArmBox = armBox;
+
+    // Tabs
+    const tabs = this._el('div', 'inv-tabs', overlay);
+    this._invTabItems  = this._addTab(tabs, 'Items',   () => this._showInvTab('items'));
+    this._invTabCraft  = this._addTab(tabs, 'Crafting', () => this._showInvTab('craft'));
+    this._invTabItems.classList.add('active');
+
+    // Content area
+    this._invContent = this._el('div', '', overlay);
+    this._invContent.style.cssText = 'width:100%;max-width:420px;';
+
+    this._invItemGrid = this._el('div', 'inv-grid', this._invContent);
+    this._invCraftDiv = this._el('div', 'craft-grid', this._invContent);
+    this._invCraftDiv.style.display = 'none';
+
+    this._invOverlay = overlay;
+  }
+
+  _addTab(parent, label, onClick) {
+    const t = this._el('button', 'inv-tab', parent);
+    t.textContent = label;
+    t.onclick = () => {
+      parent.querySelectorAll('.inv-tab').forEach(e => e.classList.remove('active'));
+      t.classList.add('active');
+      onClick();
+    };
+    return t;
+  }
+
+  _showInvTab(tab) {
+    if (tab === 'items') {
+      this._invItemGrid.style.display = 'grid';
+      this._invCraftDiv.style.display = 'none';
+    } else {
+      this._invItemGrid.style.display = 'none';
+      this._invCraftDiv.style.display = 'block';
+      this._renderCrafting();
+    }
+  }
+
+  _renderInv(player) {
+    if (!player) return;
+    this._invItemGrid.innerHTML = '';
+    const items = Object.entries(player.inventory || {}).filter(([, qty]) => qty > 0);
+
+    if (items.length === 0) {
+      const empty = this._el('div', '', this._invItemGrid);
+      empty.style.cssText = 'grid-column:1/-1;color:#444455;font-size:11px;';
+      empty.textContent = 'No items.';
+      return;
+    }
+
+    items.forEach(([key, qty]) => {
+      const info = CONFIG.ITEMS[key];
+      if (!info) return;
+      const slot = this._el('div', 'inv-slot', this._invItemGrid);
+      const isWpn = player.equipment?.weapon === key;
+      const isArm = player.equipment?.armor  === key;
+      if (isWpn || isArm) slot.classList.add('equipped');
+
+      slot.innerHTML = `
+        <div class="slot-icon">${itemIcon(key)}</div>
+        <div class="slot-name">${info.name}</div>
+        ${qty > 1 ? `<div class="slot-qty">×${qty}</div>` : ''}
+      `;
+      slot.title = info.name + (info.atk ? '  ATK+' + info.atk : '') +
+                               (info.def ? '  DEF+' + info.def : '') +
+                               (info.heal ? '  HEAL+' + info.heal : '') +
+                               '\nValue: ' + info.value + 'g';
+      slot.onclick = () => {
+        player.useItem(key);
+        this._renderInv(player);
+      };
+    });
+
+    // Equipment display
+    const eq = player.equipment || {};
+    if (eq.weapon) {
+      const wi = CONFIG.ITEMS[eq.weapon];
+      this._invWpnBox.innerHTML = `<div style="font-size:20px">⚔️</div><div style="font-size:9px;color:#d4af37;">${wi?.name || eq.weapon}</div>`;
+    }
+    if (eq.armor) {
+      const ai = CONFIG.ITEMS[eq.armor];
+      this._invArmBox.innerHTML = `<div style="font-size:20px">🛡️</div><div style="font-size:9px;color:#d4af37;">${ai?.name || eq.armor}</div>`;
+    }
+  }
+
+  _renderCrafting() {
+    if (!this._player) return;
+    this._invCraftDiv.innerHTML = '';
+    const titleEl = this._el('div', 'trade-title', this._invCraftDiv);
+    titleEl.textContent = 'RECIPES';
+
+    CONFIG.RECIPES.forEach(recipe => {
+      const row = this._el('div', 'craft-row', this._invCraftDiv);
+      const info = CONFIG.ITEMS[recipe.result];
+      const nameDiv = this._el('div', '', row);
+      nameDiv.style.flex = '1';
+      nameDiv.innerHTML = `<div style="font-size:11px;color:#ccccdd;">${itemIcon(recipe.result)} ${info?.name || recipe.result}</div>
+        <div style="font-size:9px;color:#666677;">${Object.entries(recipe.materials).map(([k, v]) => `${v}×${CONFIG.ITEMS[k]?.name || k}`).join(', ')}</div>`;
+
+      // Check if can craft
+      const canCraft = Object.entries(recipe.materials).every(
+        ([k, v]) => (this._player.inventory?.[k] || 0) >= v,
+      );
+      const btn = this._el('button', 'craft-btn', row);
+      btn.textContent = 'Craft';
+      btn.disabled = !canCraft;
+      btn.onclick = () => {
+        if (!canCraft) return;
+        Object.entries(recipe.materials).forEach(([k, v]) => this._player.removeItem(k, v));
+        this._player.addItem(recipe.result);
+        this.eventBus?.emit('achievement', { name: 'Artisan', desc: 'Crafted an item' });
+        this._renderCrafting();
+        this.logMsg('Crafted: ' + (info?.name || recipe.result), '#88ff88');
+      };
+    });
+  }
+
+  toggleInventory(player) {
+    if (player) this._player = player;
+    this.invOpen = !this.invOpen;
+    this._invOverlay.style.display = this.invOpen ? 'flex' : 'none';
+    if (this.invOpen && this._player) {
+      this._renderInv(this._player);
+      this._showInvTab('items');
+    }
+  }
+
+  // ── Dialogue panel ────────────────────────────────────────────────────────────
+
+  _buildDialogue() {
+    const panel = document.createElement('div');
+    panel.id = 'hud-dialogue';
+    document.body.appendChild(panel);
+
+    // Header
+    const header = this._el('div', '', panel);
+    header.id = 'dlg-header';
+
+    this._dlgPortrait = this._el('div', '', header);
+    this._dlgPortrait.id = 'dlg-portrait';
+    this._dlgPortrait.textContent = '🧙';
+
+    const nameCol = this._el('div', '', header);
+    nameCol.style.flex = '1';
+    this._dlgNpcName = this._el('div', '', nameCol);
+    this._dlgNpcName.id = 'dlg-npc-name';
+    this._dlgNpcRole = this._el('div', '', nameCol);
+    this._dlgNpcRole.id = 'dlg-npc-role';
+
+    const closeBtn = this._el('button', '', header);
+    closeBtn.id = 'dlg-close';
+    closeBtn.textContent = '✕';
+    closeBtn.onclick = () => this._closeDialogue();
+
+    // Text area
+    this._dlgText = this._el('div', '', panel);
+    this._dlgText.id = 'dlg-text';
+
+    this._dlgTyping = this._el('div', '', panel);
+    this._dlgTyping.id = 'dlg-typing';
+    this._dlgTyping.textContent = '...';
+    this._dlgTyping.style.display = 'none';
+
+    // Input row
+    const inputRow = this._el('div', '', panel);
+    inputRow.id = 'dlg-input-row';
+
+    this._dlgInput = this._el('input', '', inputRow);
+    this._dlgInput.id = 'dlg-input';
+    this._dlgInput.type = 'text';
+    this._dlgInput.placeholder = 'Ask something…';
+    this._dlgInput.onkeydown = e => {
+      if (e.key === 'Enter') { e.stopPropagation(); this._sendDialogue(); }
+      e.stopPropagation(); // prevent game keys
+    };
+
+    const sendBtn = this._el('button', '', inputRow);
+    sendBtn.id = 'dlg-send';
+    sendBtn.textContent = 'Send';
+    sendBtn.onclick = () => this._sendDialogue();
+
+    this._dlgTradeBtn = this._el('button', '', inputRow);
+    this._dlgTradeBtn.id = 'dlg-trade-btn';
+    this._dlgTradeBtn.textContent = '🛍 Shop';
+    this._dlgTradeBtn.style.display = 'none';
+    this._dlgTradeBtn.onclick = () => {
+      if (this._dialogueNPC) this._openTrade(this._dialogueNPC);
+    };
+
+    this._dlgPanel = panel;
+  }
+
+  /**
+   * @param {import('../entities/NPC3D.js').NPC3D} npc
+   * @param {import('../entities/Player3D.js').Player3D} player
+   * @param {import('../systems/QuestSystem.js').QuestSystem} questSystem
+   * @param {import('../systems/TradeSystem.js').TradeSystem} tradeSystem
+   * @param {object} worldEvents
+   */
+  async openDialogue(npc, player, questSystem, tradeSystem, worldEvents) {
+    this._dialogueNPC  = npc;
+    this._player       = player;
+    this._questSystem  = questSystem || this.questSystem;
+    this._tradeSystem  = tradeSystem || this.tradeSystem;
+    this._worldEvents  = worldEvents;
+
+    const nd  = npc.npcData;
+    const col = '#' + (nd.color || 0xd4af37).toString(16).padStart(6, '0');
+
+    this._dlgNpcName.textContent  = nd.name;
+    this._dlgNpcName.style.color  = col;
+    this._dlgNpcRole.textContent  = '[' + nd.role + ']';
+    this._dlgPortrait.textContent = { 'Village Elder':'🧙', 'Blacksmith':'⚒️',
+      'Herbalist':'🌿', 'Merchant':'🛒', 'Guard Captain':'⚔️' }[nd.role] || '🧑';
+    this._dlgPortrait.style.background = col + '22';
+    this._dlgPortrait.style.borderColor = col;
+
+    const hasShop = tradeSystem?.hasShop?.(nd.role);
+    this._dlgTradeBtn.style.display = hasShop ? 'inline-block' : 'none';
+
+    this._dlgText.textContent   = '';
+    this._dlgTyping.style.display = 'block';
+    this._dlgPanel.classList.add('open');
+
+    const currentEvent = worldEvents?.getCurrent()?.name || null;
+    try {
+      const reply = await npc.talk('Hello, I approach you.', player?.stats, currentEvent);
+      this._dlgTyping.style.display = 'none';
+      this._dlgText.textContent = reply;
+      this.logMsg(nd.name + ': ' + reply.slice(0, 55) + (reply.length > 55 ? '…' : ''), col);
+    } catch (_) {
+      this._dlgTyping.style.display = 'none';
+      this._dlgText.textContent = 'Greetings, traveller.';
+    }
+
+    // Offer a quest occasionally
+    if (this._questSystem && Math.random() < 0.4) {
+      setTimeout(() => {
+        this._questSystem.generateQuest(player?.stats, nd.name);
+      }, 1200);
+    }
+
+    // Story flag
+    if (nd.name === 'Elder Lyra') {
+      this._gameScene?.storySystem?.flagSet('talked_to_lyra');
+    }
+
+    this._dlgInput.value = '';
+    this._dlgInput.focus();
+  }
+
+  _closeDialogue() {
+    this._dlgPanel.classList.remove('open');
+    this._dialogueNPC = null;
+  }
+
+  async _sendDialogue() {
+    if (!this._dialogueNPC) return;
+    const msg = this._dlgInput.value.trim();
+    if (!msg) return;
+    this._dlgInput.value = '';
+
+    this._dlgText.style.opacity    = '0.4';
+    this._dlgTyping.style.display  = 'block';
+
+    const currentEvent = this._worldEvents?.getCurrent()?.name || null;
+    try {
+      const reply = await this._dialogueNPC.talk(msg, this._player?.stats, currentEvent);
+      this._dlgTyping.style.display = 'none';
+      this._dlgText.style.opacity   = '1';
+      this._dlgText.textContent     = reply;
+      const col = '#' + (this._dialogueNPC.npcData.color || 0xd4af37).toString(16).padStart(6, '0');
+      this.logMsg(this._dialogueNPC.npcData.name + ': ' + reply.slice(0, 55) + '…', col);
+    } catch (_) {
+      this._dlgTyping.style.display = 'none';
+      this._dlgText.style.opacity   = '1';
+    }
+  }
+
+  // ── Trade / shop panel ────────────────────────────────────────────────────────
+
+  _openTrade(npc) {
+    this._tradeNPC = npc;
+    this._closeDialogue();
+
+    // Reuse/build trade overlay lazily
+    let tradeOverlay = document.getElementById('hud-trade');
+    if (!tradeOverlay) {
+      tradeOverlay = this._el('div', 'hud-fullscreen', document.body);
+      tradeOverlay.id = 'hud-trade';
+      tradeOverlay.style.display = 'none';
+      const closeBtn = this._el('button', 'fs-close', tradeOverlay);
+      closeBtn.textContent = '✕';
+      closeBtn.onclick = () => { this.tradeOpen = false; tradeOverlay.style.display = 'none'; };
+      const t = this._el('div', 'fs-title', tradeOverlay);
+      t.id = 'trade-title';
+      this._tradeContent = this._el('div', '', tradeOverlay);
+    }
+    document.getElementById('trade-title').textContent = '// SHOP — ' + npc.npcData.name.toUpperCase();
+
+    this._renderTrade(npc);
+    tradeOverlay.style.display = 'flex';
+    this.tradeOpen = true;
+  }
+
+  _renderTrade(npc) {
+    if (!this._tradeContent || !this._tradeSystem || !this._player) return;
+    this._tradeContent.innerHTML = '';
+    const shop = this._tradeSystem.getShop(npc.npcData.role);
+
+    if (!shop.items.length) {
+      const msg = this._el('div', '', this._tradeContent);
+      msg.style.cssText = 'color:#555566;font-size:11px;';
+      msg.textContent = 'Nothing for sale.';
+      return;
+    }
+
+    // Buy section
+    const buyTitle = this._el('div', 'trade-title', this._tradeContent);
+    buyTitle.textContent = 'BUY';
+    shop.items.forEach(key => {
+      const info  = CONFIG.ITEMS[key];
+      if (!info) return;
+      const price = this._tradeSystem.buyPrice(key, npc.npcData.role);
+      const row   = this._el('div', 'trade-row', this._tradeContent);
+      const nm    = this._el('div', 'trade-item-name', row);
+      nm.innerHTML = itemIcon(key) + ' ' + info.name;
+      const pr    = this._el('div', 'trade-price', row);
+      pr.textContent = price + 'g';
+      const btn   = this._el('button', 'trade-btn', row);
+      btn.textContent = 'Buy';
+      btn.onclick = () => {
+        const res = this._tradeSystem.buy(this._player, key, npc.npcData.role);
+        this.logMsg(res.msg, res.ok ? '#88ff88' : '#ff6666');
+        if (res.ok) this.eventBus?.emit('statsChanged', this._player.stats);
+      };
+    });
+
+    // Sell section
+    const sellTitle = this._el('div', 'trade-title', this._tradeContent);
+    sellTitle.style.marginTop = '16px';
+    sellTitle.textContent = 'SELL';
+    const inv = Object.entries(this._player.inventory || {}).filter(([, qty]) => qty > 0);
+    if (inv.length === 0) {
+      const empty = this._el('div', '', this._tradeContent);
+      empty.style.cssText = 'color:#444455;font-size:11px;';
+      empty.textContent = 'Nothing to sell.';
+    }
+    inv.forEach(([key, qty]) => {
+      const info  = CONFIG.ITEMS[key];
+      if (!info) return;
+      const price = this._tradeSystem.sellPrice(key);
+      const row   = this._el('div', 'trade-row', this._tradeContent);
+      const nm    = this._el('div', 'trade-item-name', row);
+      nm.innerHTML = itemIcon(key) + ' ' + info.name + (qty > 1 ? ` ×${qty}` : '');
+      const pr    = this._el('div', 'trade-price', row);
+      pr.textContent = price + 'g';
+      const btn   = this._el('button', 'trade-btn', row);
+      btn.textContent = 'Sell';
+      btn.onclick = () => {
+        const res = this._tradeSystem.sell(this._player, key);
+        this.logMsg(res.msg, res.ok ? '#88ff88' : '#ff6666');
+        if (res.ok) { this.eventBus?.emit('statsChanged', this._player.stats); this._renderTrade(npc); }
+      };
+    });
+  }
+
+  // ── World map ────────────────────────────────────────────────────────────────
+
+  _buildWorldMap() {
+    const overlay = this._el('div', 'hud-fullscreen', document.body);
+    overlay.id = 'hud-map';
+    overlay.style.display = 'none';
+
+    const closeBtn = this._el('button', 'fs-close', overlay);
+    closeBtn.textContent = '✕';
+    closeBtn.onclick = () => this.toggleMap();
+
+    const title = this._el('div', 'fs-title', overlay);
+    title.textContent = '// WORLD MAP — AETHORIA';
+
+    this._mapCanvas = this._el('canvas', '', overlay);
+    this._mapCanvas.id = 'world-map-canvas';
+    this._mapCanvas.width  = 512;
+    this._mapCanvas.height = 512;
+
+    this._mapOverlay = overlay;
+  }
+
+  toggleMap() {
+    this.mapOpen = !this.mapOpen;
+    this._mapOverlay.style.display = this.mapOpen ? 'flex' : 'none';
+    if (this.mapOpen && this._mapData) this._drawWorldMap();
+  }
+
+  _drawWorldMap() {
+    if (!this._mapData) return;
+    const data = this._mapData;
+    const rows = data.length, cols = data[0].length;
+    const S    = 512;
+    const sw   = S / cols, sh = S / rows;
+    const ctx  = this._mapCanvas.getContext('2d');
+    const T    = CONFIG.TILES;
+    const CM   = {
+      [T.DEEP_WATER]:'#0d2137', [T.WATER]:'#1a4a80', [T.SAND]:'#c8a848',
+      [T.GRASS]:'#2d6a30', [T.FOREST]:'#1a4520', [T.STONE]:'#5a5a5a',
+      [T.DUNGEON_FLOOR]:'#3a4550', [T.DUNGEON_WALL]:'#141414',
+      [T.PATH]:'#7a5a3a', [T.TOWN_FLOOR]:'#8a9a8a',
+    };
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        ctx.fillStyle = CM[data[r][c]] || '#222233';
+        ctx.fillRect(c * sw, r * sh, Math.max(1, sw), Math.max(1, sh));
+      }
+    }
+    if (this._player) {
+      const px = this._player.position.x / cols * S;
+      const pz = this._player.position.z / rows * S;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(px, pz, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#d4af37';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    if (this._gameScene?._portalPos) {
+      const pp = this._gameScene._portalPos;
+      const ppx = pp.x / cols * S;
+      const ppz = pp.z / rows * S;
+      ctx.fillStyle = '#8800ff';
+      ctx.beginPath();
+      ctx.arc(ppx, ppz, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ── Skill tree ────────────────────────────────────────────────────────────────
+
+  _buildSkillTree() {
+    const overlay = this._el('div', 'hud-fullscreen', document.body);
+    overlay.id = 'hud-skills';
+    overlay.style.display = 'none';
+
+    const closeBtn = this._el('button', 'fs-close', overlay);
+    closeBtn.textContent = '✕';
+    closeBtn.onclick = () => this.toggleSkillTree();
+
+    const title = this._el('div', 'fs-title', overlay);
+    title.textContent = '// SKILL TREE';
+
+    this._skillBody = this._el('div', 'skill-grid', overlay);
+    this._skillOverlay = overlay;
+  }
+
+  toggleSkillTree(player) {
+    if (player) this._player = player;
+    this.skillOpen = !this.skillOpen;
+    this._skillOverlay.style.display = this.skillOpen ? 'flex' : 'none';
+    if (this.skillOpen) this._renderSkills();
+  }
+
+  _renderSkills() {
+    if (!this._player || !this._skillBody) return;
+    this._skillBody.innerHTML = '';
+    const playerClass = this._player.playerClass;
+    const classSkills = playerClass ? (CONFIG.CLASSES[playerClass]?.skills || []) : [];
+
+    Object.entries(CONFIG.SKILLS).forEach(([key, sk]) => {
+      const card    = this._el('div', 'skill-card', this._skillBody);
+      const ownCls  = classSkills.includes(key);
+      if (ownCls) card.classList.add('own-class');
+
+      const nm = this._el('div', 'sk-name', card);
+      nm.textContent = sk.name;
+      const dc = this._el('div', 'sk-desc', card);
+      dc.textContent = sk.desc;
+
+      const ranks     = this._el('div', 'sk-ranks', card);
+      const curRank   = this._player.skills?.[key] || 0;
+      for (let r = 0; r < sk.maxRank; r++) {
+        const pip = this._el('div', 'sk-pip', ranks);
+        if (r < curRank) pip.classList.add('on');
+      }
+
+      const btn = this._el('button', 'skill-learn', card);
+      btn.textContent = curRank >= sk.maxRank ? 'MAX' : 'Learn (Lv.' + (curRank + 1) * 3 + ')';
+      const canLearn  = ownCls && curRank < sk.maxRank &&
+                        (this._player.stats?.level || 1) >= (curRank + 1) * 3;
+      btn.disabled    = !canLearn;
+      btn.onclick = () => {
+        if (this._player.learnSkill(key)) {
+          this._renderSkills();
+          this.logMsg('Learned: ' + sk.name, '#aaddff');
+        }
+      };
+    });
+  }
+
+  // ── Act banner ────────────────────────────────────────────────────────────────
+
+  _buildActBanner() {
+    const banner = this._el('div', '', document.body);
+    banner.id = 'hud-act-banner';
+    this._actBanner = banner;
+  }
+
+  /**
+   * @param {{ name:string, title:string, desc:string }} act
+   */
+  showActBanner(act) {
+    if (!act || !this._actBanner) return;
+    this._actBanner.innerHTML = `
+      <div class="act-tag">${act.name?.toUpperCase() || 'PROLOGUE'}</div>
+      <div class="act-title">${act.title || ''}</div>
+      <div class="act-sub">${act.desc || ''}</div>
+    `;
+    this._actBanner.classList.add('show');
+    clearTimeout(this._actBannerTimer);
+    this._actBannerTimer = setTimeout(() => {
+      this._actBanner.classList.remove('show');
+    }, 5000);
+  }
+
+  // ── Achievement popup ─────────────────────────────────────────────────────────
+
+  _buildAchievementPopup() {
+    const el = document.createElement('div');
+    el.id = 'hud-achievement';
+    el.innerHTML = `
+      <div class="ach-label">✦ ACHIEVEMENT UNLOCKED</div>
+      <div class="ach-name" id="ach-name">—</div>
+      <div class="ach-desc" id="ach-desc">—</div>
+    `;
+    document.body.appendChild(el);
+    this._achEl = el;
+  }
+
+  showAchievement(ach) {
+    if (!ach || !this._achEl) return;
+    document.getElementById('ach-name').textContent = ach.name || '—';
+    document.getElementById('ach-desc').textContent = ach.desc || '';
+    this._achEl.classList.add('show');
+    clearTimeout(this._achTimer);
+    this._achTimer = setTimeout(() => {
+      this._achEl.classList.remove('show');
+    }, 4000);
+    this.logMsg('Achievement: ' + ach.name, '#d4af37');
+  }
+
+  // ── World event banner ────────────────────────────────────────────────────────
+
+  _buildEventBanner() {
+    const el = document.createElement('div');
+    el.id = 'hud-event-banner';
+    el.innerHTML = `
+      <div class="ev-name" id="ev-name">—</div>
+      <div class="ev-desc" id="ev-desc">—</div>
+    `;
+    document.body.appendChild(el);
+    this._evBanner = el;
+  }
+
+  showWorldEvent(ev) {
+    if (!ev || !this._evBanner) return;
+    const col = '#' + (ev.color || 0x8844ff).toString(16).padStart(6, '0');
+    document.getElementById('ev-name').textContent = '** ' + ev.name.toUpperCase() + ' **';
+    document.getElementById('ev-name').style.color = col;
+    document.getElementById('ev-desc').textContent  = ev.desc;
+    this._evBanner.style.borderColor = col;
+    this._evBanner.classList.add('show');
+    this.logMsg(ev.name + ': ' + ev.desc, '#cc88ff');
+    clearTimeout(this._evBannerTimer);
+    this._evBannerTimer = setTimeout(() => {
+      this._evBanner.classList.remove('show');
+    }, 6000);
+  }
+
+  // ── Controls hint ─────────────────────────────────────────────────────────────
+
+  _buildHint() {
+    const el = document.createElement('div');
+    el.id = 'hud-hint';
+    el.textContent = 'WASD/Arrows: Move  |  Left-click: Attack/Loot  |  E: Talk  |  I: Inv  |  M: Map  |  Q: Quests  |  K: Skills';
+    document.body.appendChild(el);
+  }
+
+  // ── Floating text (for damage numbers) ───────────────────────────────────────
+
+  /**
+   * Show a floating text at screen coordinates.
+   * @param {number} screenX
+   * @param {number} screenY
+   * @param {string} text
+   * @param {string} color
+   */
+  showFloatingText(screenX, screenY, text, color = '#ffffff') {
+    const el = document.createElement('div');
+    Object.assign(el.style, {
+      position:      'fixed',
+      left:          screenX + 'px',
+      top:           screenY + 'px',
+      transform:     'translate(-50%,-50%)',
+      fontFamily:    THEME.font,
+      fontSize:      '16px',
+      fontWeight:    'bold',
+      color,
+      textShadow:    '1px 1px 3px #000',
+      pointerEvents: 'none',
+      zIndex:        '500',
+      transition:    'none',
+    });
+    el.textContent = String(text);
+    document.body.appendChild(el);
+
+    let age = 0;
+    const startY = screenY;
+    const step = () => {
+      age += 0.016;
+      const t = age / 1.0;
+      el.style.top     = (startY - 55 * t) + 'px';
+      el.style.opacity = String(Math.max(0, 1 - t * 1.5));
+      if (age < 1.0) requestAnimationFrame(step);
+      else el.parentNode?.removeChild(el);
+    };
+    requestAnimationFrame(step);
+  }
+
+  // ── Keyboard bindings ────────────────────────────────────────────────────────
+
+  _bindKeys() {
+    this._keyHandler = (e) => {
+      // Ignore if typing in dialogue input
+      if (document.activeElement === this._dlgInput) return;
+      switch (e.key.toLowerCase()) {
+        case 'i': this.toggleInventory(this._player); break;
+        case 'm': this.toggleMap();        break;
+        case 'q': this.toggleQuests();     break;
+        case 'k': this.toggleSkillTree(this._player); break;
+        case 'escape':
+          if (this.invOpen)   this.toggleInventory();
+          if (this.mapOpen)   this.toggleMap();
+          if (this.skillOpen) this.toggleSkillTree();
+          if (this.tradeOpen) { this.tradeOpen = false; const t = document.getElementById('hud-trade'); if(t) t.style.display='none'; }
+          this._closeDialogue();
+          break;
+      }
+    };
+    window.addEventListener('keydown', this._keyHandler);
+  }
+
+  toggleQuests() {
+    this.questOpen = !this.questOpen;
+    if (this._questPanel) {
+      this._questPanel.style.display = this.questOpen ? 'block' : 'block'; // always visible
+      // Animate opacity as a "highlight"
+      this._questPanel.style.opacity = '1';
+    }
+    this.refreshQuests();
+  }
+
+  // ── anyPanelOpen ─────────────────────────────────────────────────────────────
+
+  anyPanelOpen() {
+    return this.invOpen || this.mapOpen || this.skillOpen || this.tradeOpen ||
+           this._dlgPanel.classList.contains('open');
+  }
+
+  // ── bindGame ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Connect HUD to the game scene after creation.
+   * @param {import('../scenes/GameScene.js').GameScene} gameScene
+   */
+  bindGame(gameScene) {
+    this._gameScene   = gameScene;
+    this._player      = gameScene.player;
+    this._mapData     = gameScene.mapData;
+    this.questSystem  = gameScene.questSystem || this.questSystem;
+    this.tradeSystem  = gameScene.tradeSystem || this.tradeSystem;
+
+    const bus = this.eventBus;
+    bus.on('statsChanged',     s  => this._updateStats(s));
+    bus.on('inventoryChanged', () => { if (this.invOpen) this._renderInv(this._player); });
+    bus.on('levelUp',          lv => this.logMsg('Level Up! Now level ' + lv, '#ffd700'));
+    bus.on('questAdded',       () => this.refreshQuests());
+
+    this._updateStats(this._player?.stats);
+    this.refreshQuests();
+  }
+
+  // ── Per-frame update ──────────────────────────────────────────────────────────
+
+  /**
+   * Called every frame from GameScene.update().
+   * @param {import('../scenes/GameScene.js').GameScene} gs
+   */
+  update(gs) {
+    if (gs.player && gs.player !== this._player) {
+      this._player  = gs.player;
+      this._mapData = gs.mapData;
+    }
+    // Stats refresh every frame (cheap DOM update is fine since we check changes)
+    if (this._player) this._updateStats(this._player.stats);
+
+    // Clock
+    if (this._clockEl && gs.dayNight) {
+      this._clockEl.textContent = gs.dayNight.getTimeString();
+    }
+  }
+
+  // ── Cleanup ───────────────────────────────────────────────────────────────────
+
+  dispose() {
+    clearInterval(this._mmInterval);
+    clearTimeout(this._actBannerTimer);
+    clearTimeout(this._evBannerTimer);
+    clearTimeout(this._achTimer);
+    window.removeEventListener('keydown', this._keyHandler);
+
+    // Remove all added DOM elements
+    [
+      document.getElementById('hud-stats'),
+      document.getElementById('hud-minimap'),
+      document.getElementById('hud-log'),
+      document.getElementById('hud-quests'),
+      document.getElementById('hud-clock'),
+      document.getElementById('hud-inventory'),
+      document.getElementById('hud-dialogue'),
+      document.getElementById('hud-map'),
+      document.getElementById('hud-skills'),
+      document.getElementById('hud-achievement'),
+      document.getElementById('hud-event-banner'),
+      document.getElementById('hud-act-banner'),
+      document.getElementById('hud-hint'),
+      document.getElementById('hud-trade'),
+    ].forEach(el => el?.parentNode?.removeChild(el));
+  }
+}
