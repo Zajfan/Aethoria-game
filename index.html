@@ -8,25 +8,53 @@
   <link rel="manifest" href="manifest.json">
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
-    body{background:#0a0a0f;overflow:hidden;width:100vw;height:100vh}
-    #game-container{width:100%;height:100%}
-    canvas{display:block;image-rendering:pixelated}
-    #err-box{display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.93);align-items:center;justify-content:center;font-family:"Courier New",monospace;padding:24px}
+    body{background:#0a0a0f;overflow:hidden;width:100vw;height:100vh;font-family:"Courier New",monospace}
+    #game-container{position:absolute;inset:0;width:100%;height:100%}
+    #game-container canvas{display:block;width:100%!important;height:100%!important}
+    /* UI overlay: click-through by default; children may override */
+    #ui-overlay{position:fixed;inset:0;pointer-events:none;z-index:10}
+    #ui-overlay .interactive{pointer-events:auto}
+    /* HUD layer */
+    #hud{position:fixed;inset:0;z-index:100;pointer-events:none}
+    /* Fade transition overlay */
+    #fade-overlay{position:fixed;inset:0;z-index:500;background:#000;opacity:0;pointer-events:none;transition:opacity 0.4s ease}
+    #fade-overlay.fade-in{opacity:1;pointer-events:all}
+    /* Menu screen */
+    #menu-screen{display:none;position:fixed;inset:0;z-index:200;background:rgba(5,5,15,0.88);align-items:center;justify-content:center;flex-direction:column;gap:0}
+    #menu-screen.show{display:flex}
+    #menu-title{font-size:clamp(42px,8vw,96px);font-weight:bold;color:#d4af37;letter-spacing:0.18em;text-shadow:0 0 40px #d4af3799,0 0 80px #d4af3744;font-family:"Courier New",monospace;margin-bottom:6px}
+    #menu-subtitle{font-size:clamp(11px,1.5vw,15px);color:#9980c0;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:36px}
+    .class-row{display:flex;gap:14px;margin-bottom:32px;flex-wrap:wrap;justify-content:center}
+    .class-box{background:#0d0f1a;border:2px solid #333;border-radius:6px;padding:16px 22px;width:160px;cursor:pointer;transition:border-color .2s,box-shadow .2s;text-align:center;pointer-events:auto}
+    .class-box:hover,.class-box.selected{border-color:#d4af37;box-shadow:0 0 18px #d4af3755}
+    .class-box .cname{font-size:15px;font-weight:bold;margin-bottom:6px;font-family:monospace}
+    .class-box .cdesc{font-size:10px;color:#777;line-height:1.5;margin-bottom:8px}
+    .class-box .cstats{font-size:10px;color:#aaa;line-height:1.6}
+    .menu-btn{background:#d4af37;color:#0a0a0f;border:none;padding:13px 44px;font-family:monospace;font-size:14px;font-weight:bold;cursor:pointer;border-radius:4px;letter-spacing:0.1em;transition:background .15s,transform .1s;pointer-events:auto;margin:4px}
+    .menu-btn:hover{background:#f0ca50;transform:scale(1.03)}
+    .menu-btn.secondary{background:transparent;color:#d4af37;border:1px solid #d4af37}
+    .menu-btn.secondary:hover{background:#d4af3722}
+    .menu-btn:disabled{opacity:.4;cursor:default;transform:none}
+    #menu-controls{margin-top:22px;font-size:10px;color:#555;text-align:center;line-height:1.8;letter-spacing:.06em}
+    /* Error box */
+    #err-box{display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.93);align-items:center;justify-content:center;padding:24px}
     #err-box.show{display:flex}
     #err-inner{background:#150000;border:1px solid #cc2222;padding:28px;max-width:680px;width:100%;border-radius:4px;color:#ff9999}
     #err-inner h2{color:#ff4444;font-size:15px;margin-bottom:10px}
     #err-inner pre{font-size:11px;line-height:1.6;white-space:pre-wrap;word-break:break-all;max-height:260px;overflow:auto}
     #err-inner button{margin-top:14px;background:#cc2222;color:#fff;border:none;padding:8px 20px;font-family:monospace;font-size:12px;cursor:pointer;border-radius:3px}
-    #api-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:2000;align-items:center;justify-content:center;font-family:"Courier New",monospace}
+    /* API modal */
+    #api-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:2000;align-items:center;justify-content:center}
     #api-modal.show{display:flex}
     .mbox{background:#0d1117;border:1px solid #d4af37;padding:36px 44px;max-width:480px;width:92%;border-radius:4px;color:#d4af37}
     .mbox h2{font-size:18px;margin-bottom:8px}
     .mbox p{font-size:12px;color:#666;margin-bottom:22px;line-height:1.7}
     .mbox input{width:100%;background:#161b22;border:1px solid #444;color:#fff;padding:10px 14px;font-family:monospace;font-size:13px;border-radius:3px;margin-bottom:16px;outline:none}
     .mbox input:focus{border-color:#d4af37}
-    .mbox .row{display:flex;gap:10px}
+    .mbox .row{display:flex;gap:10px;flex-wrap:wrap}
     .mbox button{background:#d4af37;color:#0a0a0f;border:none;padding:10px 22px;font-family:monospace;font-size:13px;font-weight:bold;cursor:pointer;border-radius:3px}
     .mbox .skip{background:transparent;color:#666;border:1px solid #444}
+    /* NPC dialogue input */
     #dlg-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1500;align-items:flex-end;justify-content:center;padding-bottom:190px}
     #dlg-overlay.show{display:flex}
     #dlg-box{background:#0d1117;border:1px solid #d4af37;border-radius:3px;display:flex;gap:8px;padding:8px 12px;width:min(600px,94vw)}
@@ -36,8 +64,56 @@
 </head>
 <body>
 
+<!-- Three.js renders into this container -->
 <div id="game-container"></div>
 
+<!-- Floating entity labels / world-space UI (click-through; children opt-in) -->
+<div id="ui-overlay"></div>
+
+<!-- HUD (health bar, minimap, quest log, etc.) -->
+<div id="hud"></div>
+
+<!-- Black overlay for scene transitions -->
+<div id="fade-overlay"></div>
+
+<!-- ── Main Menu ─────────────────────────────────────────── -->
+<div id="menu-screen">
+  <div id="menu-title">AETHORIA</div>
+  <div id="menu-subtitle">An AI-Powered 3D Open World RPG</div>
+
+  <div class="class-row" id="class-row">
+    <div class="class-box selected" data-class="WARRIOR">
+      <div class="cname" style="color:#ff6633">Warrior</div>
+      <div class="cdesc">Unbreakable frontliner.</div>
+      <div class="cstats">HP +40 · ATK +4<br>DEF +6 · SPD −10</div>
+    </div>
+    <div class="class-box" data-class="MAGE">
+      <div class="cname" style="color:#8866ff">Mage</div>
+      <div class="cdesc">Master of arcane destruction.</div>
+      <div class="cstats">HP −10 · ATK +8<br>DEF −2 · SPD +5</div>
+    </div>
+    <div class="class-box" data-class="RANGER">
+      <div class="cname" style="color:#44cc88">Ranger</div>
+      <div class="cdesc">Swift hunter &amp; evader.</div>
+      <div class="cstats">HP +10 · ATK +3<br>DEF +2 · SPD +25</div>
+    </div>
+  </div>
+
+  <div>
+    <button class="menu-btn" id="btn-start">⚔ BEGIN YOUR JOURNEY</button>
+    <button class="menu-btn secondary" id="btn-continue" disabled>↺ Continue Journey</button>
+  </div>
+  <div>
+    <button class="menu-btn secondary" id="btn-api" style="margin-top:8px">⚙ API Settings</button>
+  </div>
+
+  <div id="menu-controls">
+    WASD / Arrow Keys — Move &nbsp;|&nbsp; Left-drag — Rotate Camera &nbsp;|&nbsp;
+    Scroll — Zoom &nbsp;|&nbsp; E — Interact &nbsp;|&nbsp; I — Inventory &nbsp;|&nbsp; M — Map
+  </div>
+</div>
+
+<!-- ── API Key Modal ──────────────────────────────────────── -->
 <div id="api-modal">
   <div class="mbox">
     <h2>Claude API Key</h2>
@@ -50,6 +126,7 @@
   </div>
 </div>
 
+<!-- ── NPC Dialogue Input ─────────────────────────────────── -->
 <div id="dlg-overlay">
   <div id="dlg-box">
     <input type="text" id="dialogue-text" placeholder="Say something to the NPC..." maxlength="200">
@@ -57,6 +134,7 @@
   </div>
 </div>
 
+<!-- ── Error Display ─────────────────────────────────────── -->
 <div id="err-box">
   <div id="err-inner">
     <h2>Aethoria failed to load</h2>
@@ -65,6 +143,7 @@
   </div>
 </div>
 
+<!-- Global error handlers (must run before module scripts) -->
 <script>
 window.onerror = function(msg,src,line,col,err){
   document.getElementById("err-msg").textContent=(err&&err.stack)?err.stack:(msg+" "+src+":"+line);
@@ -76,21 +155,49 @@ window.addEventListener("unhandledrejection",function(e){
 });
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+<!-- Main entry (ES module, no Phaser) -->
 <script type="module" src="src/main.js"></script>
 
+<!-- UI handlers that don't need the module system -->
 <script>
 (function(){
-  var modal=document.getElementById("api-modal");
-  if(!localStorage.getItem("aethoria_api_key")&&!localStorage.getItem("aethoria_no_ai")) modal.classList.add("show");
-  document.getElementById("api-save").onclick=function(){
-    var k=document.getElementById("api-input").value.trim();
-    if(k){localStorage.setItem("aethoria_api_key",k);modal.classList.remove("show");}
+  /* ── API modal ── */
+  var modal = document.getElementById("api-modal");
+  if(!localStorage.getItem("aethoria_api_key") && !localStorage.getItem("aethoria_no_ai")){
+    modal.classList.add("show");
+  }
+  document.getElementById("api-save").onclick = function(){
+    var k = document.getElementById("api-input").value.trim();
+    if(k){ localStorage.setItem("aethoria_api_key", k); modal.classList.remove("show"); }
   };
-  document.getElementById("api-skip").onclick=function(){
-    localStorage.setItem("aethoria_no_ai","1");modal.classList.remove("show");
+  document.getElementById("api-skip").onclick = function(){
+    localStorage.setItem("aethoria_no_ai","1"); modal.classList.remove("show");
   };
-  document.getElementById("api-input").onkeydown=function(e){if(e.key==="Enter")document.getElementById("api-save").click();};
+  document.getElementById("api-input").onkeydown = function(e){
+    if(e.key === "Enter") document.getElementById("api-save").click();
+  };
+
+  /* ── API Settings button on menu ── */
+  document.getElementById("btn-api").onclick = function(){
+    modal.classList.add("show");
+  };
+
+  /* ── Class selector ── */
+  document.querySelectorAll(".class-box").forEach(function(box){
+    box.onclick = function(){
+      document.querySelectorAll(".class-box").forEach(function(b){ b.classList.remove("selected"); });
+      box.classList.add("selected");
+      window._selectedClass = box.dataset.class;
+    };
+  });
+  window._selectedClass = "WARRIOR";
+
+  /* ── Continue button: enable if save exists ── */
+  try {
+    if(localStorage.getItem("aethoria_save")){
+      document.getElementById("btn-continue").disabled = false;
+    }
+  } catch(e){}
 })();
 </script>
 </body>
