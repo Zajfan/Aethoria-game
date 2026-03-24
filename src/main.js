@@ -149,7 +149,7 @@ if (apiBtn) {
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   // Attach input to the canvas once it exists
-  const canvas = renderer.domElement;
+  const canvas = renderer.canvas;
   inputManager.attach(canvas);
 
   // Try to load a save
