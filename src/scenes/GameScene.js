@@ -140,6 +140,16 @@ class DayNight3D {
   }
 
   getCurrentWeather() { return this.weather; }
+
+  /**
+   * Returns a 0..1 factor: 0 at midnight, 1 at noon.
+   * Mirrors the sunY calculation used in setTimeOfDay so callers
+   * don't need to duplicate the trigonometry.
+   */
+  getDayFactor() {
+    const phase = (this.elapsed / this.cycleSecs) * Math.PI * 2;
+    return Math.max(0, Math.sin(phase - Math.PI / 2));
+  }
 }
 
 // ── 3D World Events (replaces Phaser-based WorldEvents.js) ───────────────────
@@ -427,6 +437,9 @@ export class GameScene {
     this._portalPos     = null;
     this._portalUsed    = false;
 
+    // Torch — follows the player to illuminate the immediate area at night
+    this._torchLight = null;
+
     // Loot
     this._lootMeshes = [];   // [{ mesh, itemKey, labelEl }]
 
@@ -514,6 +527,13 @@ export class GameScene {
     if (!this.player.playerClass) {
       this.player.applyClass(localStorage.getItem('aethoria_class') || 'WARRIOR');
     }
+
+    // Torch light — warm point-light that follows the player.
+    // Provides local illumination so nights are navigable without making
+    // daytime look unnatural.  Intensity is adjusted each frame in update().
+    this._torchLight = new THREE.PointLight(0xffcc77, 1.8, 14);
+    this._torchLight.position.set(cx + 0.5, 1.5, cz + 0.5);
+    this.scene3d.add(this._torchLight);
 
     // 6. Systems
     this.questSystem   = new QuestSystem(this._sceneProxy);
@@ -1069,6 +1089,21 @@ export class GameScene {
     // Day/night
     this.dayNight?.update(delta);
 
+    // Torch — track player position and vary intensity with time of day.
+    // At noon the torch is dim (daytime needs no extra light); at midnight it
+    // burns brightly so the player can always see immediately around them.
+    if (this._torchLight && this.player) {
+      const TORCH_DAY_INTENSITY   = 0.6;  // minimal flicker during daytime
+      const TORCH_NIGHT_BOOST     = 2.4;  // extra intensity added at midnight
+      this._torchLight.position.set(
+        this.player.position.x,
+        this.player.position.y + 1.5,
+        this.player.position.z,
+      );
+      const nightBlend = 1 - (this.dayNight ? this.dayNight.getDayFactor() : 0);
+      this._torchLight.intensity = TORCH_DAY_INTENSITY + nightBlend * TORCH_NIGHT_BOOST;
+    }
+
     // World events
     this.worldEvents?.update(delta);
 
@@ -1154,6 +1189,12 @@ export class GameScene {
       this._portalLight.dispose();
     }
     this._portalLabelEl?.parentNode?.removeChild(this._portalLabelEl);
+
+    if (this._torchLight) {
+      this.scene3d.remove(this._torchLight);
+      this._torchLight.dispose();
+      this._torchLight = null;
+    }
 
     this.world3d?.dispose();
 
