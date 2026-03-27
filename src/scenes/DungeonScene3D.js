@@ -7,11 +7,13 @@
  * Bosses spawn in the deepest rooms; an exit portal sits at the far end.
  */
 
-import { THREE }    from '../engine/Renderer.js';
-import { CONFIG }   from '../config.js';
-import { Enemy3D }  from '../entities/Enemy3D.js';
-import { Boss3D }   from '../entities/Boss3D.js';
-import { Player3D } from '../entities/Player3D.js';
+import { THREE }         from '../engine/Renderer.js';
+import { CONFIG }        from '../config.js';
+import { Enemy3D }       from '../entities/Enemy3D.js';
+import { Boss3D }        from '../entities/Boss3D.js';
+import { Player3D }      from '../entities/Player3D.js';
+import { ParticleSystem3D } from '../systems/ParticleSystem3D.js';
+import { CombatSystem }  from '../systems/CombatSystem.js';
 
 // Dungeon dimensions (tiles)
 const DW = 60;

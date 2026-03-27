@@ -95,6 +95,8 @@ export class Enemy3D extends Entity3D {
       case 'WOLF':     this._buildWolf();     break;
       case 'SKELETON': this._buildSkeleton(); break;
       case 'TROLL':    this._buildTroll();    break;
+      case 'ARCHER':   this._buildArcher();   break;
+      case 'SPIDER':   this._buildSpider();   break;
       default:         this._buildGoblin();
     }
   }
@@ -208,6 +210,59 @@ export class Enemy3D extends Entity3D {
     this.group.scale.setScalar(1.4);
   }
 
+  _buildArcher() {
+    const bone  = _mat(0xddddaa);
+    const dark  = _mat(0xbbbb88);
+    const brown = _mat(0x6b3a2a);
+    const add   = (geo, mat, x, y, z) => {
+      const m = new THREE.Mesh(geo, mat); m.position.set(x,y,z); m.castShadow=true; this.group.add(m);
+    };
+    // Skeleton body
+    add(_box(0.38, 0.60, 0.20), bone,  0,     0.95, 0); // torso
+    add(_box(0.34, 0.34, 0.34), bone,  0,     1.52, 0); // skull
+    add(_box(0.12, 0.50, 0.12), bone, -0.28,  0.92, 0); // left arm
+    add(_box(0.12, 0.50, 0.12), bone,  0.28,  0.92, 0); // right arm
+    add(_box(0.14, 0.48, 0.14), bone, -0.11,  0.30, 0); // left leg
+    add(_box(0.14, 0.48, 0.14), bone,  0.11,  0.30, 0); // right leg
+    // Eye sockets
+    add(_box(0.07,0.07,0.07), _mat(0x111111), -0.09, 1.56, 0.19);
+    add(_box(0.07,0.07,0.07), _mat(0x111111),  0.09, 1.56, 0.19);
+    // Bow (vertical bar + string visual)
+    add(_box(0.06, 0.75, 0.06), brown, -0.40, 0.90, 0.08);
+    this.group.scale.setScalar(0.85);
+    // Ranged setup
+    this._isRanged = true;
+    this._projectileCD = 0;
+  }
+
+  _buildSpider() {
+    const black = _mat(0x111111);
+    const dark  = _mat(0x222222);
+    const red   = _mat(0xcc2222);
+    const add   = (geo, mat, x, y, z) => {
+      const m = new THREE.Mesh(geo, mat); m.position.set(x,y,z); m.castShadow=true; this.group.add(m);
+    };
+    add(_box(0.55, 0.30, 0.55), black,  0,    0.28, 0); // abdomen
+    add(_box(0.32, 0.24, 0.32), dark,   0.38, 0.30, 0); // head
+    // Red eyes
+    add(_box(0.06,0.06,0.06), red,  0.52, 0.38,  0.14);
+    add(_box(0.06,0.06,0.06), red,  0.52, 0.38, -0.14);
+    add(_box(0.06,0.06,0.06), red,  0.50, 0.38,  0.07);
+    add(_box(0.06,0.06,0.06), red,  0.50, 0.38, -0.07);
+    // 8 legs
+    const legAngles = [-0.6,-0.2,0.2,0.6];
+    for (const a of legAngles) {
+      const leg = new THREE.Mesh(_box(0.08,0.44,0.08), black);
+      leg.position.set(-0.32, 0.14, a); leg.rotation.x = a * 0.5;
+      this.group.add(leg);
+      const leg2 = new THREE.Mesh(_box(0.08,0.44,0.08), black);
+      leg2.position.set(0.32, 0.14, a); leg2.rotation.x = a * 0.5;
+      this.group.add(leg2);
+    }
+    this.group.scale.setScalar(0.65);
+    this._isPoisonous = true;
+  }
+
   // ── AI update ─────────────────────────────────────────────────────────────
 
   /**
@@ -253,7 +308,15 @@ export class Enemy3D extends Entity3D {
           this.pTimer = 800;
           break;
         }
-        if (dp <= this.ATK_R) { this.state = S.ATTACK; break; }
+        // ARCHER: stop and shoot at range, don't close to melee
+        if (this._isRanged) {
+          const SHOOT_R = (this._data.range ?? 180) / 16;
+          if (dp <= SHOOT_R) {
+            this.state = S.ATTACK;
+            this.velocity.set(0,0,0);
+            break;
+          }
+        } else if (dp <= this.ATK_R) { this.state = S.ATTACK; break; }
         if (player) {
           const dir = new THREE.Vector3()
             .subVectors(player.position, this.position)
@@ -265,12 +328,32 @@ export class Enemy3D extends Entity3D {
 
       case S.ATTACK:
         this.velocity.set(0, 0, 0);
-        if (dp > this.ATK_R + 0.75) { this.state = S.CHASE; break; }
-        if (this.atkCD === 0 && player) {
-          const dmg = Math.max(1, this.stats.atk + _randInt(-2, 2));
-          player.takeDamage(dmg);
-          this.atkCD = 1300;
-          this.eventBus.emit('damage', this.position.x, this.position.y, dmg, '#ffcc00');
+        if (this._isRanged) {
+          const SHOOT_R = (this._data.range ?? 180) / 16;
+          if (dp > SHOOT_R + 1.5) { this.state = S.CHASE; break; }
+          if (this.atkCD === 0 && player) {
+            const dmg = Math.max(1, this.stats.atk + _randInt(-1, 2));
+            player.takeDamage(dmg);
+            this.atkCD = 2200; // slower reload
+            this.eventBus.emit('damage', this.position.x, this.position.y, dmg, '#ddddaa');
+            // Arrow particle
+            this.eventBus.emit('arrowShot', {
+              fromX: this.position.x, fromZ: this.position.z,
+              toX: player.position.x, toZ: player.position.z,
+            });
+          }
+        } else {
+          if (dp > this.ATK_R + 0.75) { this.state = S.CHASE; break; }
+          if (this.atkCD === 0 && player) {
+            const dmg = Math.max(1, this.stats.atk + _randInt(-2, 2));
+            player.takeDamage(dmg);
+            this.atkCD = this._isPoisonous ? 900 : 1300;
+            this.eventBus.emit('damage', this.position.x, this.position.y, dmg, '#ffcc00');
+            // Spider applies poison
+            if (this._isPoisonous) {
+              this.eventBus.emit('enemyPoisonHit', { target: player });
+            }
+          }
         }
         break;
     }

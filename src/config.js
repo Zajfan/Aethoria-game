@@ -42,6 +42,8 @@ export const CONFIG = {
     WOLF:     { name:'Wolf',     hp:48,  atk:8,  def:3, xp:38,  spd:78,  color:0xaaaaaa, sz:12, loot:['hide','fang','hide','silver']                  },
     SKELETON: { name:'Skeleton', hp:58,  atk:12, def:5, xp:52,  spd:46,  color:0xeeeecc, sz:12, loot:['bones','sword','bones','gold','scroll']         },
     TROLL:    { name:'Troll',    hp:135, atk:18, def:8, xp:125, spd:36,  color:0x8d6e3a, sz:20, loot:['club','gem','gold','gold','chainmail']          },
+    ARCHER:   { name:'Skeleton Archer', hp:45, atk:10, def:3, xp:55,  spd:38,  color:0xddddaa, sz:12, loot:['bones','bow','scroll','silver'],   ranged:true, range:180 },
+    SPIDER:   { name:'Spider',    hp:28,  atk:7,  def:1, xp:30,  spd:95,  color:0x222222, sz:8,  loot:['hide','herb','fang'],              poison:true       },
   },
 
   ITEMS: {
@@ -74,6 +76,7 @@ export const CONFIG = {
     { result:'shield',   materials:{ bones:3, hide:1 },        label:'Craft Bone Shield'    },
     { result:'chainmail',materials:{ hide:4, bones:2 },        label:'Forge Chainmail'      },
     { result:'leather',  materials:{ hide:3 },                 label:'Craft Leather Armor'  },
+  { result:'crystal',  materials:{ gem:2, bones:1 },           label:'Forge Void Crystal'   },
   ],
 
   NPCS_DATA: [
@@ -134,6 +137,8 @@ export const CONFIG = {
     TOUGHNESS:    { name:'Toughness',    class:'WARRIOR', desc:'Max HP +25 per rank', maxRank:3, effect:(p,r)=>{ p.stats.maxHp+=25; p.stats.hp=Math.min(p.stats.hp+25,p.stats.maxHp); } },
     SLAM:         { name:'Slam',         class:'WARRIOR', desc:'AoE attack every 8s', maxRank:3, effect:(p)=>{ p.slamCD = 0; } },
     IRON_SKIN:    { name:'Iron Skin',    class:'WARRIOR', desc:'Defense +4 per rank',  maxRank:3, effect:(p,r)=>{ p.stats.defense+=4; } },
+    // Warrior — new
+    BATTLECRY:    { name:'Battlecry',     class:'WARRIOR', desc:'On kill: +15% attack for 5s (stacks 3×)', maxRank:3, effect:(p,r)=>{ p._battlecryRanks = r; } },
     // Mage
     FIREBALL:     { name:'Fireball',     class:'MAGE',    desc:'Ranged attack 180px',  maxRank:3, effect:(p)=>{ p.fireballCD = 0; } },
     MANA_SHIELD:  { name:'Mana Shield',  class:'MAGE',    desc:'15% dmg reduction/rank', maxRank:3, effect:()=>{} },
@@ -167,6 +172,8 @@ export const CONFIG = {
     { type:'COLLECT', title:'Gather {{item}}',     desc:'Bring {{count}} {{item}} to Hearthmoor.',            target:'item',  count:[2,4]   },
     { type:'EXPLORE', title:'Scout the Ruins',     desc:'Reach the dungeon and return alive.',                target:'tile',  count:[1]     },
     { type:'TALK',    title:'A Message for {{npc}}', desc:'Deliver a message to {{npc}} in Hearthmoor.',     target:'npc',   count:[1]     },
+  { type:'KILL',    title:'Spider Hunt',          desc:'The spider nests spread faster every night. Kill {{count}} spiders.', target:'enemy', count:[4,6,10] },
+  { type:'KILL',    title:'Silence the Archers',  desc:'Skeleton archers are picking off scouts. Kill {{count}} of them.',   target:'enemy', count:[3,5]    },
   ],
 
   WEATHER_TYPES: ['CLEAR','CLEAR','CLEAR','RAIN','FOG','STORM'],

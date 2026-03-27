@@ -431,7 +431,9 @@ export class HUD {
     this.eventBus      = eventBus;
     this.questSystem   = questSystem;
     this.tradeSystem   = tradeSystem;
-    this.factionSystem = null;   // v0.4 — set via openDialogue / bindGame
+    this.factionSystem  = null;   // v0.4 — set via openDialogue / bindGame
+    this._enchantSystem = null;   // v0.5
+    this._combatSystem  = null;   // v0.5
 
     this._gameScene   = null;
     this._player      = null;
@@ -450,6 +452,7 @@ export class HUD {
     this.skillOpen    = false;
     this.tradeOpen    = false;
     this.factionOpen  = false;  // v0.4
+    this.enchantOpen  = false;  // v0.5
 
     injectCSS();
     this._ensureOverlay();
@@ -483,6 +486,7 @@ export class HUD {
     this._buildEventBanner();
     this._buildHint();
     this._buildFactions();
+    this._buildEnchant();
     this._buildMobileControls();
   }
 
@@ -952,14 +956,16 @@ export class HUD {
    * @param {import('../systems/TradeSystem.js').TradeSystem} tradeSystem
    * @param {object} worldEvents
    */
-  async openDialogue(npc, player, questSystem, tradeSystem, worldEvents, worldCtx = null, factionSystem = null) {
+  async openDialogue(npc, player, questSystem, tradeSystem, worldEvents, worldCtx = null, factionSystem = null, enchantSystem = null, combatSystem = null) {
     this._dialogueNPC  = npc;
     this._player       = player;
     this._questSystem  = questSystem || this.questSystem;
     this._tradeSystem  = tradeSystem || this.tradeSystem;
     this._worldEvents  = worldEvents;
     this._worldCtx     = worldCtx;
-    if (factionSystem) this.factionSystem = factionSystem;
+    if (factionSystem)  this.factionSystem  = factionSystem;
+    if (enchantSystem)  this._enchantSystem  = enchantSystem;
+    if (combatSystem)   this._combatSystem   = combatSystem;
 
     const nd  = npc.npcData;
     const col = '#' + (nd.color || 0xd4af37).toString(16).padStart(6, '0');
@@ -1365,7 +1371,7 @@ export class HUD {
     const isTouchDevice = (navigator.maxTouchPoints > 0) || ('ontouchstart' in window);
     el.textContent = isTouchDevice
       ? 'Left-drag: Move  |  Right-drag: Rotate Camera  |  Tap: Attack/Loot  |  ⚔ Attack  |  💬 Talk (E)  |  📦 Inventory'
-      : 'WASD/Arrows: Move  |  Q/E: Rotate  |  Left-click: Attack/Loot  |  E: Talk  |  I: Inv  |  M: Map  |  Q: Quests  |  K: Skills  |  F: Factions';
+      : 'WASD/Arrows: Move  |  Q/E: Rotate  |  Left-click: Attack/Loot  |  E: Talk  |  I: Inv  |  M: Map  |  Q: Quests  |  K: Skills  |  F: Factions  |  N: Enchant';
     document.body.appendChild(el);
   }
 
@@ -1457,6 +1463,148 @@ export class HUD {
           return `<div><span style="color:${col}">${sign}${l.delta}</span> ${l.factionId} — ${l.reason}</div>`;
         }).join('');
       this._factionBody.appendChild(logDiv);
+    }
+  }
+
+
+  // ── v0.5: Enchanting Panel ────────────────────────────────────────────────────
+
+  _buildEnchant() {
+    const panel = document.createElement('div');
+    panel.id = 'hud-enchant';
+    panel.style.cssText = `
+      display:none; position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(8,8,20,0.97); border:1px solid #503;
+      border-radius:6px; padding:20px 24px; z-index:8000;
+      min-width:400px; max-width:500px; color:#ccc;
+      font-family:'Courier New',monospace;
+      box-shadow:0 0 30px rgba(80,0,150,0.5);
+    `;
+    panel.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <span style="color:#cc88ff;font-size:15px;letter-spacing:2px;">// ENCHANTING FORGE</span>
+        <button id="hud-enchant-close" style="background:none;border:1px solid #503;color:#aaa;
+          border-radius:3px;padding:2px 8px;cursor:pointer;font-family:inherit;">✕</button>
+      </div>
+      <div style="font-size:10px;color:#664;margin-bottom:12px;">
+        Enchant weapons and armour with Void Crystals and rare materials.
+        Max 2 enchantments per item. Upgrade existing enchantments up to +5.
+      </div>
+      <div id="hud-enchant-body"></div>
+    `;
+    document.body.appendChild(panel);
+    this._enchantPanel = panel;
+    this._enchantBody  = panel.querySelector('#hud-enchant-body');
+    panel.querySelector('#hud-enchant-close').onclick = () => this.toggleEnchant();
+  }
+
+  toggleEnchant() {
+    this.enchantOpen = !this.enchantOpen;
+    if (!this._enchantPanel) return;
+    this._enchantPanel.style.display = this.enchantOpen ? 'block' : 'none';
+    if (this.enchantOpen) this._renderEnchant();
+  }
+
+  _renderEnchant() {
+    if (!this._enchantBody) return;
+    this._enchantBody.innerHTML = '';
+    const player  = this._player;
+    const enchSys = this._enchantSystem;
+    if (!player || !enchSys) {
+      this._enchantBody.innerHTML = '<div style="color:#556;font-size:11px;">No player data.</div>';
+      return;
+    }
+
+    // List equippable items
+    const enchantable = ['sword','axe','staff','bow','club','shield','chainmail','leather','robes']
+      .filter(key => (player.inventory?.[key] ?? 0) > 0 ||
+                     player.equipment?.weapon === key ||
+                     player.equipment?.armor  === key);
+
+    if (!enchantable.length) {
+      this._enchantBody.innerHTML = '<div style="color:#556;font-size:11px;">No enchantable items in inventory. Equip or carry a weapon or armour.</div>';
+      return;
+    }
+
+    for (const itemKey of enchantable) {
+      const itemDef   = CONFIG.ITEMS[itemKey];
+      if (!itemDef) continue;
+      const enchants  = enchSys.getEnchants(player, itemKey);
+      const available = enchSys.getAffordableEnchants(player, itemKey);
+
+      const block = document.createElement('div');
+      block.style.cssText = 'margin-bottom:16px;border:1px solid #303;border-radius:4px;padding:10px 12px;';
+
+      // Item header
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
+      header.innerHTML = `
+        <span style="color:#ddccff;font-size:12px;">${itemIcon(itemKey)} ${itemDef.name}</span>
+        <span style="font-size:9px;color:#556;">${enchants.length}/2 enchants</span>
+      `;
+      block.appendChild(header);
+
+      // Current enchants
+      if (enchants.length) {
+        for (const enc of enchants) {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:10px;';
+          row.innerHTML = `
+            <span style="color:${enc.color};">${enc.name} +${enc.level}</span>
+            <span style="color:#667;">${enc.desc}</span>
+          `;
+          // Upgrade button
+          const upBtn = document.createElement('button');
+          upBtn.textContent = '⬆ +' + (enc.level + 1);
+          upBtn.style.cssText = 'background:none;border:1px solid #503;color:#aa88cc;font-family:inherit;font-size:9px;padding:2px 6px;cursor:pointer;border-radius:2px;margin-left:6px;';
+          upBtn.onclick = () => {
+            const res = enchSys.upgrade(player, itemKey);
+            this.logMsg(res.msg, res.ok ? '#cc88ff' : '#ff6666');
+            if (res.ok) this._renderEnchant();
+          };
+          row.appendChild(upBtn);
+          block.appendChild(row);
+        }
+      } else {
+        const none = document.createElement('div');
+        none.style.cssText = 'font-size:9px;color:#445;margin-bottom:6px;';
+        none.textContent = 'No enchantments yet.';
+        block.appendChild(none);
+      }
+
+      // Available enchantments to add
+      if (enchants.length < 2 && available.length) {
+        const title = document.createElement('div');
+        title.style.cssText = 'font-size:9px;color:#775;margin:6px 0 4px;';
+        title.textContent = 'AVAILABLE ENCHANTMENTS:';
+        block.appendChild(title);
+
+        for (const enc of available.slice(0, 4)) {
+          const row = document.createElement('div');
+          row.style.cssText = `display:flex;justify-content:space-between;align-items:center;
+            margin-bottom:4px;opacity:${enc.canAfford ? '1' : '0.4'};`;
+          row.innerHTML = `
+            <span style="font-size:10px;color:${enc.color};">${enc.name}</span>
+            <span style="font-size:9px;color:#556;flex:1;margin:0 8px;">${enc.desc}</span>
+            <span style="font-size:9px;color:#664;">${enc.costDisplay}</span>
+          `;
+          if (enc.canAfford) {
+            const btn = document.createElement('button');
+            btn.textContent = '✨ Enchant';
+            btn.style.cssText = 'background:none;border:1px solid #503;color:#cc88ff;font-family:inherit;font-size:9px;padding:2px 6px;cursor:pointer;border-radius:2px;margin-left:6px;';
+            btn.onclick = () => {
+              const res = enchSys.enchant(player, itemKey);
+              this.logMsg(res.msg, res.ok ? '#cc88ff' : '#ff6666');
+              if (res.ok) this._renderEnchant();
+            };
+            row.appendChild(btn);
+          }
+          block.appendChild(row);
+        }
+      }
+
+      this._enchantBody.appendChild(block);
     }
   }
 
@@ -1583,12 +1731,14 @@ export class HUD {
         case 'q': this.toggleQuests();     break;
         case 'k': this.toggleSkillTree(this._player); break;
         case 'f': this.toggleFactions(); break;
+        case 'n': this.toggleEnchant(); break;
         case 'escape':
           if (this.invOpen)   this.toggleInventory();
           if (this.mapOpen)   this.toggleMap();
           if (this.skillOpen) this.toggleSkillTree();
           if (this.tradeOpen) { this.tradeOpen = false; const t = document.getElementById('hud-trade'); if(t) t.style.display='none'; }
           if (this.factionOpen) this.toggleFactions();
+          if (this.enchantOpen)  this.toggleEnchant();
           this._closeDialogue();
           break;
       }
@@ -1620,9 +1770,9 @@ export class HUD {
    * @param {import('../scenes/GameScene.js').GameScene} gameScene
    */
   bindGame(gameScene) {
-    if (gameScene.factionSystem) {
-      this.factionSystem = gameScene.factionSystem;
-    }
+    if (gameScene.factionSystem)  this.factionSystem  = gameScene.factionSystem;
+    if (gameScene.enchantSystem)  this._enchantSystem = gameScene.enchantSystem;
+    if (gameScene.combatSystem)   this._combatSystem  = gameScene.combatSystem;
     this._gameScene   = gameScene;
     this._player      = gameScene.player;
     this._mapData     = gameScene.mapData;

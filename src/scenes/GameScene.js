@@ -24,6 +24,8 @@ import { AIMemory }          from '../systems/AIMemory.js';
 import { ParticleSystem3D }  from '../systems/ParticleSystem3D.js';
 import { AnimationSystem }   from '../systems/AnimationSystem.js';
 import { FactionSystem }     from '../systems/FactionSystem.js';
+import { CombatSystem }      from '../systems/CombatSystem.js';
+import { EnchantSystem }     from '../systems/EnchantSystem.js';
 
 // Map dimensions (override config for 3D world)
 const MAP_W = 256;
@@ -475,6 +477,8 @@ export class GameScene {
     this.particles      = null;   // v0.4
     this.animSystem     = null;   // v0.4
     this.factionSystem  = null;   // v0.4
+    this.combatSystem   = null;   // v0.5
+    this.enchantSystem  = null;   // v0.5
     this._sceneProxy    = null;
 
     /** @type {import('../ui/HUD.js').HUD|null} */
@@ -583,6 +587,12 @@ export class GameScene {
     this.shardSystem = new ShardSystem3D(this.eventBus, this.scene3d, this.camera.threeCamera);
     this.shardSystem.spawnShards(this.mapData);
 
+    // v0.5 — Combat system (status effects, screen shake, combo)
+    this.combatSystem = new CombatSystem(this.eventBus, this.renderer);
+
+    // v0.5 — Enchant system
+    this.enchantSystem = new EnchantSystem(this.eventBus);
+
     // v0.4 — Particle effects engine
     this.particles = new ParticleSystem3D(this.scene3d, this.camera.threeCamera);
     this.particles.attachToEventBus(this.eventBus, this.player);
@@ -639,6 +649,7 @@ export class GameScene {
   // ── Entity spawning ─────────────────────────────────────────────────────────
 
   _spawnEnemies(gen, count) {
+    // v0.5 — include new enemy types in spawn pool
     const types  = Object.keys(CONFIG.ENEMY_TYPES);
     const spawns = gen.getEnemySpawns(this.mapData, count);
     spawns.forEach((sp, i) => {
@@ -779,6 +790,32 @@ export class GameScene {
         this.camera.snapTo(this.player.position);
         bus.emit('statsChanged', this.player.stats);
       }, 1800);
+    });
+
+    // v0.5 — Status effect particles
+    bus.on('statusParticle', ({ x, y, z, color }) => {
+      if (this.particles) this.particles.lootGlow(x, y, z, color);
+    });
+
+    // v0.5 — Spider poison hit
+    bus.on('enemyPoisonHit', ({ target }) => {
+      if (target && this.combatSystem) {
+        this.combatSystem.applyStatus(target, 'POISON', { source: null });
+      }
+    });
+
+    // v0.5 — Archer arrow shot (simple particle trail)
+    bus.on('arrowShot', ({ fromX, fromZ, toX, toZ }) => {
+      if (this.particles) {
+        const mx = (fromX + toX) / 2;
+        const mz = (fromZ + toZ) / 2;
+        this.particles.hitSpark(mx, 0.8, mz, 0xddddaa);
+      }
+    });
+
+    // v0.5 — Combo event
+    bus.on('combo', ({ count }) => {
+      if (count >= 5) this.hud?.logMsg(`${count}× COMBO! ×${(1+(count-1)*0.05).toFixed(2)} XP`, '#ffaa22');
     });
 
     // v0.4 — Enemy death particle burst
@@ -1130,7 +1167,7 @@ export class GameScene {
   _openDialogue(npc) {
     this.audio?.sfxUIOpen();
     const worldCtx = this._buildWorldContext();
-    this.hud?.openDialogue(npc, this.player, this.questSystem, this.tradeSystem, this.worldEvents, worldCtx, this.factionSystem);
+    this.hud?.openDialogue(npc, this.player, this.questSystem, this.tradeSystem, this.worldEvents, worldCtx, this.factionSystem, this.enchantSystem, this.combatSystem);
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────────
@@ -1247,6 +1284,9 @@ export class GameScene {
     // World events
     this.worldEvents?.update(delta);
 
+    // v0.5 — Combat system
+    this.combatSystem?.update(delta);
+
     // v0.4 — Particle system
     if (this.particles) {
       this.particles.update(delta);
@@ -1353,6 +1393,7 @@ export class GameScene {
 
     this.particles?.dispose();
     this.animSystem?.dispose();
+    this.combatSystem?.dispose();
 
     this.world3d?.dispose();
 
