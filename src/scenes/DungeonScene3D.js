@@ -83,7 +83,9 @@ function generateDungeon(W, H) {
 
 // ── Dungeon mesh builder ───────────────────────────────────────────────────────
 
-function buildDungeonMesh(scene3d, data, W, H) {
+function buildDungeonMesh(scene3d, data, W, H, theme = null) {
+  const floorCol = theme?.floorColor ?? 0x2a2a35;
+  const wallCol  = theme?.wallColor  ?? 0x181820;
   const floorTiles = [];
   const wallTiles  = [];
   const ceilTiles  = [];
@@ -105,7 +107,7 @@ function buildDungeonMesh(scene3d, data, W, H) {
   // Floor InstancedMesh
   if (floorTiles.length) {
     const geo = new THREE.BoxGeometry(1, FLOOR_H, 1);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x2a2a35 });
+    const mat = new THREE.MeshLambertMaterial({ color: floorCol });
     const im  = new THREE.InstancedMesh(geo, mat, floorTiles.length);
     im.receiveShadow = true;
     floorTiles.forEach(({ x, z }, i) => {
@@ -121,7 +123,7 @@ function buildDungeonMesh(scene3d, data, W, H) {
   // Wall InstancedMesh
   if (wallTiles.length) {
     const geo = new THREE.BoxGeometry(1, WALL_H, 1);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x181820 });
+    const mat = new THREE.MeshLambertMaterial({ color: wallCol });
     const im  = new THREE.InstancedMesh(geo, mat, wallTiles.length);
     im.castShadow = im.receiveShadow = true;
     wallTiles.forEach(({ x, z }, i) => {
@@ -234,10 +236,16 @@ export class DungeonScene3D {
    * @param {object|null} savedPlayerData  Player stats to restore on entry
    */
   async create(savedPlayerData = null) {
-    // Three.js scene – very dark atmosphere
+    // v0.6 — Pick a dungeon theme
+    const themeKeys = Object.keys(CONFIG.DUNGEON_THEMES);
+    const themeKey  = themeKeys[Math.floor(Math.random() * themeKeys.length)];
+    this._theme     = CONFIG.DUNGEON_THEMES[themeKey];
+    this._themeKey  = themeKey;
+
+    // Three.js scene — theme-coloured atmosphere
     this.scene3d = new THREE.Scene();
-    this.scene3d.background = new THREE.Color(0x080810);
-    this.scene3d.fog         = new THREE.FogExp2(0x080810, 0.045);
+    this.scene3d.background = new THREE.Color(this._theme.bgColor ?? 0x080810);
+    this.scene3d.fog         = new THREE.FogExp2(this._theme.bgColor ?? 0x080810, this._theme.fogDensity ?? 0.045);
 
     // Very dim ambient
     const ambient = new THREE.AmbientLight(0x0a0a18, 0.5);
@@ -250,7 +258,7 @@ export class DungeonScene3D {
     this._rooms   = rooms;
 
     // Build geometry
-    this._meshes = buildDungeonMesh(this.scene3d, data, DW, DH);
+    this._meshes = buildDungeonMesh(this.scene3d, data, DW, DH, this._theme);
 
     // Room point lights
     const roomLights = addRoomLights(this.scene3d, rooms);
@@ -306,7 +314,8 @@ export class DungeonScene3D {
 
     // Show dungeon entry message
     setTimeout(() => {
-      this.hud?.logMsg('You descend into darkness…', '#cc88ff');
+      const themeName = this._theme?.name ?? 'Unknown Dungeon';
+      this.hud?.logMsg(`⚔ Entering: ${themeName}`, '#cc88ff');
       this.eventBus.emit('questProgress', { type: 'DUNGEON' });
     }, 400);
   }
@@ -328,7 +337,10 @@ export class DungeonScene3D {
   // ── Enemy/boss spawning ───────────────────────────────────────────────────
 
   _spawnEnemies() {
-    const types   = Object.keys(CONFIG.ENEMY_TYPES);
+    // v0.6 — use theme enemy bias if available
+    const allTypes = Object.keys(CONFIG.ENEMY_TYPES);
+    const bias     = this._theme?.enemyBias;
+    const types    = bias ? [...bias, ...allTypes.filter(t => !bias.includes(t))] : allTypes;
     const floorTs = [];
     for (let z = 1; z < DH - 1; z++)
       for (let x = 1; x < DW - 1; x++)
@@ -348,7 +360,11 @@ export class DungeonScene3D {
   }
 
   _spawnBosses() {
-    const bossKeys  = Object.keys(CONFIG.BOSS_TYPES);
+    const themeBossTypes = this._theme?.bossTypes;
+    const allBossKeys = Object.keys(CONFIG.BOSS_TYPES);
+    const bossKeys = themeBossTypes
+      ? [...themeBossTypes, ...allBossKeys.filter(k => !themeBossTypes.includes(k))]
+      : allBossKeys;
     const bossCount = 3 + Math.floor(Math.random() * 3); // 3-5
     // Use rooms near the far corner
     const farRooms  = [...this._rooms].sort(

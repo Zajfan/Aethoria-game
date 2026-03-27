@@ -95,9 +95,17 @@ export class Enemy3D extends Entity3D {
       case 'WOLF':     this._buildWolf();     break;
       case 'SKELETON': this._buildSkeleton(); break;
       case 'TROLL':    this._buildTroll();    break;
-      case 'ARCHER':   this._buildArcher();   break;
-      case 'SPIDER':   this._buildSpider();   break;
-      default:         this._buildGoblin();
+      case 'ARCHER':    this._buildArcher();    break;
+      case 'SPIDER':    this._buildSpider();    break;
+      case 'BANDIT':    this._buildBandit();    break;
+      case 'WRAITH':    this._buildWraith();    break;
+      case 'GOLEM':     this._buildGolem();     break;
+      case 'CULTIST':   this._buildCultist();   break;
+      case 'DRAKE':     this._buildDrake();     break;
+      case 'LICH':      this._buildLich();      break;
+      case 'BERSERKER': this._buildBerserker(); break;
+      case 'PHANTOM':   this._buildPhantom();   break;
+      default:          this._buildGoblin();
     }
   }
 
@@ -263,6 +271,130 @@ export class Enemy3D extends Entity3D {
     this._isPoisonous = true;
   }
 
+  _buildBandit() {
+    const brown = _mat(0xaa5522), dark = _mat(0x663311), skin = _mat(0xd4926a);
+    const add = (g,m,x,y,z) => { const mesh=new THREE.Mesh(g,m); mesh.position.set(x,y,z); mesh.castShadow=true; this.group.add(mesh); };
+    add(_box(0.52,0.70,0.30), brown, 0, 0.95, 0);
+    add(_box(0.40,0.40,0.40), skin,  0, 1.55, 0);
+    add(_box(0.20,0.60,0.20), dark, -0.38, 0.92, 0);
+    add(_box(0.20,0.60,0.20), dark,  0.38, 0.92, 0);
+    add(_box(0.24,0.52,0.24), brown,-0.15, 0.32, 0);
+    add(_box(0.24,0.52,0.24), brown, 0.15, 0.32, 0);
+    // Hood/bandana
+    add(_box(0.44,0.14,0.44), dark,  0, 1.48, 0);
+    this.group.scale.setScalar(0.95);
+  }
+
+  _buildWraith() {
+    const purple = _mat(0x6622aa), glow = _mat(0xcc44ff), ghost = new THREE.MeshLambertMaterial({ color:0x8844cc, transparent:true, opacity:0.75 });
+    const add = (g,m,x,y,z) => { const mesh=new THREE.Mesh(g,m); mesh.position.set(x,y,z); mesh.castShadow=true; this.group.add(mesh); };
+    add(_box(0.50,0.90,0.30), ghost, 0, 0.90, 0);
+    add(_box(0.38,0.38,0.38), purple, 0, 1.60, 0);
+    add(_box(0.14,0.70,0.14), ghost,-0.35, 0.90, 0);
+    add(_box(0.14,0.70,0.14), ghost, 0.35, 0.90, 0);
+    // Glowing eyes
+    add(_box(0.08,0.08,0.08), glow, -0.10, 1.65, 0.22);
+    add(_box(0.08,0.08,0.08), glow,  0.10, 1.65, 0.22);
+    // Wispy tail instead of legs
+    add(new THREE.ConeGeometry(0.18,0.65,6), ghost, 0, 0.20, 0);
+    this._isRanged = true; this._projectileCD = 0;
+    this._isEthereal = true;
+  }
+
+  _buildGolem() {
+    const stone = _mat(0x8888aa), dark = _mat(0x5566aa), crack = _mat(0x333355);
+    const add = (g,m,x,y,z) => { const mesh=new THREE.Mesh(g,m); mesh.position.set(x,y,z); mesh.castShadow=true; this.group.add(mesh); };
+    add(_box(1.00,0.90,0.70), stone, 0, 1.10, 0);
+    add(_box(0.70,0.70,0.70), dark,  0, 1.90, 0);
+    add(_box(0.45,0.80,0.45), stone,-0.80, 1.00, 0);
+    add(_box(0.45,0.80,0.45), stone, 0.80, 1.00, 0);
+    add(_box(0.50,0.75,0.50), stone,-0.30, 0.38, 0);
+    add(_box(0.50,0.75,0.50), stone, 0.30, 0.38, 0);
+    add(_box(0.16,0.16,0.16), crack, -0.14, 1.92, 0.38);
+    add(_box(0.16,0.16,0.16), crack,  0.14, 1.92, 0.38);
+    this.group.scale.setScalar(1.3);
+  }
+
+  _buildCultist() {
+    const robe = _mat(0x330044), hood = _mat(0x220033), glow = _mat(0xcc44ff), skin = _mat(0xe8d8e8);
+    const add = (g,m,x,y,z) => { const mesh=new THREE.Mesh(g,m); mesh.position.set(x,y,z); mesh.castShadow=true; this.group.add(mesh); };
+    add(_box(0.46,0.80,0.30), robe,  0, 0.90, 0);
+    add(_box(0.38,0.42,0.38), hood,  0, 1.56, 0);
+    add(_box(0.16,0.65,0.16), robe, -0.36, 0.90, 0);
+    add(_box(0.16,0.65,0.16), robe,  0.36, 0.90, 0);
+    add(_box(0.08,0.08,0.08), glow, -0.08, 1.62, 0.22);
+    add(_box(0.08,0.08,0.08), glow,  0.08, 1.62, 0.22);
+    // Staff / orb
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.14,6,6), new THREE.MeshLambertMaterial({color:0xcc44ff,emissive:new THREE.Color(0x660099),emissiveIntensity:0.8}));
+    orb.position.set(0.45, 1.30, 0); this.group.add(orb);
+    this._isRanged = false; this._voidTouch = true;
+  }
+
+  _buildDrake() {
+    const red = _mat(0x661100), dark = _mat(0x440800), fire = _mat(0xff4400);
+    const add = (g,m,x,y,z) => { const mesh=new THREE.Mesh(g,m); mesh.position.set(x,y,z); mesh.castShadow=true; this.group.add(mesh); };
+    add(_box(1.20,0.60,0.80), red,   0,  0.70, 0);
+    add(_box(0.60,0.55,0.60), dark,  0.90, 0.80, 0);
+    add(_box(0.30,0.20,0.35), red,  1.22, 0.65, 0);
+    add(_box(0.70,0.12,0.55), red, -0.20, 1.20, 0);
+    add(_box(0.70,0.12,0.55), red,  0.20, 1.20, 0);
+    add(_box(0.28,0.55,0.28), dark, -0.45, 0.22, 0.30);
+    add(_box(0.28,0.55,0.28), dark,  0.45, 0.22, 0.30);
+    add(_box(0.28,0.55,0.28), dark, -0.45, 0.22,-0.30);
+    add(_box(0.28,0.55,0.28), dark,  0.45, 0.22,-0.30);
+    add(_box(0.08,0.10,0.10), fire,  1.10, 0.90, 0.18);
+    add(_box(0.08,0.10,0.10), fire,  1.10, 0.90,-0.18);
+    this.group.scale.setScalar(1.1); this._isBurner = true;
+  }
+
+  _buildLich() {
+    const blue = _mat(0x224488), dark = _mat(0x0a1a33), glow = _mat(0x44aaff), ivory = _mat(0xccddee);
+    const add = (g,m,x,y,z) => { const mesh=new THREE.Mesh(g,m); mesh.position.set(x,y,z); mesh.castShadow=true; this.group.add(mesh); };
+    add(_box(0.40,0.65,0.22), blue,  0, 0.95, 0);
+    add(_box(0.36,0.36,0.36), ivory, 0, 1.52, 0);
+    add(_box(0.12,0.55,0.12), dark, -0.30, 0.92, 0);
+    add(_box(0.12,0.55,0.12), dark,  0.30, 0.92, 0);
+    add(_box(0.14,0.50,0.14), blue, -0.12, 0.32, 0);
+    add(_box(0.14,0.50,0.14), blue,  0.12, 0.32, 0);
+    add(_box(0.08,0.08,0.10), glow, -0.09, 1.56, 0.20);
+    add(_box(0.08,0.08,0.10), glow,  0.09, 1.56, 0.20);
+    // Crown
+    const crown = new THREE.Mesh(_box(0.42,0.10,0.42), _mat(0x335577));
+    crown.position.set(0, 1.74, 0); this.group.add(crown);
+    this._isRanged = true; this._voidTouch = true;
+  }
+
+  _buildBerserker() {
+    const red = _mat(0xaa2200), dark = _mat(0x771100), skin = _mat(0xc87050);
+    const add = (g,m,x,y,z) => { const mesh=new THREE.Mesh(g,m); mesh.position.set(x,y,z); mesh.castShadow=true; this.group.add(mesh); };
+    add(_box(0.80,0.82,0.50), red,   0, 1.00, 0);
+    add(_box(0.56,0.54,0.56), skin,  0, 1.70, 0);
+    add(_box(0.36,0.76,0.32), dark, -0.64, 1.00, 0);
+    add(_box(0.36,0.76,0.32), dark,  0.64, 1.00, 0);
+    add(_box(0.36,0.65,0.36), red,  -0.26, 0.32, 0);
+    add(_box(0.36,0.65,0.36), red,   0.26, 0.32, 0);
+    // Horned helmet
+    const helm = new THREE.Mesh(_box(0.58,0.22,0.58), dark); helm.position.set(0,1.93,0); this.group.add(helm);
+    const horn1 = new THREE.Mesh(new THREE.ConeGeometry(0.06,0.35,5), skin); horn1.position.set(-0.22,2.10,0); horn1.rotation.z=0.3; this.group.add(horn1);
+    const horn2 = new THREE.Mesh(new THREE.ConeGeometry(0.06,0.35,5), skin); horn2.position.set( 0.22,2.10,0); horn2.rotation.z=-0.3; this.group.add(horn2);
+    this.group.scale.setScalar(1.2); this._isBerserker = true;
+  }
+
+  _buildPhantom() {
+    const teal = new THREE.MeshLambertMaterial({color:0x44aacc, transparent:true, opacity:0.65});
+    const bright = _mat(0x88ddff);
+    const add = (g,m,x,y,z) => { const mesh=new THREE.Mesh(g,m); mesh.position.set(x,y,z); mesh.castShadow=false; this.group.add(mesh); };
+    add(_box(0.44,0.80,0.28), teal,  0, 0.80, 0);
+    add(new THREE.SphereGeometry(0.24,8,6), teal, 0, 1.55, 0);
+    add(_box(0.12,0.60,0.12), teal, -0.32, 0.82, 0);
+    add(_box(0.12,0.60,0.12), teal,  0.32, 0.82, 0);
+    add(_box(0.08,0.10,0.08), bright,-0.08, 1.60, 0.26);
+    add(_box(0.08,0.10,0.08), bright, 0.08, 1.60, 0.26);
+    // Wispy tail
+    add(new THREE.ConeGeometry(0.15,0.55,5), teal, 0, 0.20, 0);
+    this._isEthereal = true;
+  }
+
   // ── AI update ─────────────────────────────────────────────────────────────
 
   /**
@@ -328,6 +460,12 @@ export class Enemy3D extends Entity3D {
 
       case S.ATTACK:
         this.velocity.set(0, 0, 0);
+
+        // Berserker — speed up below 40% HP
+        if (this._isBerserker && this.stats.hp < this.stats.maxHp * 0.4) {
+          this.stats.spd = this._data.spd * 1.6 / 16;
+        }
+
         if (this._isRanged) {
           const SHOOT_R = (this._data.range ?? 180) / 16;
           if (dp > SHOOT_R + 1.5) { this.state = S.CHASE; break; }
@@ -347,12 +485,11 @@ export class Enemy3D extends Entity3D {
           if (this.atkCD === 0 && player) {
             const dmg = Math.max(1, this.stats.atk + _randInt(-2, 2));
             player.takeDamage(dmg);
-            this.atkCD = this._isPoisonous ? 900 : 1300;
+            this.atkCD = this._isPoisonous ? 900 : this._isBerserker ? 800 : 1300;
             this.eventBus.emit('damage', this.position.x, this.position.y, dmg, '#ffcc00');
-            // Spider applies poison
-            if (this._isPoisonous) {
-              this.eventBus.emit('enemyPoisonHit', { target: player });
-            }
+            if (this._isPoisonous)  this.eventBus.emit('enemyPoisonHit',   { target: player });
+            if (this._voidTouch)    this.eventBus.emit('enemyVoidHit',     { target: player });
+            if (this._isBurner)     this.eventBus.emit('enemyBurnHit',     { target: player });
           }
         }
         break;

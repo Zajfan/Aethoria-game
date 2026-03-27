@@ -26,9 +26,11 @@ import { AnimationSystem }   from '../systems/AnimationSystem.js';
 import { FactionSystem }     from '../systems/FactionSystem.js';
 import { CombatSystem }      from '../systems/CombatSystem.js';
 import { EnchantSystem }     from '../systems/EnchantSystem.js';
-import { RegionSystem }      from '../systems/RegionSystem.js';
-import { CodexSystem }       from '../systems/CodexSystem.js';
-import { randomScroll }      from '../systems/LoreDatabase.js';
+import { RegionSystem }       from '../systems/RegionSystem.js';
+import { CodexSystem }        from '../systems/CodexSystem.js';
+import { ItemSystem }         from '../systems/ItemSystem.js';
+import { PointsOfInterest }   from '../systems/PointsOfInterest.js';
+import { randomScroll }       from '../systems/LoreDatabase.js';
 
 // Map dimensions (override config for 3D world)
 const MAP_W = 256;
@@ -487,12 +489,16 @@ export class GameScene {
     this.enchantSystem  = null;   // v0.5
     this.regionSystem   = null;   // v0.6
     this.codexSystem    = null;   // v0.6
+    this.itemSystem     = null;   // v0.6
+    this.poiSystem      = null;   // v0.6
     this._sceneProxy    = null;
 
     /** @type {import('../ui/HUD.js').HUD|null} */
     this.hud = null;
 
     this._disposed       = false;
+    this._xpBoostMult    = 1.0;
+    this._hpRegenPerSec  = 0;
     this._onCanvasClick  = this._onCanvasClick.bind(this);
     this._overlay        = () => document.getElementById('ui-overlay') || document.body;
   }
@@ -612,6 +618,15 @@ export class GameScene {
     // v0.6 — Codex / lore discovery system
     this.codexSystem = new CodexSystem(this.eventBus);
     if (savedPlayerData?.codex) this.codexSystem.deserialize(savedPlayerData.codex);
+
+    // v0.6 — Item rarity system
+    this.itemSystem = new ItemSystem(this.eventBus);
+
+    // v0.6 — Points of Interest
+    this.poiSystem = new PointsOfInterest(this.scene3d, this.camera.threeCamera, this.eventBus);
+    this.poiSystem.spawnAll(this.mapData, MAP_W, MAP_H);
+    this.poiSystem.setPlayer(this.player);
+    if (savedPlayerData?.poi) this.poiSystem.deserialize(savedPlayerData.poi);
 
     // v0.4 — Particle effects engine
     this.particles = new ParticleSystem3D(this.scene3d, this.camera.threeCamera);
@@ -849,11 +864,43 @@ export class GameScene {
       if (this.particles) this.particles.lootGlow(x, y, z, color);
     });
 
-    // v0.5 — Spider poison hit
+    // v0.5/v0.6 — Enemy status hit events
     bus.on('enemyPoisonHit', ({ target }) => {
-      if (target && this.combatSystem) {
-        this.combatSystem.applyStatus(target, 'POISON', { source: null });
-      }
+      if (target && this.combatSystem) this.combatSystem.applyStatus(target, 'POISON', { source: null });
+    });
+    bus.on('enemyVoidHit',   ({ target }) => {
+      if (target && this.combatSystem) this.combatSystem.applyStatus(target, 'VOID_CURSE', { source: null });
+    });
+    bus.on('enemyBurnHit',   ({ target }) => {
+      if (target && this.combatSystem) this.combatSystem.applyStatus(target, 'BURN', { source: null });
+    });
+
+    // v0.6 — Shrine blessing applies buff to player
+    bus.on('shrineBlessing', ({ buff }) => {
+      if (!this.player) return;
+      if (buff.stat === 'attack')   this.player.stats.attack   = (this.player.stats.attack   ?? 10) + buff.amount;
+      if (buff.stat === 'defense')  this.player.stats.defense  = (this.player.stats.defense  ?? 5)  + buff.amount;
+      if (buff.stat === 'speedMult')this.player.stats.speed    = (this.player.stats.speed    ?? 2)  * (1 + buff.amount);
+      if (buff.stat === 'xpMult')   this._xpBoostMult = 1 + buff.amount;
+      if (buff.stat === 'hpRegen')  this._hpRegenPerSec = buff.amount;
+      this.eventBus.emit('statsChanged', this.player.stats);
+      // Clear buff after duration
+      setTimeout(() => {
+        if (buff.stat === 'attack')   this.player.stats.attack   = Math.max(1, (this.player.stats.attack  ?? 10) - buff.amount);
+        if (buff.stat === 'defense')  this.player.stats.defense  = Math.max(0, (this.player.stats.defense ?? 5)  - buff.amount);
+        if (buff.stat === 'speedMult')this.player.stats.speed    = this.player.stats.speed / (1 + buff.amount);
+        if (buff.stat === 'xpMult')   this._xpBoostMult = 1.0;
+        if (buff.stat === 'hpRegen')  this._hpRegenPerSec = 0;
+        this.eventBus.emit('statsChanged', this.player.stats);
+      }, buff.dur * 1000);
+    });
+
+    // v0.6 — HUD log from POI events
+    bus.on('hudLog', ({ msg, color }) => this.hud?.logMsg(msg, color));
+
+    // v0.6 — Heal burst particle from well
+    bus.on('healBurst', ({ x, z }) => {
+      this.particles?.healBurst(x, 1.0, z);
     });
 
     // v0.5 — Archer arrow shot
@@ -1384,6 +1431,18 @@ export class GameScene {
       this.player.group.position.copy(this.player.position);
     }
 
+    // v0.6 — Points of Interest
+    this.poiSystem?.update(delta);
+
+    // v0.6 — HP regen (from well/shrine buff)
+    if (this._hpRegenPerSec > 0 && this.player && !this.player.isDead) {
+      this.player.stats.hp = Math.min(
+        this.player.stats.maxHp,
+        (this.player.stats.hp ?? 0) + this._hpRegenPerSec * delta,
+      );
+      this.eventBus.emit('statsChanged', this.player.stats);
+    }
+
     // v0.6 — Region detection
     if (this.regionSystem && this.player) {
       this.regionSystem.update(this.player.position, delta);
@@ -1517,7 +1576,7 @@ export class GameScene {
     this.particles?.dispose();
     this.animSystem?.dispose();
     this.combatSystem?.dispose();
-    // regionSystem and codexSystem have no GPU resources to dispose
+    this.poiSystem?.dispose();
 
     this.world3d?.dispose();
 

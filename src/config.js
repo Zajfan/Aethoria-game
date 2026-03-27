@@ -43,7 +43,19 @@ export const CONFIG = {
     SKELETON: { name:'Skeleton', hp:58,  atk:12, def:5, xp:52,  spd:46,  color:0xeeeecc, sz:12, loot:['bones','sword','bones','gold','scroll']         },
     TROLL:    { name:'Troll',    hp:135, atk:18, def:8, xp:125, spd:36,  color:0x8d6e3a, sz:20, loot:['club','gem','gold','gold','chainmail']          },
     ARCHER:   { name:'Skeleton Archer', hp:45, atk:10, def:3, xp:55,  spd:38,  color:0xddddaa, sz:12, loot:['bones','bow','scroll','silver'],   ranged:true, range:180 },
-    SPIDER:   { name:'Spider',    hp:28,  atk:7,  def:1, xp:30,  spd:95,  color:0x222222, sz:8,  loot:['hide','herb','fang'],              poison:true       },
+    SPIDER:   { name:'Spider',      hp:28,  atk:7,  def:1,  xp:30,  spd:95,  color:0x222222, sz:8,  loot:['hide','herb','fang'],                         poison:true       },
+
+    // Mid-tier threats (Elandor / dungeon mid-floors)
+    BANDIT:   { name:'Bandit',       hp:72,  atk:14, def:6,  xp:75,  spd:62,  color:0xcc6622, sz:14, loot:['gold','gold','silver','sword','leather']          },
+    WRAITH:   { name:'Wraith',       hp:55,  atk:18, def:2,  xp:90,  spd:70,  color:0x8844cc, sz:12, loot:['crystal','scroll','gem'],  ranged:true, range:200, void_touch:true },
+    GOLEM:    { name:'Stone Golem',  hp:220, atk:22, def:16, xp:180, spd:22,  color:0x8888aa, sz:22, loot:['gem','gem','bones','shield']                       },
+    CULTIST:  { name:'Void Cultist', hp:65,  atk:16, def:4,  xp:85,  spd:52,  color:0x440066, sz:12, loot:['crystal','scroll','robes'],  void_touch:true       },
+
+    // High-tier threats (Ashveil / dungeon deep)
+    DRAKE:    { name:'Void Drake',   hp:280, atk:30, def:12, xp:280, spd:48,  color:0x440022, sz:24, loot:['gem','gem','crystal','axe','gold'],  burn:true     },
+    LICH:     { name:'Lich',         hp:180, atk:28, def:8,  xp:240, spd:40,  color:0x224466, sz:16, loot:['crystal','crystal','scroll','gem'], ranged:true, range:220, void_touch:true },
+    BERSERKER:{ name:'Berserker',    hp:190, atk:32, def:5,  xp:210, spd:68,  color:0xaa2200, sz:18, loot:['axe','axe','gold','gold','gem'],     berserk:true  },
+    PHANTOM:  { name:'Marsh Phantom',hp:40,  atk:12, def:0,  xp:60,  spd:82,  color:0x44aacc, sz:10, loot:['herb','crystal','scroll'],           ethereal:true },
   },
 
   ITEMS: {
@@ -67,7 +79,43 @@ export const CONFIG = {
     elixir: { name:'Grand Elixir',    type:'consumable',heal:150,value:140 },
     key:    { name:'Dungeon Key',     type:'material',  value:50 },
     scroll: { name:'Lore Scroll',     type:'readable',  value:30 },
-    crystal:{ name:'Void Crystal',   type:'material',  value:180 },
+    crystal:{ name:'Void Crystal',     type:'material',  value:180 },
+
+    // Uncommon weapons (green)
+    longsword:  { name:'Longsword',        type:'weapon',  atk:14,  value:180, rarity:'uncommon' },
+    wand:       { name:'Arcane Wand',      type:'weapon',  atk:12,  value:160, rarity:'uncommon' },
+    crossbow:   { name:'Crossbow',         type:'weapon',  atk:13,  value:170, rarity:'uncommon' },
+    // Rare weapons (blue)
+    runesword:  { name:'Runesword',        type:'weapon',  atk:22,  value:380, rarity:'rare'     },
+    voidstaff:  { name:'Void Staff',       type:'weapon',  atk:20,  value:360, rarity:'rare'     },
+    deathbow:   { name:'Deathbow',         type:'weapon',  atk:19,  value:340, rarity:'rare'     },
+    // Epic weapons (purple)
+    soulreaper: { name:"Soul Reaper",      type:'weapon',  atk:32,  value:700, rarity:'epic'     },
+    voidblade:  { name:'Voidblade',        type:'weapon',  atk:30,  value:680, rarity:'epic'     },
+    // Legendary (gold)
+    crownblade: { name:'Crown Shard Blade',type:'weapon',  atk:45,  value:1500, rarity:'legendary' },
+
+    // Uncommon armour
+    platemail:  { name:'Plate Mail',       type:'armor',   def:10,  value:200, rarity:'uncommon' },
+    voidrobe:   { name:'Void Robe',        type:'armor',   def:5,   value:180, rarity:'uncommon' },
+    // Rare armour
+    dragonhide: { name:'Dragonhide',       type:'armor',   def:16,  value:400, rarity:'rare'     },
+    runeshield: { name:'Runeshield',       type:'armor',   def:18,  value:420, rarity:'rare'     },
+    // Epic armour
+    voidplate:  { name:'Void Plate',       type:'armor',   def:26,  value:750, rarity:'epic'     },
+    // Legendary
+    crownguard: { name:'Crown Shard Guard',type:'armor',   def:38,  value:1600, rarity:'legendary' },
+
+    // New consumables
+    antidote:   { name:'Antidote',         type:'consumable', heal:0, value:30,  cures:'POISON'  },
+    manapotion: { name:'Mana Potion',      type:'consumable', heal:0, value:50,  restoresMana:60 },
+    rejuvenate: { name:'Rejuvenation',     type:'consumable', heal:300,value:220, rarity:'rare'  },
+
+    // New materials
+    dragonscale:{ name:'Dragonscale',      type:'material',  value:220 },
+    voidessence:{ name:'Void Essence',     type:'material',  value:300 },
+    ancientwood:{ name:'Ancient Wood',     type:'material',  value:150 },
+    soulstone:  { name:'Soulstone',        type:'material',  value:400 },
   },
 
   RECIPES: [
@@ -76,7 +124,13 @@ export const CONFIG = {
     { result:'shield',   materials:{ bones:3, hide:1 },        label:'Craft Bone Shield'    },
     { result:'chainmail',materials:{ hide:4, bones:2 },        label:'Forge Chainmail'      },
     { result:'leather',  materials:{ hide:3 },                 label:'Craft Leather Armor'  },
-  { result:'crystal',  materials:{ gem:2, bones:1 },           label:'Forge Void Crystal'   },
+  { result:'crystal',    materials:{ gem:2, bones:1 },             label:'Forge Void Crystal'   },
+  { result:'longsword',  materials:{ sword:1, gem:1 },              label:'Forge Longsword'      },
+  { result:'platemail',  materials:{ chainmail:1, gem:1 },          label:'Forge Plate Mail'     },
+  { result:'runesword',  materials:{ longsword:1, crystal:1 },      label:'Etch Runesword'       },
+  { result:'dragonhide', materials:{ hide:6, crystal:1 },           label:'Cure Dragonhide'      },
+  { result:'antidote',   materials:{ herb:2, fang:1 },              label:'Brew Antidote'        },
+  { result:'manapotion', materials:{ herb:1, crystal:1 },           label:'Brew Mana Potion'     },
   ],
 
   NPCS_DATA: [
@@ -165,6 +219,32 @@ export const CONFIG = {
         { threshold:0.5, msg:'The Colossus cracks — and grows faster!' },
       ],
     },
+    LICH_KING: {
+      name:'The Lich King', hp:1400, atk:42, def:18, xp:1200, spd:36, color:0x0022aa, sz:32,
+      loot:['crystal','crystal','crystal','gem','gem','scroll'],
+      phases:[
+        { threshold:0.70, msg:'The Lich King raises his fallen — skeletons swarm!' },
+        { threshold:0.40, msg:'Ice and Void merge — the air freezes!' },
+        { threshold:0.15, msg:'LICHKING DESPERATE — reality tears!' },
+      ],
+    },
+    FOREST_ANCIENT: {
+      name:'Forest Ancient', hp:800, atk:26, def:22, xp:900, spd:20, color:0x226622, sz:40,
+      loot:['gem','crystal','herb','herb','scroll'],
+      phases:[
+        { threshold:0.6, msg:'The Ancient calls the forest — roots erupt!' },
+        { threshold:0.3, msg:'The Ancient burns — and becomes something else.' },
+      ],
+    },
+    VOID_HERALD: {
+      name:'Void Herald', hp:1100, atk:48, def:14, xp:1000, spd:52, color:0xcc00ff, sz:30,
+      loot:['crystal','crystal','gem','gem','gem'],
+      phases:[
+        { threshold:0.75, msg:'The Void Herald opens a rift!' },
+        { threshold:0.45, msg:'Reality distorts — the Herald phases!' },
+        { threshold:0.20, msg:'VOID SURGE — the Herald becomes unstoppable!' },
+      ],
+    },
   },
 
   QUEST_TEMPLATES: [
@@ -174,6 +254,13 @@ export const CONFIG = {
     { type:'TALK',    title:'A Message for {{npc}}', desc:'Deliver a message to {{npc}} in Hearthmoor.',     target:'npc',   count:[1]     },
   { type:'KILL',    title:'Spider Hunt',          desc:'The spider nests spread faster every night. Kill {{count}} spiders.', target:'enemy', count:[4,6,10] },
   { type:'KILL',    title:'Silence the Archers',  desc:'Skeleton archers are picking off scouts. Kill {{count}} of them.',   target:'enemy', count:[3,5]    },
+  { type:'KILL',    title:'Bandit Clearance',       desc:'Bandits control the road to the eastern ruins. Clear {{count}} of them.', target:'enemy', count:[4,6,8]  },
+  { type:'KILL',    title:'The Cult Grows',          desc:'Void Cultists perform rituals near the dungeon. Stop {{count}}.',         target:'enemy', count:[3,5]    },
+  { type:'KILL',    title:'Wraith Hunt',             desc:'Wraiths from the Marshes are haunting the roads. Banish {{count}}.',      target:'enemy', count:[2,4]    },
+  { type:'COLLECT', title:'Rare Components',         desc:'Bring {{count}} Void Crystals for the enchanting forge.',                 target:'crystal', count:[1,2,3] },
+  { type:'COLLECT', title:'Dragonscale',             desc:'A Drake was sighted near Ashveil. Bring back {{count}} scales.',          target:'dragonscale', count:[2,3] },
+  { type:'EXPLORE', title:'The Ashveil Ruins',       desc:'A dwarven vault was spotted in the Peaks. Survive and return.',           target:'tile',  count:[1]      },
+  { type:'EXPLORE', title:'Whispering Marshes',      desc:'Something moves in the Marshes. Investigate and report back.',            target:'tile',  count:[1]      },
   ],
 
   WEATHER_TYPES: ['CLEAR','CLEAR','CLEAR','RAIN','FOG','STORM'],
@@ -181,5 +268,22 @@ export const CONFIG = {
   DAY_CYCLE_SECONDS: 240,
 
   // Fixed seed so all players always see the same world terrain.
+  RARITY: {
+    common:    { name:'Common',    color:0xaaaaaa, cssColor:'#aaaaaa', dropMult:1.0,   xpMult:1.0  },
+    uncommon:  { name:'Uncommon',  color:0x44ff44, cssColor:'#44ff44', dropMult:0.35,  xpMult:1.3  },
+    rare:      { name:'Rare',      color:0x4488ff, cssColor:'#4488ff', dropMult:0.15,  xpMult:1.8  },
+    epic:      { name:'Epic',      color:0xaa44ff, cssColor:'#aa44ff', dropMult:0.05,  xpMult:2.5  },
+    legendary: { name:'Legendary', color:0xffaa00, cssColor:'#ffaa00', dropMult:0.008, xpMult:5.0  },
+  },
+
+  // Dungeon themes — used by DungeonScene3D to vary environment
+  DUNGEON_THEMES: {
+    CRYPT:    { name:'Forgotten Crypt',   wallColor:0x181818, floorColor:0x282828, fogDensity:0.05, enemyBias:['SKELETON','ARCHER','LICH'],    bossTypes:['VOID_KNIGHT'],   bgColor:0x050508 },
+    FOREST:   { name:'Corrupted Forest',  wallColor:0x1a2e1a, floorColor:0x0f1f0f, fogDensity:0.04, enemyBias:['SPIDER','WOLF','PHANTOM'],     bossTypes:['FOREST_ANCIENT'], bgColor:0x060c06 },
+    VOLCANIC: { name:'Ashveil Depths',    wallColor:0x3a1a0a, floorColor:0x2a0f00, fogDensity:0.06, enemyBias:['DRAKE','GOLEM','BERSERKER'],   bossTypes:['STONE_COLOSSUS'], bgColor:0x0f0500 },
+    VOID:     { name:'Void Rift',         wallColor:0x0a0020, floorColor:0x050015, fogDensity:0.07, enemyBias:['WRAITH','CULTIST','LICH'],     bossTypes:['VOID_HERALD'],    bgColor:0x020008 },
+    MARSH:    { name:'Sunken Vaults',     wallColor:0x0a1510, floorColor:0x081208, fogDensity:0.05, enemyBias:['PHANTOM','SPIDER','CULTIST'],  bossTypes:['LICH_KING'],      bgColor:0x030806 },
+  },
+
   WORLD_SEED: 42,
 };
