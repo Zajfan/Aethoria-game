@@ -453,6 +453,9 @@ export class HUD {
     this.tradeOpen    = false;
     this.factionOpen  = false;  // v0.4
     this.enchantOpen  = false;  // v0.5
+    this.codexOpen    = false;  // v0.6
+    this._codexSystem = null;   // v0.6
+    this._regionSystem= null;   // v0.6
 
     injectCSS();
     this._ensureOverlay();
@@ -487,6 +490,9 @@ export class HUD {
     this._buildHint();
     this._buildFactions();
     this._buildEnchant();
+    this._buildCodex();
+    this._buildRegionBanner();
+    this._buildScrollReader();
     this._buildMobileControls();
   }
 
@@ -956,7 +962,7 @@ export class HUD {
    * @param {import('../systems/TradeSystem.js').TradeSystem} tradeSystem
    * @param {object} worldEvents
    */
-  async openDialogue(npc, player, questSystem, tradeSystem, worldEvents, worldCtx = null, factionSystem = null, enchantSystem = null, combatSystem = null) {
+  async openDialogue(npc, player, questSystem, tradeSystem, worldEvents, worldCtx = null, factionSystem = null, enchantSystem = null, combatSystem = null, codexSystem = null) {
     this._dialogueNPC  = npc;
     this._player       = player;
     this._questSystem  = questSystem || this.questSystem;
@@ -966,6 +972,7 @@ export class HUD {
     if (factionSystem)  this.factionSystem  = factionSystem;
     if (enchantSystem)  this._enchantSystem  = enchantSystem;
     if (combatSystem)   this._combatSystem   = combatSystem;
+    if (codexSystem)    this._codexSystem    = codexSystem;
 
     const nd  = npc.npcData;
     const col = '#' + (nd.color || 0xd4af37).toString(16).padStart(6, '0');
@@ -1002,6 +1009,9 @@ export class HUD {
         this._questSystem.generateQuest(player?.stats, nd.name, this._worldCtx);
       }, 1200);
     }
+
+    // v0.6 — unlock NPC bio in codex
+    this._codexSystem?.unlockNPC(nd.name);
 
     // Story flag
     if (nd.name === 'Elder Lyra') {
@@ -1371,7 +1381,7 @@ export class HUD {
     const isTouchDevice = (navigator.maxTouchPoints > 0) || ('ontouchstart' in window);
     el.textContent = isTouchDevice
       ? 'Left-drag: Move  |  Right-drag: Rotate Camera  |  Tap: Attack/Loot  |  ⚔ Attack  |  💬 Talk (E)  |  📦 Inventory'
-      : 'WASD/Arrows: Move  |  Q/E: Rotate  |  Left-click: Attack/Loot  |  E: Talk  |  I: Inv  |  M: Map  |  Q: Quests  |  K: Skills  |  F: Factions  |  N: Enchant';
+      : 'WASD/Arrows: Move  |  Q/E: Rotate  |  Left-click: Attack/Loot  |  E: Talk  |  I: Inv  |  M: Map  |  Q: Quests  |  K: Skills  |  F: Factions  |  N: Enchant  |  C: Codex';
     document.body.appendChild(el);
   }
 
@@ -1608,6 +1618,233 @@ export class HUD {
     }
   }
 
+
+  // ── v0.6: Codex Panel ──────────────────────────────────────────────────────
+
+  _buildCodex() {
+    const panel = document.createElement('div');
+    panel.id = 'hud-codex';
+    panel.style.cssText = `
+      display:none; position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(6,8,18,0.97); border:1px solid #334;
+      border-radius:6px; padding:0; z-index:8100;
+      width:560px; max-height:80vh; color:#ccc;
+      font-family:'Courier New',monospace; overflow:hidden;
+      box-shadow:0 0 40px rgba(0,0,0,0.9);
+      display:none; flex-direction:column;
+    `;
+    document.body.appendChild(panel);
+    this._codexPanel = panel;
+
+    // Header
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:16px 20px 10px;border-bottom:1px solid #223;flex-shrink:0;';
+    header.innerHTML = `<span style="color:#aaddff;font-size:15px;letter-spacing:2px;">// CODEX</span>`;
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'background:none;border:1px solid #334;color:#aaa;border-radius:3px;padding:2px 8px;cursor:pointer;font-family:inherit;';
+    closeBtn.onclick = () => this.toggleCodex();
+    header.appendChild(closeBtn);
+    panel.appendChild(header);
+
+    // Progress bar
+    this._codexProgress = document.createElement('div');
+    this._codexProgress.style.cssText = 'padding:8px 20px;font-size:10px;color:#556;border-bottom:1px solid #112;flex-shrink:0;';
+    panel.appendChild(this._codexProgress);
+
+    // Tab bar
+    const tabs = document.createElement('div');
+    tabs.style.cssText = 'display:flex;gap:0;border-bottom:1px solid #223;flex-shrink:0;overflow-x:auto;';
+    panel.appendChild(tabs);
+
+    // Content
+    this._codexContent = document.createElement('div');
+    this._codexContent.style.cssText = 'flex:1;overflow-y:auto;padding:14px 20px;';
+    panel.appendChild(this._codexContent);
+
+    const tabDefs = [
+      { key:'history',  label:'History'  },
+      { key:'bestiary', label:'Bestiary' },
+      { key:'shards',   label:'Shards'   },
+      { key:'scrolls',  label:'Scrolls'  },
+      { key:'npcs',     label:'People'   },
+      { key:'regions',  label:'Regions'  },
+    ];
+    this._codexTab = 'history';
+    this._codexTabEls = {};
+
+    tabDefs.forEach(({ key, label }) => {
+      const btn = document.createElement('button');
+      btn.textContent = label;
+      btn.style.cssText = `background:none;border:none;border-bottom:2px solid transparent;
+        color:#667;font-family:inherit;font-size:10px;letter-spacing:1px;
+        padding:8px 14px;cursor:pointer;white-space:nowrap;`;
+      btn.onclick = () => { this._codexTab = key; this._renderCodex(); };
+      tabs.appendChild(btn);
+      this._codexTabEls[key] = btn;
+    });
+  }
+
+  toggleCodex() {
+    this.codexOpen = !this.codexOpen;
+    if (!this._codexPanel) return;
+    this._codexPanel.style.display = this.codexOpen ? 'flex' : 'none';
+    if (this.codexOpen) this._renderCodex();
+  }
+
+  _renderCodex() {
+    if (!this._codexContent || !this._codexSystem) {
+      if (this._codexContent) this._codexContent.innerHTML = '<div style="color:#445;font-size:11px;padding:20px;">Explore the world to unlock lore entries.</div>';
+      return;
+    }
+
+    // Highlight active tab
+    Object.entries(this._codexTabEls ?? {}).forEach(([k, btn]) => {
+      btn.style.color       = k === this._codexTab ? '#aaddff' : '#667';
+      btn.style.borderColor = k === this._codexTab ? '#aaddff' : 'transparent';
+    });
+
+    // Progress
+    const prog = this._codexSystem.getProgress();
+    if (this._codexProgress) {
+      const pct = prog.pct;
+      this._codexProgress.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;background:#111;border-radius:2px;height:4px;">
+            <div style="width:${pct}%;background:#4488ff;height:100%;border-radius:2px;transition:width 0.4s;"></div>
+          </div>
+          <span>${prog.foundN}/${prog.totalN} discovered (${pct}%)</span>
+        </div>`;
+    }
+
+    const all = this._codexSystem.getAll();
+    this._codexContent.innerHTML = '';
+    const tab = this._codexTab;
+
+    // REGIONS tab — show all 5 with discovered/undiscovered state
+    if (tab === 'regions') {
+      const { REGIONS } = { REGIONS: { HEARTHMOOR:{name:'Hearthmoor',subtitle:'The Last Village',color:'#ffd700'}, ELANDOR:{name:'Elandor Plains',subtitle:'The Breadbasket of Aethoria',color:'#88dd44'}, WHISPERING:{name:'Whispering Marshes',subtitle:'Where Spirits Linger',color:'#44ccaa'}, ASHVEIL:{name:'Ashveil Peaks',subtitle:'Volcanic Highlands',color:'#ff6633'}, SHATTERED:{name:'Shattered Coast',subtitle:'The Edge of the World',color:'#4488ff'} } };
+      const visited = new Set(this._codexSystem.getUnlocked('regions'));
+      Object.entries(REGIONS).forEach(([id, r]) => {
+        const found = visited.has(id);
+        const div = document.createElement('div');
+        div.style.cssText = `margin-bottom:14px;opacity:${found?'1':'0.35'};border-left:3px solid ${found?r.color:'#334'};padding-left:12px;`;
+        div.innerHTML = `
+          <div style="color:${r.color};font-size:12px;margin-bottom:3px;">${r.name}</div>
+          <div style="font-size:9px;color:#667;margin-bottom:4px;">${r.subtitle}</div>
+          <div style="font-size:10px;color:#889;line-height:1.5;">${found ? '(visit to read lore)' : '— not yet visited —'}</div>`;
+        this._codexContent.appendChild(div);
+      });
+      return;
+    }
+
+    let entries = [];
+    if (tab === 'history')  entries = all.history;
+    if (tab === 'bestiary') entries = all.bestiary;
+    if (tab === 'shards')   entries = all.shards;
+    if (tab === 'scrolls')  entries = all.scrolls;
+    if (tab === 'npcs')     entries = all.npcs;
+
+    if (!entries.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'color:#445;font-size:11px;padding:20px 0;';
+      empty.textContent = 'No entries discovered yet. Keep exploring.';
+      this._codexContent.appendChild(empty);
+      return;
+    }
+
+    entries.forEach(entry => {
+      const div = document.createElement('div');
+      div.style.cssText = 'margin-bottom:18px;border-bottom:1px solid #112;padding-bottom:16px;cursor:pointer;';
+      const titleColor = tab === 'shards' ? '#cc88ff' : tab === 'bestiary' ? '#ff8844' : tab === 'npcs' ? '#ffd700' : '#aaddff';
+      const titleText  = entry.title ?? entry.name ?? entry.id ?? '???';
+      const bodyText   = entry.text ?? entry.backstory ?? entry.lore ?? entry.desc ?? '';
+      const subtitleText = entry.location ?? entry.secret ?? '';
+      div.innerHTML = `
+        <div style="color:${titleColor};font-size:11px;margin-bottom:4px;font-weight:bold;">${titleText}</div>
+        ${subtitleText ? `<div style="font-size:9px;color:#667;margin-bottom:5px;font-style:italic;">${subtitleText}</div>` : ''}
+        <div style="font-size:10px;color:#889;line-height:1.6;">${bodyText}</div>`;
+      this._codexContent.appendChild(div);
+    });
+  }
+
+  // ── v0.6: Region Entry Banner ─────────────────────────────────────────────
+
+  _buildRegionBanner() {
+    const el = document.createElement('div');
+    el.id = 'hud-region-banner';
+    el.style.cssText = `
+      position:fixed; top:18%; left:50%; transform:translateX(-50%) scale(0.8);
+      background:rgba(4,6,14,0.92); border:1px solid #334;
+      border-radius:5px; padding:14px 28px; z-index:8200;
+      font-family:'Courier New',monospace; text-align:center;
+      pointer-events:none; opacity:0;
+      transition:opacity 0.5s, transform 0.5s;
+      min-width:260px;
+    `;
+    document.body.appendChild(el);
+    this._regionBanner = el;
+  }
+
+  showRegionBanner(region) {
+    if (!this._regionBanner) return;
+    const col = region.color ?? '#aaaaaa';
+    this._regionBanner.innerHTML = `
+      <div style="font-size:10px;color:#556;letter-spacing:2px;margin-bottom:4px;">ENTERING</div>
+      <div style="font-size:16px;color:${col};letter-spacing:1px;margin-bottom:2px;">${region.name}</div>
+      <div style="font-size:9px;color:#778;font-style:italic;">${region.subtitle ?? ''}</div>
+    `;
+    this._regionBanner.style.opacity = '1';
+    this._regionBanner.style.transform = 'translateX(-50%) scale(1)';
+    // also show border glow matching region colour
+    this._regionBanner.style.boxShadow = `0 0 18px rgba(${region.cssGlow ?? '100,100,200'},0.4)`;
+
+    clearTimeout(this._regionBannerTimer);
+    this._regionBannerTimer = setTimeout(() => {
+      this._regionBanner.style.opacity = '0';
+      this._regionBanner.style.transform = 'translateX(-50%) scale(0.85)';
+    }, 3500);
+  }
+
+  // ── v0.6: Scroll Reader ───────────────────────────────────────────────────
+
+  _buildScrollReader() {
+    const panel = document.createElement('div');
+    panel.id = 'hud-scroll-reader';
+    panel.style.cssText = `
+      display:none; position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(10,8,4,0.97); border:1px solid #554;
+      border-radius:5px; padding:26px 30px; z-index:8300;
+      width:440px; max-height:70vh; overflow-y:auto;
+      font-family:'Courier New',monospace;
+      box-shadow:0 0 30px rgba(100,80,0,0.4);
+    `;
+    document.body.appendChild(panel);
+    this._scrollReaderPanel = panel;
+
+    panel.addEventListener('click', () => {
+      panel.style.display = 'none';
+    });
+  }
+
+  showScrollReader(scroll) {
+    if (!this._scrollReaderPanel || !scroll) return;
+    this._scrollReaderPanel.innerHTML = `
+      <div style="font-size:9px;color:#665;letter-spacing:2px;margin-bottom:10px;">LORE SCROLL</div>
+      <div style="font-size:13px;color:#ddcc88;margin-bottom:12px;border-bottom:1px solid #443;padding-bottom:8px;">${scroll.title ?? 'Untitled'}</div>
+      <div style="font-size:11px;color:#aaa;line-height:1.75;white-space:pre-wrap;">${scroll.text ?? ''}</div>
+      <div style="margin-top:16px;font-size:9px;color:#443;text-align:center;">— click anywhere to close —</div>
+    `;
+    this._scrollReaderPanel.style.display = 'block';
+    // Auto-close after 25 seconds
+    clearTimeout(this._scrollReaderTimer);
+    this._scrollReaderTimer = setTimeout(() => {
+      if (this._scrollReaderPanel) this._scrollReaderPanel.style.display = 'none';
+    }, 25000);
+  }
+
   // ── Mobile touch controls ─────────────────────────────────────────────────────
 
   _buildMobileControls() {
@@ -1732,6 +1969,7 @@ export class HUD {
         case 'k': this.toggleSkillTree(this._player); break;
         case 'f': this.toggleFactions(); break;
         case 'n': this.toggleEnchant(); break;
+        case 'c': this.toggleCodex(); break;
         case 'escape':
           if (this.invOpen)   this.toggleInventory();
           if (this.mapOpen)   this.toggleMap();
@@ -1739,6 +1977,7 @@ export class HUD {
           if (this.tradeOpen) { this.tradeOpen = false; const t = document.getElementById('hud-trade'); if(t) t.style.display='none'; }
           if (this.factionOpen) this.toggleFactions();
           if (this.enchantOpen)  this.toggleEnchant();
+          if (this.codexOpen)    this.toggleCodex();
           this._closeDialogue();
           break;
       }
@@ -1773,6 +2012,8 @@ export class HUD {
     if (gameScene.factionSystem)  this.factionSystem  = gameScene.factionSystem;
     if (gameScene.enchantSystem)  this._enchantSystem = gameScene.enchantSystem;
     if (gameScene.combatSystem)   this._combatSystem  = gameScene.combatSystem;
+    if (gameScene.codexSystem)    this._codexSystem   = gameScene.codexSystem;
+    if (gameScene.regionSystem)   this._regionSystem  = gameScene.regionSystem;
     this._gameScene   = gameScene;
     this._player      = gameScene.player;
     this._mapData     = gameScene.mapData;

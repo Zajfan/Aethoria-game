@@ -26,6 +26,9 @@ import { AnimationSystem }   from '../systems/AnimationSystem.js';
 import { FactionSystem }     from '../systems/FactionSystem.js';
 import { CombatSystem }      from '../systems/CombatSystem.js';
 import { EnchantSystem }     from '../systems/EnchantSystem.js';
+import { RegionSystem }      from '../systems/RegionSystem.js';
+import { CodexSystem }       from '../systems/CodexSystem.js';
+import { randomScroll }      from '../systems/LoreDatabase.js';
 
 // Map dimensions (override config for 3D world)
 const MAP_W = 256;
@@ -482,6 +485,8 @@ export class GameScene {
     this.factionSystem  = null;   // v0.4
     this.combatSystem   = null;   // v0.5
     this.enchantSystem  = null;   // v0.5
+    this.regionSystem   = null;   // v0.6
+    this.codexSystem    = null;   // v0.6
     this._sceneProxy    = null;
 
     /** @type {import('../ui/HUD.js').HUD|null} */
@@ -599,6 +604,14 @@ export class GameScene {
 
     // v0.5 — Enchant system
     this.enchantSystem = new EnchantSystem(this.eventBus);
+
+    // v0.6 — Region system
+    this.regionSystem = new RegionSystem(this.eventBus);
+    if (savedPlayerData?.regions) this.regionSystem.deserialize(savedPlayerData.regions);
+
+    // v0.6 — Codex / lore discovery system
+    this.codexSystem = new CodexSystem(this.eventBus);
+    if (savedPlayerData?.codex) this.codexSystem.deserialize(savedPlayerData.codex);
 
     // v0.4 — Particle effects engine
     this.particles = new ParticleSystem3D(this.scene3d, this.camera.threeCamera);
@@ -797,6 +810,38 @@ export class GameScene {
         this.camera.snapTo(this.player.position);
         bus.emit('statsChanged', this.player.stats);
       }, 1800);
+    });
+
+    // v0.6 — Region entered notification + ambient music change
+    bus.on('regionEntered', ({ region, firstVisit }) => {
+      const col = region.color ?? '#aaaaaa';
+      this.hud?.logMsg(`📍 ${region.name} — ${region.subtitle}`, col);
+      if (firstVisit) {
+        setTimeout(() => {
+          this.hud?.showRegionBanner(region);
+        }, 800);
+      }
+      // Swap ambience when moving between zones
+      if (region.ambience && this.audio) {
+        this.audio.startAmbience(region.ambience);
+      }
+    });
+
+    // v0.6 — Codex unlock notification
+    bus.on('codexUnlocked', ({ category, id }) => {
+      const labels = {
+        bestiary: '📖 Bestiary updated', scrolls: '📜 Scroll added to Codex',
+        regions: '🗺️ Region discovered', shards: '💎 Shard lore unlocked',
+        history: '📚 History unlocked', npcs: '👤 NPC bio unlocked',
+      };
+      const msg = labels[category] ?? 'Codex updated';
+      this.hud?.logMsg(msg + '.', '#aaddff');
+    });
+
+    // v0.6 — Scroll loot → give as readable item + register in codex
+    bus.on('scrollPickedUp', ({ scroll }) => {
+      this.codexSystem?.addScroll(scroll);
+      this.hud?.showScrollReader(scroll);
     });
 
     // v0.5 — Status effect particles
@@ -1028,6 +1073,20 @@ export class GameScene {
       '+' + (CONFIG.ITEMS[lootHit.itemKey]?.name || lootHit.itemKey),
       '#88ff88',
     );
+
+    // v0.6 — scrolls open a lore reader and register in codex
+    if (lootHit.itemKey === 'scroll') {
+      const scroll = randomScroll();
+      if (scroll) {
+        setTimeout(() => {
+          this.eventBus.emit('scrollPickedUp', { scroll });
+        }, 400);
+      }
+    }
+
+    // v0.6 — track bestiary on first loot pickup too
+    this.codexSystem?.unlockBestiary?.(lootHit.itemKey?.toUpperCase?.());
+
     this.scene3d.remove(lootHit.mesh);
     lootHit.mesh.geometry.dispose();
     lootHit.mesh.material.dispose();
@@ -1199,7 +1258,7 @@ export class GameScene {
   _openDialogue(npc) {
     this.audio?.sfxUIOpen();
     const worldCtx = this._buildWorldContext();
-    this.hud?.openDialogue(npc, this.player, this.questSystem, this.tradeSystem, this.worldEvents, worldCtx, this.factionSystem, this.enchantSystem, this.combatSystem);
+    this.hud?.openDialogue(npc, this.player, this.questSystem, this.tradeSystem, this.worldEvents, worldCtx, this.factionSystem, this.enchantSystem, this.combatSystem, this.codexSystem);
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────────
@@ -1323,6 +1382,11 @@ export class GameScene {
       const targetY = this.world3d.getHeightAt(tx, tz);
       this.player.position.y += (targetY - this.player.position.y) * Math.min(1, delta * 12);
       this.player.group.position.copy(this.player.position);
+    }
+
+    // v0.6 — Region detection
+    if (this.regionSystem && this.player) {
+      this.regionSystem.update(this.player.position, delta);
     }
 
     // v0.5 — Combat system
@@ -1453,6 +1517,7 @@ export class GameScene {
     this.particles?.dispose();
     this.animSystem?.dispose();
     this.combatSystem?.dispose();
+    // regionSystem and codexSystem have no GPU resources to dispose
 
     this.world3d?.dispose();
 

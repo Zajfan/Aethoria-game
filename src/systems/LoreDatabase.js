@@ -113,6 +113,54 @@ export const LORE = {
     VOID_KNIGHT: { title:'The Void Knight', text:`A warrior who entered the Void Gate willingly, looking for power. Found it. The power found him in return. He has guarded the third shard for two hundred years. He does not remember why. He only remembers that he must. On his third defeat, if someone is present who speaks to him, he will say one word before the Void reclaims him. The word is a name. It is Lyra\'s name.` },
     STONE_COLOSSUS: { title:'The Stone Colossus', text:`Built by the First Weavers as a guardian for the Crown itself. When the Crown shattered, it received no further instructions and defaulted to: protect everything. It does not distinguish between threats and travellers. It has been failing at its purpose for three hundred years and it cannot stop trying.` },
   },
+
+  // ── Regions ────────────────────────────────────────────────────
+  regions: {
+    HEARTHMOOR: {
+      name:  'Hearthmoor',
+      text:  `The last safe settlement in central Aethoria, sealed from the Void by Elder Lyra's ancient pact. As long as someone draws water from the well each day, the village endures. Nobody who has tried to leave permanently has made it more than a day's walk before turning back — not because something stops them, but because they forget where they were going.`,
+    },
+    ELANDOR: {
+      name:  'Elandor Plains',
+      text:  `Once the breadbasket of Aethoria, the Elandor Plains fed six kingdoms. Now the fields are untended and the trade roads have gone quiet. Bandits and goblin clans have divided the territory between them. The ruins of farming villages dot the landscape — empty, not burned. People just stopped being there one day. The Plains are the clearest evidence that the Forgetting is not metaphor.`,
+    },
+    WHISPERING: {
+      name:  'Whispering Marshes',
+      text:  `A fog-shrouded wetland where rare herbs grow at the edges of Void traces and travellers vanish following lights that should not exist. Alchemists prize what can be harvested here. Mira has mapped seventeen distinct Void trace clusters in the Marshes. She does not publish the maps. The lights are not dangerous in themselves — they lead you somewhere, and the somewhere is the problem.`,
+    },
+    ASHVEIL: {
+      name:  'Ashveil Peaks',
+      text:  `Volcanic mountains scarred by eruptions that predated the Voidlords by centuries. The dwarven civilization that built here was not destroyed — it was absorbed. The ruins are intact. The tools are still on the workbenches. Whatever the dwarves were working on when they stopped, they left mid-sentence. Hidden in the deepest vault is a prophecy that predicts the Crown's return to the day, written three hundred years before the Crown shattered.`,
+    },
+    SHATTERED: {
+      name:  'Shattered Coast',
+      text:  `The southern cliffs took the worst of whatever hit the leylines during the Shattering. Rock that should be solid became fractured overnight. Sea temples that stood for centuries slid beneath the waves. Pirates claimed the strongholds because no one else wanted them. They are, by all accounts, doing fine — the Coast is the one place the Void does not seem interested in, possibly because there is nothing left to consume.`,
+    },
+  },
+
+  // ── Extended factions lore ───────────────────────────────────
+  factions_lore: {
+    DAWNWARDENS: {
+      name: 'The Dawnwardens',
+      text: `Paladins sworn to protect the realm from corruption. They emerged in the aftermath of the Shattering when the remaining kingdoms needed someone willing to hold a line. They believe in unity and justice, but their rigid interpretation of both has cost them allies. Their current problem: the corruption they were formed to fight may not be external.`,
+    },
+    VEILBOUND: {
+      name: 'The Veilbound',
+      text: `Shadow mages who wield magic the other factions have banned. They did not develop this magic — they inherited it from the scholars who opened the Void Gate. They have been trying to close it ever since, which is why they are feared by people who have not read the actual history. They are not evil. They are desperate and methodical and they keep losing.`,
+    },
+    IRONFANG: {
+      name: 'Ironfang Clan',
+      text: `Mercenary fighters who settled in Aethoria three generations ago after their home continent was lost to an unrelated catastrophe. They sell their strength because it is what they have. They are brutal, honourable, and deeply superstitious about the Void in ways that turn out to be mostly correct. Their war-chants contain accurate Void lore that predates the Shattering by centuries. No one has asked them where they learned it.`,
+    },
+    GUILD_WHISPERS: {
+      name: 'Guild of Whispers',
+      text: `Spies, assassins, smugglers, and information brokers who have survived every political upheaval by being useful to everyone. They do not cause chaos — they profit from it, which is different. Their current intelligence suggests the Lich King's return is not a myth. They have been selling this information to anyone who will pay, and they cannot understand why nobody believes them.`,
+    },
+    VERDANT_FLAME: {
+      name: 'Circle of Verdant Flame',
+      text: `Druids who maintain the surviving wild places of Aethoria through ritual, negotiation, and occasionally violence. They were the first to notice that the Void does not affect forests that have not been cleared — which suggests something about either the Void or forests that nobody has fully worked out. Mira has corresponded with them. She has not told anyone.`,
+    },
+  },
 };
 
 // Helper to get a random scroll for chest loot
