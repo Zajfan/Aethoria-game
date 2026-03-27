@@ -322,7 +322,10 @@ class ShardSystem3D {
         emissive: new THREE.Color(color).multiplyScalar(0.4),
       });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(tx + 0.5, 0.8, tz + 0.5);
+      // v0.5: sit shards on terrain surface
+      const shardGroundY = this._world3d?.getHeightAt(tx, tz) ?? 0;
+      mesh.position.set(tx + 0.5, shardGroundY + 0.8, tz + 0.5);
+      mesh.userData.groundY = shardGroundY;
       mesh.castShadow = true;
       mesh.userData.isShard  = true;
       mesh.userData.shardId  = pos.id;
@@ -357,7 +360,7 @@ class ShardSystem3D {
   /** @param {number} delta seconds  @param {number} t total elapsed seconds */
   update(delta, t) {
     this._shards.forEach(sh => {
-      sh.mesh.position.y = 0.8 + Math.sin(t * 1.5 + sh.floatPhase) * 0.22;
+      sh.mesh.position.y = (sh.mesh.userData.groundY ?? 0) + 0.8 + Math.sin(t * 1.5 + sh.floatPhase) * 0.22;
       sh.mesh.rotation.y += delta * 1.4;
       sh.light.intensity  = 1.0 + Math.sin(t * 3.0 + sh.floatPhase) * 0.4;
       sh.light.position.copy(sh.mesh.position);
@@ -503,11 +506,14 @@ export class GameScene {
 
     // 2. Generate map (256×256)
     const gen = new WorldGen();
-    this.mapData = gen.generate(MAP_W, MAP_H);
+    // v0.5: WorldGen now returns { data, elevMap }
+    const worldResult = gen.generate(MAP_W, MAP_H);
+    this.mapData = worldResult.data ?? worldResult;   // backward compat
+    this._elevMap = worldResult.elevMap ?? null;  // { tiles, heightmap }
 
     // 3. Build 3D world
     this.world3d = new World3D(this.scene3d);
-    this.world3d.build(this.mapData);
+    this.world3d.build(worldResult);  // accepts {tiles,heightmap} from v0.5 WorldGen
     const cx = Math.floor(MAP_W / 2);
     const cz = Math.floor(MAP_H / 2);
     this.world3d.updateVisibleChunks(cx, cz);
@@ -521,7 +527,8 @@ export class GameScene {
       this.scene3d, this.world3d,
       this.camera.threeCamera, this.input, this.eventBus,
     );
-    this.player.position.set(cx + 0.5, 0, cz + 0.5);
+    const startGroundY = this.world3d.getGroundY(cx, cz);
+    this.player.position.set(cx + 0.5, startGroundY, cz + 0.5);
     this.player.group.position.copy(this.player.position);
     this.camera.snapTo(this.player.position);
     this._sceneProxy.player = this.player;
@@ -651,7 +658,7 @@ export class GameScene {
   _spawnEnemies(gen, count) {
     // v0.5 — include new enemy types in spawn pool
     const types  = Object.keys(CONFIG.ENEMY_TYPES);
-    const spawns = gen.getEnemySpawns(this.mapData, count);
+    const spawns = gen.getEnemySpawns(this.mapData, count);  // mapData is already the plain array  // getEnemySpawns accepts {tiles} or raw array
     spawns.forEach((sp, i) => {
       const e = new Enemy3D(
         this.scene3d, sp.x + 0.5, sp.y + 0.5,
@@ -804,17 +811,42 @@ export class GameScene {
       }
     });
 
-    // v0.5 — Archer arrow shot (simple particle trail)
+    // v0.5 — Archer arrow shot
     bus.on('arrowShot', ({ fromX, fromZ, toX, toZ }) => {
       if (this.particles) {
         const mx = (fromX + toX) / 2;
         const mz = (fromZ + toZ) / 2;
         this.particles.hitSpark(mx, 0.8, mz, 0xddddaa);
       }
+      this.audio?.sfxArrowShot({ x: fromX, y: 1, z: fromZ });
+    });
+
+    // v0.5 — Chest opened
+    bus.on('chestOpened', ({ x, z }) => {
+      if (this.particles) this.particles.levelUpBurst(x, 0.5, z);
+      this.audio?.sfxChestOpen();
+      this.hud?.logMsg('★ Chest opened! Loot on the floor.', '#ffcc44');
+    });
+
+    // v0.5 — Trap triggered
+    bus.on('trapTriggered', ({ x, z }) => {
+      this.combatSystem?.screenShake(0.35, 10);
+      if (this.particles) this.particles.hitSpark(x + 0.5, 0.3, z + 0.5, 0xff2222);
+      this.audio?.sfxTrapFire({ x, y: 0, z });
+    });
+
+    // v0.5 — Status effect SFX
+    bus.on('statusApplied', ({ entity, key }) => {
+      if (!entity?.position) return;
+      const pos = { x: entity.position.x, y: 1, z: entity.position.z };
+      if      (key === 'BURN')   this.audio?.sfxStatusBurn(pos);
+      else if (key === 'FREEZE') this.audio?.sfxStatusFreeze(pos);
+      else if (key === 'POISON') this.audio?.sfxStatusPoison(pos);
     });
 
     // v0.5 — Combo event
     bus.on('combo', ({ count }) => {
+      this.audio?.sfxCombo(count);
       if (count >= 5) this.hud?.logMsg(`${count}× COMBO! ×${(1+(count-1)*0.05).toFixed(2)} XP`, '#ffaa22');
     });
 
@@ -1284,6 +1316,15 @@ export class GameScene {
     // World events
     this.worldEvents?.update(delta);
 
+    // v0.5 — Terrain height tracking — player smoothly follows terrain
+    if (this.player && this.world3d) {
+      const tx = Math.floor(this.player.position.x);
+      const tz = Math.floor(this.player.position.z);
+      const targetY = this.world3d.getHeightAt(tx, tz);
+      this.player.position.y += (targetY - this.player.position.y) * Math.min(1, delta * 12);
+      this.player.group.position.copy(this.player.position);
+    }
+
     // v0.5 — Combat system
     this.combatSystem?.update(delta);
 
@@ -1325,6 +1366,24 @@ export class GameScene {
         this.audio?.sfxStep();
         this._stepTimer = 0.32;
       }
+    }
+
+    // v0.5 — Spatial audio listener + dynamic combat music
+    if (this.audio && this.player) {
+      this.audio.updateListenerPosition(
+        this.player.position.x,
+        this.player.position.y,
+        this.player.position.z,
+        this.player.group?.rotation?.y ?? 0,
+      );
+      // Combat music intensity based on nearby enemies
+      const nearestDist = this.enemies.reduce((min, e) => {
+        if (e.isDead) return min;
+        return Math.min(min, e.position.distanceTo(this.player.position));
+      }, Infinity);
+      const combatIntensity = nearestDist < 12 ? Math.max(0, 1 - (nearestDist - 3) / 9) : 0;
+      this.audio.setCombatIntensity(combatIntensity);
+      this.audio.updateMusic(delta);
     }
 
     // Auto-save

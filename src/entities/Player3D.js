@@ -295,6 +295,14 @@ export class Player3D extends Entity3D {
       this.group.rotation.y = Math.atan2(this.velocity.x, this.velocity.z);
     }
 
+    // v0.5 — snap Y to terrain heightmap
+    if (this.world?.getGroundY) {
+      const tx = Math.floor(this.position.x);
+      const tz = Math.floor(this.position.z);
+      const groundY = this.world.getGroundY(tx, tz);
+      this.position.y = groundY;
+    }
+
     this.group.position.copy(this.position);
     this._updateLabelPosition();
   }

@@ -1,0 +1,58 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]          # auto-deploys on every push to main
+  workflow_dispatch:          # also lets you trigger manually from GitHub UI
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true    # if a deploy is already running, cancel it
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      # ── 2. Validate JS (basic syntax check, no build step needed) ────────
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax check JS files
+        run: |
+          echo "Checking JS syntax..."
+          find src -name "*.js" | while read f; do
+            node --input-type=module < "$f" 2>&1 | grep -v "ERR_MODULE_NOT_FOUND" | grep -i "error" && echo "FAIL: $f" || true
+          done
+          echo "Syntax check complete."
+
+      # ── 3. Upload site as GitHub Pages artifact ──────────────────────────
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'             # upload entire repo root (index.html + src/ + assets/)
+
+      # ── 4. Deploy ────────────────────────────────────────────────────────
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

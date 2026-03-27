@@ -1,3 +1,5 @@
+![Deploy to GitHub Pages](https://github.com/Zajfan/Aethoria-game/actions/workflows/deploy.yml/badge.svg)
+
 # ⚔️ Aethoria
 
 **An AI-Powered 3D Open World RPG** — built with pure web tech (Three.js + Claude AI), no install required.
@@ -36,6 +38,14 @@ python3 -m http.server 8080
 | 🌅 Day/night cycle | Dynamic lighting cycle, weather (rain, fog, storm) |
 | 🎒 Inventory & crafting | Pick up loot, equip weapons/armor, brew potions, craft items |
 | 📱 Mobile PWA | Installable on Android and iOS. Virtual joystick + action buttons |
+| 🏔️ **NEW** Heightmap terrain | Rolling hills, mountain peaks up to 4 units tall, cliff faces with solid geometry, smooth blur transitions |
+| 🌲 **NEW** Proper forests | Three tree species: pine (3-layer cone), deciduous (sphere canopy, autumnal colours), snag (dead tree). Forest undergrowth + rock clusters |
+| 💀 **NEW** Enemy variety | Skeleton Archer (ranged bow AI) and Spider (fast, applies POISON on hit) |
+| ⚗️ **NEW** Status effects | BURN, POISON, FREEZE, STUN, BLEED, VOID_CURSE — all with DoT ticking, emissive mesh tinting, screen shake |
+| ✨ **NEW** Enchanting | 10 enchantments (Firebrand, Frostbite, Lifesteal, Thorns…) upgradeable to +5 via Void Crystals |
+| 📦 **NEW** Dungeon chests | Animated treasure chests in dungeon rooms with lid-open animation and loot scatter |
+| ⚡ **NEW** Floor traps | Glowing rune traps in dungeon corridors — step on them and take damage |
+| 🔊 **NEW** Spatial audio | HRTF 3D panning, enemies heard before seen, dynamic combat music layers, dungeon reverb, arpeggiator |
 | ✨ **NEW** Particle effects | Hit sparks, death explosions, slam shockwaves, fireball trails, level-up bursts, rain, fireflies, floating damage numbers |
 | 🎬 **NEW** Animation system | GLTF model loading with cache + fallback, enhanced procedural animations (idle breathing, attack windup/slash, hit stagger, death collapse) |
 | ⚔️ **NEW** Faction system | 4 factions (Hearthmoor, Guild, Order, Voidborn) with -1000→+1000 rep, standing tiers, unlocks, rival faction tradeoffs |
@@ -59,6 +69,14 @@ python3 -m http.server 8080
 | 🌅 Day/night cycle | Dynamic lighting cycle, weather (rain, fog, storm) |
 | 🎒 Inventory & crafting | Pick up loot, equip weapons/armor, brew potions, craft items |
 | 📱 Mobile PWA | Installable on Android and iOS. Virtual joystick + action buttons |
+| 🏔️ **NEW** Heightmap terrain | Rolling hills, mountain peaks up to 4 units tall, cliff faces with solid geometry, smooth blur transitions |
+| 🌲 **NEW** Proper forests | Three tree species: pine (3-layer cone), deciduous (sphere canopy, autumnal colours), snag (dead tree). Forest undergrowth + rock clusters |
+| 💀 **NEW** Enemy variety | Skeleton Archer (ranged bow AI) and Spider (fast, applies POISON on hit) |
+| ⚗️ **NEW** Status effects | BURN, POISON, FREEZE, STUN, BLEED, VOID_CURSE — all with DoT ticking, emissive mesh tinting, screen shake |
+| ✨ **NEW** Enchanting | 10 enchantments (Firebrand, Frostbite, Lifesteal, Thorns…) upgradeable to +5 via Void Crystals |
+| 📦 **NEW** Dungeon chests | Animated treasure chests in dungeon rooms with lid-open animation and loot scatter |
+| ⚡ **NEW** Floor traps | Glowing rune traps in dungeon corridors — step on them and take damage |
+| 🔊 **NEW** Spatial audio | HRTF 3D panning, enemies heard before seen, dynamic combat music layers, dungeon reverb, arpeggiator |
 
 ---
 
@@ -75,6 +93,7 @@ python3 -m http.server 8080
 | `K` | Skill tree |
 | `M` | World map |
 | `F` | Faction standings |
+| `N` | Enchanting Forge |
 | `ESC` | Close all panels |
 | Click enemy | Target and auto-attack |
 | Right-click ground | Move to location |
@@ -193,6 +212,14 @@ python3 -m http.server 8080
 | 🌅 Day/night cycle | 4-minute day cycle, dynamic weather (rain, fog, storm), HUD clock |
 | 🎒 Inventory & crafting | Pick up loot, equip weapons/armor, brew potions, craft items |
 | 📱 Mobile PWA | Installable on Android and iOS. Virtual joystick + action buttons |
+| 🏔️ **NEW** Heightmap terrain | Rolling hills, mountain peaks up to 4 units tall, cliff faces with solid geometry, smooth blur transitions |
+| 🌲 **NEW** Proper forests | Three tree species: pine (3-layer cone), deciduous (sphere canopy, autumnal colours), snag (dead tree). Forest undergrowth + rock clusters |
+| 💀 **NEW** Enemy variety | Skeleton Archer (ranged bow AI) and Spider (fast, applies POISON on hit) |
+| ⚗️ **NEW** Status effects | BURN, POISON, FREEZE, STUN, BLEED, VOID_CURSE — all with DoT ticking, emissive mesh tinting, screen shake |
+| ✨ **NEW** Enchanting | 10 enchantments (Firebrand, Frostbite, Lifesteal, Thorns…) upgradeable to +5 via Void Crystals |
+| 📦 **NEW** Dungeon chests | Animated treasure chests in dungeon rooms with lid-open animation and loot scatter |
+| ⚡ **NEW** Floor traps | Glowing rune traps in dungeon corridors — step on them and take damage |
+| 🔊 **NEW** Spatial audio | HRTF 3D panning, enemies heard before seen, dynamic combat music layers, dungeon reverb, arpeggiator |
 
 ---
 
@@ -207,6 +234,7 @@ python3 -m http.server 8080
 | `K` | Skill tree |
 | `M` | World map |
 | `F` | Faction standings |
+| `N` | Enchanting Forge |
 | `ESC` | Close all panels |
 | Click enemy | Target and auto-attack |
 | Click ground | Move to location (touch friendly) |

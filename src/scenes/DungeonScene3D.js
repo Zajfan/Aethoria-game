@@ -219,6 +219,8 @@ export class DungeonScene3D {
 
     this._raycaster = new THREE.Raycaster();
     this._disposed  = false;
+    this._chests = [];   // v0.5 { mesh, loot, labelEl, opened }
+    this._traps  = [];   // v0.5 { mesh, tx, tz, triggered, cooldown }
 
     this.hud = null; // set externally
 
@@ -276,11 +278,22 @@ export class DungeonScene3D {
       this.player.applyClass(localStorage.getItem('aethoria_class') || 'WARRIOR');
     }
 
+    // v0.5 — particles in dungeon
+    this._particles = new ParticleSystem3D(this.scene3d, this.camera.threeCamera);
+    this._particles.attachToEventBus(this.eventBus, this.player);
+
+    // v0.5 — combat system for status effects
+    this._combat = new CombatSystem(this.eventBus, this.renderer);
+
     // Spawn 20 regular enemies spread across rooms
     this._spawnEnemies();
 
     // Spawn 3-5 bosses in far rooms
     this._spawnBosses();
+
+    // v0.5 — Treasure chests and floor traps
+    this._spawnChests();
+    this._spawnTraps();
 
     // Exit portal at last room
     this._buildExitPortal();
@@ -355,6 +368,201 @@ export class DungeonScene3D {
 
   // ── Exit portal ───────────────────────────────────────────────────────────
 
+
+  // ── v0.5: Treasure Chests ─────────────────────────────────────────────────
+
+  _spawnChests() {
+    const rooms   = this._rooms ?? [];
+    // Place 1 chest per room, skip the first (spawn) room and last (boss) room
+    const eligible = rooms.slice(1, -1);
+    const lootTable = [
+      ['gold','gold','gem'],         // rare
+      ['potion','gold','sword'],
+      ['elixir','chainmail'],
+      ['crystal','gem'],
+      ['gold','gold','potion','axe'],
+      ['scroll','gem','potion'],
+    ];
+
+    for (let ri = 0; ri < Math.min(eligible.length, 8); ri++) {
+      if (Math.random() < 0.3) continue;  // 70% chance per room
+      const room  = eligible[ri];
+      const tx    = room.cx;
+      const tz    = room.cy;
+      const loot  = lootTable[ri % lootTable.length];
+
+      // Chest mesh — box with slightly lighter lid
+      const bodyGeo  = new THREE.BoxGeometry(0.55, 0.38, 0.38);
+      const lidGeo   = new THREE.BoxGeometry(0.56, 0.14, 0.40);
+      const bodyMat  = new THREE.MeshLambertMaterial({ color: 0x6b3a0a });
+      const lidMat   = new THREE.MeshLambertMaterial({ color: 0x8a5010 });
+      const lockMat  = new THREE.MeshLambertMaterial({ color: 0xccaa22, emissive: new THREE.Color(0x442200), emissiveIntensity: 0.4 });
+
+      const group = new THREE.Group();
+      const body  = new THREE.Mesh(bodyGeo, bodyMat);
+      const lid   = new THREE.Mesh(lidGeo,  lidMat);
+      const lock  = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.10, 0.06), lockMat);
+
+      body.position.y  = 0.19;
+      lid.position.y   = 0.43;
+      lock.position.set(0, 0.30, 0.22);
+
+      body.castShadow = lid.castShadow = true;
+      group.add(body, lid, lock);
+      group.position.set(tx + 0.5, 0.0, tz + 0.5);
+      group.rotation.y = Math.random() * Math.PI * 2;
+      this.scene3d.add(group);
+
+      // Glow point light above chest
+      const glow = new THREE.PointLight(0xffaa22, 0.8, 2.5);
+      glow.position.set(tx + 0.5, 1.2, tz + 0.5);
+      this.scene3d.add(glow);
+
+      // Label
+      const labelEl = document.createElement('div');
+      labelEl.style.cssText = `position:fixed;pointer-events:none;font-family:'Courier New',monospace;
+        font-size:10px;color:#ffcc44;text-shadow:0 0 6px #ffaa00,1px 1px 2px #000;
+        transform:translate(-50%,-100%);white-space:nowrap;z-index:3000;`;
+      labelEl.textContent = '📦 Treasure Chest [E]';
+      document.body.appendChild(labelEl);
+
+      this._chests.push({ group, loot, labelEl, glow, opened: false, tx, tz });
+    }
+  }
+
+  _tryOpenChest(chest) {
+    if (chest.opened) return;
+    const dx = this.player.position.x - (chest.tx + 0.5);
+    const dz = this.player.position.z - (chest.tz + 0.5);
+    if (Math.hypot(dx, dz) > 2.0) {
+      this.hud?.logMsg('Get closer to open the chest.', '#ffcc44');
+      return;
+    }
+    chest.opened = true;
+
+    // Animate lid open
+    const lid = chest.group.children[1];
+    let lerpT  = 0;
+    const openAnim = () => {
+      lerpT = Math.min(1, lerpT + 0.06);
+      lid.rotation.x = -lerpT * 1.4;
+      lid.position.y = 0.43 + lerpT * 0.12;
+      if (lerpT < 1) requestAnimationFrame(openAnim);
+    };
+    openAnim();
+
+    // Spawn loot
+    for (const itemKey of chest.loot) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist  = 0.4 + Math.random() * 0.6;
+      this.eventBus.emit('spawnLoot', {
+        x: chest.tx + 0.5 + Math.cos(angle) * dist,
+        y: 0.3,
+        z: chest.tz + 0.5 + Math.sin(angle) * dist,
+        itemKey,
+      });
+    }
+
+    // Particle burst
+    this.eventBus.emit('chestOpened', { x: chest.tx + 0.5, z: chest.tz + 0.5 });
+
+    // Dim glow
+    chest.glow.intensity = 0.15;
+    chest.labelEl.style.display = 'none';
+    this.hud?.logMsg('★ Chest opened! Check the floor for loot.', '#ffcc44');
+  }
+
+  // ── v0.5: Floor Traps ──────────────────────────────────────────────────────
+
+  _spawnTraps() {
+    const rooms = this._rooms ?? [];
+    // Place traps in corridors and rooms — avoid spawn room
+    let placed = 0;
+    for (let tz = 2; tz < 58 && placed < 14; tz++) {
+      for (let tx = 2; tx < 58 && placed < 14; tx++) {
+        if (this._mapData?.[tz]?.[tx] !== 0) continue;  // FLOOR = 0
+        if (Math.random() > 0.018) continue;  // sparse
+        // Don't put traps too close to spawn
+        const spawnTx = this._rooms?.[0]?.cx ?? 30;
+        const spawnTz = this._rooms?.[0]?.cy ?? 30;
+        if (Math.hypot(tx - spawnTx, tz - spawnTz) < 8) continue;
+
+        // Trap mesh — low dark plate with glowing rune pattern
+        const geo = new THREE.BoxGeometry(0.88, 0.06, 0.88);
+        const mat = new THREE.MeshLambertMaterial({
+          color:   0x1a0a0a,
+          emissive: new THREE.Color(0x550022),
+          emissiveIntensity: 0.6,
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(tx + 0.5, 0.03, tz + 0.5);
+        mesh.castShadow    = false;
+        mesh.receiveShadow = true;
+        this.scene3d.add(mesh);
+
+        this._traps.push({ mesh, tx, tz, triggered: false, cooldown: 0 });
+        placed++;
+      }
+    }
+  }
+
+  _updateTraps(delta) {
+    if (!this.player || !this._traps.length) return;
+    const px = this.player.position.x;
+    const pz = this.player.position.z;
+
+    for (const trap of this._traps) {
+      if (trap.cooldown > 0) {
+        trap.cooldown -= delta;
+        // Pulse glow while cooling
+        const pulse = 0.3 + 0.4 * Math.sin(Date.now() * 0.01);
+        trap.mesh.material.emissiveIntensity = pulse;
+        continue;
+      }
+
+      const dx = px - (trap.tx + 0.5);
+      const dz = pz - (trap.tz + 0.5);
+      if (Math.hypot(dx, dz) < 0.55) {
+        // Trigger!
+        const dmg = 12 + Math.floor(Math.random() * 18);
+        this.player.takeDamage(dmg);
+        this.hud?.logMsg(`⚡ Trap! -${dmg} HP`, '#ff4444');
+        this.eventBus.emit('damage', trap.tx + 0.5, 0, dmg, '#ff4444');
+
+        // Flash bright red then fade
+        trap.mesh.material.emissive.setHex(0xff0000);
+        trap.mesh.material.emissiveIntensity = 2.0;
+        trap.cooldown = 4.0;
+
+        // Screen shake via combat system event
+        this.eventBus.emit('trapTriggered', { x: trap.tx, z: trap.tz });
+      } else {
+        // Idle glow pulse
+        trap.mesh.material.emissiveIntensity = 0.4 + 0.25 * Math.sin(Date.now() * 0.003 + trap.tx);
+      }
+    }
+  }
+
+  _updateChestLabels() {
+    if (!this._chests.length) return;
+    const cam = this.camera.threeCamera;
+    const projVec = new THREE.Vector3();
+    for (const chest of this._chests) {
+      if (chest.opened) continue;
+      const dx = this.player?.position.x - (chest.tx + 0.5);
+      const dz = this.player?.position.z - (chest.tz + 0.5);
+      const near = Math.hypot(dx, dz) < 4.5;
+      chest.labelEl.style.display = near ? 'block' : 'none';
+      if (!near) continue;
+
+      projVec.set(chest.tx + 0.5, 1.2, chest.tz + 0.5);
+      projVec.project(cam);
+      if (projVec.z > 1) { chest.labelEl.style.display = 'none'; continue; }
+      chest.labelEl.style.left = ((projVec.x *  0.5 + 0.5) * window.innerWidth)  + 'px';
+      chest.labelEl.style.top  = ((projVec.y * -0.5 + 0.5) * window.innerHeight) + 'px';
+    }
+  }
+
   _buildExitPortal() {
     const exitTile = findFloorTile(this._mapData, DW, DH, DW - 6, DH - 6);
     const px = exitTile.x + 0.5;
@@ -394,7 +602,30 @@ export class DungeonScene3D {
   // ── Event wiring ─────────────────────────────────────────────────────────
 
   _setupEvents() {
+    // E key — open nearby chest
+    this._chestKeyHandler = (e) => {
+      if (e.key !== 'e' && e.key !== 'E') return;
+      if (!this.player) return;
+      const nearby = this._chests?.find(ch => !ch.opened &&
+        Math.hypot(
+          this.player.position.x - (ch.tx + 0.5),
+          this.player.position.z - (ch.tz + 0.5)
+        ) < 2.2
+      );
+      if (nearby) this._tryOpenChest(nearby);
+    };
+    window.addEventListener('keydown', this._chestKeyHandler);
     const bus = this.eventBus;
+
+    // v0.5 — chest opened particle burst
+    bus.on('chestOpened', ({ x, z }) => {
+      if (this._particles) this._particles.levelUpBurst(x, 0.5, z);
+    });
+
+    // v0.5 — trap triggered screen shake
+    bus.on('trapTriggered', () => {
+      this._particles?.screenShake?.(0.35, 10);
+    });
 
     bus.on('spawnLoot', data => this._spawnLoot(data));
 
@@ -641,6 +872,10 @@ export class DungeonScene3D {
     this._updateLootLabels();
     this._updateFloatingTexts(delta);
     this._updateExitPortal(delta);
+    this._particles?.update(delta);
+    this._combat?.update(delta);
+    this._updateTraps(delta);
+    this._updateChestLabels();
 
     this.hud?.update?.(this);
 
@@ -655,6 +890,28 @@ export class DungeonScene3D {
     this._disposed = true;
 
     this.renderer.canvas.removeEventListener('click', this._onCanvasClick);
+    if (this._chestKeyHandler) window.removeEventListener('keydown', this._chestKeyHandler);
+
+    // v0.5 — dispose chests
+    this._chests?.forEach(ch => {
+      this.scene3d.remove(ch.group);
+      ch.group.traverse(obj => { if (obj.isMesh) { obj.geometry.dispose(); obj.material.dispose(); } });
+      this.scene3d.remove(ch.glow);
+      ch.glow.dispose?.();
+      ch.labelEl?.remove();
+    });
+    this._chests = [];
+
+    // v0.5 — dispose traps
+    this._traps?.forEach(t => {
+      this.scene3d.remove(t.mesh);
+      t.mesh.geometry.dispose();
+      t.mesh.material.dispose();
+    });
+    this._traps = [];
+
+    this._particles?.dispose();
+    this._combat?.dispose();
 
     this.player?.dispose();
     this.enemies.forEach(e => e.dispose?.());

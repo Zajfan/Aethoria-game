@@ -365,7 +365,14 @@ export class Enemy3D extends Entity3D {
     }
 
     this.position.addScaledVector(this.velocity, delta);
-    this.position.y = 0;
+    // v0.5 — snap Y to terrain heightmap
+    if (this.world?.getGroundY) {
+      this.position.y = this.world.getGroundY(
+        Math.floor(this.position.x), Math.floor(this.position.z)
+      );
+    } else {
+      this.position.y = 0;
+    }
     this.group.position.copy(this.position);
     this._updateLabelPosition();
   }
