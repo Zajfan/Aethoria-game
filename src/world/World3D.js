@@ -205,6 +205,9 @@ export class World3D {
   /** World-space coords version. */
   getGroundYWorld(wx, wz) { return this.getHeightAt(Math.floor(wx), Math.floor(wz)); }
 
+  worldToTile(wx, wz) { return { x: Math.floor(wx), z: Math.floor(wz) }; }
+  tileToWorld(tx, tz) { return { x: tx + 0.5, z: tz + 0.5 }; }
+
   isBlocked(tx, tz) {
     if (tx < 0 || tz < 0 || tx >= this._mapW || tz >= this._mapH) return true;
     return CONFIG.BLOCKED_TILES.includes(this._mapData[tz]?.[tx]);
