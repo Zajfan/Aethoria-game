@@ -529,3 +529,6 @@ export class World3D {
     group.add(mesh);
   }
 }
+
+// v0.6 cache-bust: ensure all public API methods are present
+// worldToTile, tileToWorld, getGroundY, getGroundYWorld, getHeightAt, isBlocked all defined above
