@@ -218,6 +218,8 @@ export class DungeonScene3D {
     this._mapData  = null;
     this._rooms    = null;
     this._totalTime = 0;
+    this._floor    = 1;   // current dungeon floor (1-5)
+    this._maxFloor = 5;
 
     this._raycaster = new THREE.Raycaster();
     this._disposed  = false;
@@ -236,6 +238,9 @@ export class DungeonScene3D {
    * @param {object|null} savedPlayerData  Player stats to restore on entry
    */
   async create(savedPlayerData = null) {
+    // Restore floor from save or start at 1
+    this._floor = savedPlayerData?._dungeonFloor ?? 1;
+
     // v0.6 — Pick a dungeon theme
     const themeKeys = Object.keys(CONFIG.DUNGEON_THEMES);
     const themeKey  = themeKeys[Math.floor(Math.random() * themeKeys.length)];
@@ -306,6 +311,9 @@ export class DungeonScene3D {
     // Exit portal at last room
     this._buildExitPortal();
 
+    // Staircase to next floor (floors 1-4 only)
+    this._buildStaircase();
+
     // Events
     this._setupEvents();
 
@@ -315,7 +323,9 @@ export class DungeonScene3D {
     // Show dungeon entry message
     setTimeout(() => {
       const themeName = this._theme?.name ?? 'Unknown Dungeon';
-      this.hud?.logMsg(`⚔ Entering: ${themeName}`, '#cc88ff');
+      const floorStr  = this._floor > 1 ? ` — Floor ${this._floor}` : '';
+      this.hud?.logMsg(`⚔ ${themeName}${floorStr}`, '#cc88ff');
+      if (this._floor > 1) this.hud?.logMsg(`⚠ Deeper floors — stronger enemies`, '#ff8844');
       this.eventBus.emit('questProgress', { type: 'DUNGEON' });
     }, 400);
   }
@@ -355,6 +365,11 @@ export class DungeonScene3D {
         type, this.eventBus, this._makeWorldAdapter(),
       );
       e.setCamera(this.camera.threeCamera);
+      // Scale enemy stats by floor depth
+      const floorMult = 1 + (this._floor - 1) * 0.25;
+      e.stats.hp    = Math.round(e.stats.hp    * floorMult);
+      e.stats.maxHp = e.stats.hp;
+      e.stats.atk   = Math.round(e.stats.atk   * floorMult);
       this.enemies.push(e);
     }
   }
@@ -577,6 +592,42 @@ export class DungeonScene3D {
       chest.labelEl.style.left = ((projVec.x *  0.5 + 0.5) * window.innerWidth)  + 'px';
       chest.labelEl.style.top  = ((projVec.y * -0.5 + 0.5) * window.innerHeight) + 'px';
     }
+  }
+
+  _buildStaircase() {
+    if (this._floor >= this._maxFloor) return; // no deeper on floor 5
+
+    // Place staircase in the second-to-last room (midway through dungeon)
+    const rooms = this._rooms ?? [];
+    if (rooms.length < 3) return;
+    const room = rooms[Math.floor(rooms.length * 0.6)];
+    const px   = room.cx + 0.5;
+    const pz   = room.cy + 0.5;
+
+    // Staircase mesh — darker spiral look
+    const geo  = new THREE.CylinderGeometry(0.6, 0.8, 0.3, 8);
+    const mat  = new THREE.MeshLambertMaterial({
+      color:0x220044, emissive:new THREE.Color(0x440088), emissiveIntensity:0.8
+    });
+    this._stairMesh = new THREE.Mesh(geo, mat);
+    this._stairMesh.position.set(px, 0.15, pz);
+    this.scene3d.add(this._stairMesh);
+
+    const light = new THREE.PointLight(0x8844ff, 1.2, 5);
+    light.position.set(px, 1.5, pz);
+    this.scene3d.add(light);
+    this._lights.push(light);
+
+    // Label
+    const labelEl = document.createElement('div');
+    labelEl.style.cssText = `position:fixed;pointer-events:none;font-family:'Courier New',monospace;
+      font-size:10px;color:#8844ff;text-shadow:0 0 6px #8844ff,1px 1px 2px #000;
+      transform:translate(-50%,-100%);white-space:nowrap;z-index:3000;`;
+    labelEl.textContent = `▼ Go Deeper (Floor ${this._floor + 1}) [E]`;
+    document.body.appendChild(labelEl);
+    this._stairLabelEl = labelEl;
+    this._stairPos = new THREE.Vector3(px, 0, pz);
+    this._stairUsed = false;
   }
 
   _buildExitPortal() {
@@ -823,6 +874,54 @@ export class DungeonScene3D {
 
   // ── Portal ────────────────────────────────────────────────────────────────
 
+  _updateStaircase(delta) {
+    if (!this._stairMesh || this._stairUsed || !this.player) return;
+
+    // Animate
+    this._stairMesh.rotation.y += delta * 1.8;
+    this._stairMesh.position.y = 0.15 + Math.sin(this._totalTime * 2) * 0.05;
+
+    // Label projection
+    if (this._stairLabelEl && this._stairPos) {
+      const wp = new THREE.Vector3(this._stairPos.x, 1.5, this._stairPos.z);
+      wp.project(this.camera.threeCamera);
+      const dist = this.player.position.distanceTo(this._stairPos);
+      if (wp.z > 1 || dist > 6) { this._stairLabelEl.style.display = 'none'; }
+      else {
+        this._stairLabelEl.style.display = 'block';
+        this._stairLabelEl.style.left = ((wp.x * 0.5 + 0.5) * window.innerWidth)  + 'px';
+        this._stairLabelEl.style.top  = ((wp.y * -0.5 + 0.5) * window.innerHeight) + 'px';
+      }
+    }
+
+    // E key or proximity auto-enter (within 1.5 units)
+    if (this.player.position.distanceTo(this._stairPos) < 1.5) {
+      this._descendFloor();
+    }
+  }
+
+  _descendFloor() {
+    if (this._stairUsed) return;
+    this._stairUsed = true;
+    this._stairLabelEl && (this._stairLabelEl.style.display = 'none');
+    this.hud?.logMsg(`▼ Descending to floor ${this._floor + 1}…`, '#8844ff');
+
+    // Re-enter dungeon with floor+1
+    setTimeout(() => {
+      this.eventBus.emit('enterDungeon', {
+        savedPlayer: {
+          stats:          { ...this.player.stats },
+          inventory:      { ...this.player.inventory },
+          equipment:      { ...this.player.equipment },
+          skills:         { ...(this.player.skills || {}) },
+          playerClass:    this.player.playerClass,
+          _dungeonFloor:  this._floor + 1,
+          _dungeonTheme:  this._themeKey,
+        },
+      });
+    }, 800);
+  }
+
   _updateExitPortal(delta) {
     if (!this._exitPortal) return;
     this._exitPortal.rotation.z += delta * 1.1;
@@ -926,6 +1025,12 @@ export class DungeonScene3D {
     });
     this._traps = [];
 
+    this._stairLabelEl?.remove();
+    if (this._stairMesh) {
+      this.scene3d.remove(this._stairMesh);
+      this._stairMesh.geometry.dispose();
+      this._stairMesh.material.dispose();
+    }
     this._particles?.dispose();
     this._combat?.dispose();
 

@@ -454,8 +454,9 @@ export class HUD {
     this.factionOpen  = false;  // v0.4
     this.enchantOpen  = false;  // v0.5
     this.codexOpen    = false;  // v0.6
-    this._codexSystem = null;   // v0.6
-    this._regionSystem= null;   // v0.6
+    this._codexSystem   = null;   // v0.6
+    this._regionSystem  = null;   // v0.6
+    this._abilitySystem = null;   // v0.6
 
     injectCSS();
     this._ensureOverlay();
@@ -476,6 +477,7 @@ export class HUD {
 
   _buildAll() {
     this._buildStats();
+    this._buildAbilityBar();
     this._buildMinimap();
     this._buildLog();
     this._buildQuestTracker();
@@ -515,10 +517,13 @@ export class HUD {
     this._statName.textContent  = 'Hero';
     this._statClass.textContent = '[Warrior]';
 
-    this._hpFill  = this._addBar(panel, 'HP', 'bar-hp-fill');
-    this._hpNum   = this._hpFill.parentElement.nextElementSibling;
-    this._xpFill  = this._addBar(panel, 'XP', 'bar-xp-fill');
-    this._xpNum   = this._xpFill.parentElement.nextElementSibling;
+    this._hpFill   = this._addBar(panel, 'HP', 'bar-hp-fill');
+    this._hpNum    = this._hpFill.parentElement.nextElementSibling;
+    this._manaFill = this._addBar(panel, 'MP', 'bar-mana-fill');
+    this._manaFill.style.background = '#4488ff';
+    this._manaNum  = this._manaFill.parentElement.nextElementSibling;
+    this._xpFill   = this._addBar(panel, 'XP', 'bar-xp-fill');
+    this._xpNum    = this._xpFill.parentElement.nextElementSibling;
 
     const row     = this._el('div', '', panel);
     row.style.cssText = 'display:flex;gap:14px;margin-top:4px;';
@@ -1618,6 +1623,99 @@ export class HUD {
     }
   }
 
+
+
+  // ── v0.6: Ability Hotbar ──────────────────────────────────────────────────
+
+  _buildAbilityBar() {
+    const bar = document.createElement('div');
+    bar.id = 'hud-ability-bar';
+    bar.style.cssText = `
+      position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+      display:flex; gap:6px; z-index:4000; pointer-events:none;
+    `;
+    document.body.appendChild(bar);
+    this._abilityBar = bar;
+    this._abilitySlots = [];
+
+    for (let i = 0; i < 4; i++) {
+      const slot = document.createElement('div');
+      slot.style.cssText = `
+        width:58px; height:58px; position:relative;
+        background:rgba(8,8,18,0.88); border:1px solid #334;
+        border-radius:6px; display:flex; flex-direction:column;
+        align-items:center; justify-content:center;
+        font-family:'Courier New',monospace; pointer-events:none;
+        box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
+      `;
+
+      // Key number badge
+      const badge = document.createElement('div');
+      badge.style.cssText = `position:absolute;top:3px;left:5px;font-size:9px;color:#556;`;
+      badge.textContent = i + 1;
+      slot.appendChild(badge);
+
+      // Icon
+      const icon = document.createElement('div');
+      icon.style.cssText = 'font-size:20px; line-height:1; margin-bottom:1px;';
+      icon.textContent = '—';
+      slot.appendChild(icon);
+
+      // Name
+      const name = document.createElement('div');
+      name.style.cssText = 'font-size:7px;color:#667;text-align:center;padding:0 2px;';
+      name.textContent = '';
+      slot.appendChild(name);
+
+      // Cooldown overlay
+      const cdOverlay = document.createElement('div');
+      cdOverlay.style.cssText = `
+        position:absolute; inset:0; background:rgba(0,0,0,0.65);
+        border-radius:5px; display:none; align-items:center; justify-content:center;
+        font-size:12px; font-weight:bold; color:#fff; font-family:'Courier New',monospace;
+      `;
+      slot.appendChild(cdOverlay);
+
+      // Mana cost badge
+      const manaBadge = document.createElement('div');
+      manaBadge.style.cssText = `position:absolute;bottom:3px;right:4px;font-size:7px;color:#4488ff;`;
+      slot.appendChild(manaBadge);
+
+      bar.appendChild(slot);
+      this._abilitySlots.push({ slot, icon, name, cdOverlay, badge, manaBadge });
+    }
+  }
+
+  refreshAbilityBar(slots) {
+    if (!this._abilitySlots || !slots) return;
+    slots.forEach((data, i) => {
+      const s = this._abilitySlots[i];
+      if (!s) return;
+
+      s.icon.textContent = data.icon ?? '?';
+      s.icon.style.color = data.color ?? '#aaa';
+      s.name.textContent = data.name ?? '';
+      s.manaBadge.textContent = data.manaCost ? data.manaCost + 'mp' : '';
+
+      const ready = data.ready;
+      s.slot.style.borderColor = ready ? (data.color ?? '#334') : '#223';
+      s.slot.style.opacity     = ready ? '1' : '0.7';
+
+      if (!ready && data.cdLeft > 0) {
+        s.cdOverlay.style.display = 'flex';
+        s.cdOverlay.textContent   = data.cdLeft.toFixed(1) + 's';
+      } else {
+        s.cdOverlay.style.display = 'none';
+      }
+
+      // Glow when ready
+      if (ready && data.color) {
+        s.slot.style.boxShadow = `inset 0 0 8px rgba(0,0,0,0.6), 0 0 6px ${data.color}44`;
+      } else {
+        s.slot.style.boxShadow = 'inset 0 0 8px rgba(0,0,0,0.6)';
+      }
+    });
+  }
 
   // ── v0.6: Codex Panel ──────────────────────────────────────────────────────
 

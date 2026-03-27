@@ -130,6 +130,16 @@ export class WorldGen {
     ];
   }
 
+  getSaltmereSpawns(W, H) {
+    const sx = Math.floor(W * 0.28);
+    const sz = Math.floor(H * 0.78);
+    return [
+      { x: sx-3, y: sz-3 },   // Captain Redd
+      { x: sx+3, y: sz-2 },   // Sister Vashe
+      { x: sx,   y: sz+4 },   // Old Brennan
+    ];
+  }
+
   _noise(x, y) {
     const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
     return n - Math.floor(n);

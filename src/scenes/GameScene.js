@@ -29,6 +29,7 @@ import { EnchantSystem }     from '../systems/EnchantSystem.js';
 import { RegionSystem }       from '../systems/RegionSystem.js';
 import { CodexSystem }        from '../systems/CodexSystem.js';
 import { ItemSystem }         from '../systems/ItemSystem.js';
+import { AbilitySystem }      from '../systems/AbilitySystem.js';
 import { PointsOfInterest }   from '../systems/PointsOfInterest.js';
 import { randomScroll }       from '../systems/LoreDatabase.js';
 
@@ -491,6 +492,7 @@ export class GameScene {
     this.codexSystem    = null;   // v0.6
     this.itemSystem     = null;   // v0.6
     this.poiSystem      = null;   // v0.6
+    this.abilitySystem  = null;   // v0.6
     this._sceneProxy    = null;
 
     /** @type {import('../ui/HUD.js').HUD|null} */
@@ -555,6 +557,8 @@ export class GameScene {
     if (!this.player.playerClass) {
       this.player.applyClass(localStorage.getItem('aethoria_class') || 'WARRIOR');
     }
+    // Init abilities now that class is set (pass scene ref for AoE targeting)
+    this.abilitySystem.init(this.player, this);
 
     // Torch light — warm point-light that follows the player.
     // Provides local illumination so nights are navigable without making
@@ -611,6 +615,8 @@ export class GameScene {
     // v0.5 — Enchant system
     this.enchantSystem = new EnchantSystem(this.eventBus);
 
+    if (savedPlayerData?.abilities) this.abilitySystem?.deserialize(savedPlayerData.abilities);
+
     // v0.6 — Region system
     this.regionSystem = new RegionSystem(this.eventBus);
     if (savedPlayerData?.regions) this.regionSystem.deserialize(savedPlayerData.regions);
@@ -621,6 +627,9 @@ export class GameScene {
 
     // v0.6 — Item rarity system
     this.itemSystem = new ItemSystem(this.eventBus);
+
+    // v0.6 — Ability system
+    this.abilitySystem = new AbilitySystem(this.eventBus);
 
     // v0.6 — Points of Interest
     this.poiSystem = new PointsOfInterest(this.scene3d, this.camera.threeCamera, this.eventBus);
@@ -700,11 +709,23 @@ export class GameScene {
   _spawnNPCs(gen) {
     const cx  = Math.floor(MAP_W / 2);
     const cy  = Math.floor(MAP_H / 2);
-    const pos = gen.getNPCSpawns(cx, cy);
     this.npcs = [];
-    pos.forEach((p, i) => {
-      if (i >= CONFIG.NPCS_DATA.length) return;
+
+    // Hearthmoor NPCs (indices 0-4)
+    const hmPos = gen.getNPCSpawns(cx, cy);
+    hmPos.forEach((p, i) => {
+      if (i >= 5) return;
       const npc = new NPC3D(this.scene3d, p.x + 0.5, p.y + 0.5, i, this.eventBus);
+      npc.setCamera(this.camera.threeCamera);
+      this.npcs.push(npc);
+    });
+
+    // Saltmere NPCs (indices 5-7)
+    const smPos = gen.getSaltmereSpawns(MAP_W, MAP_H);
+    smPos.forEach((p, i) => {
+      const idx = 5 + i;
+      if (idx >= CONFIG.NPCS_DATA.length) return;
+      const npc = new NPC3D(this.scene3d, p.x + 0.5, p.y + 0.5, idx, this.eventBus);
       npc.setCamera(this.camera.threeCamera);
       this.npcs.push(npc);
     });
@@ -895,12 +916,33 @@ export class GameScene {
       }, buff.dur * 1000);
     });
 
+    // v0.6 — Ability bar updates
+    bus.on('abilitiesChanged', (slots) => this.hud?.refreshAbilityBar(slots));
+
     // v0.6 — HUD log from POI events
     bus.on('hudLog', ({ msg, color }) => this.hud?.logMsg(msg, color));
 
     // v0.6 — Heal burst particle from well
     bus.on('healBurst', ({ x, z }) => {
       this.particles?.healBurst(x, 1.0, z);
+    });
+
+    // v0.6 — Ability visual effects
+    bus.on('abilityFX', ({ type, color, x, z, radius }) => {
+      if (!this.particles) return;
+      if (type === 'fireball' || type === 'multishot') {
+        this.particles.hitSpark(x, 0.8, z, color);
+        this.particles.deathExplosion(x, 0.5, z, color);
+      } else if (type === 'slam' || type === 'nova' || type === 'whirlwind' || type === 'rain') {
+        this.particles.slamShockwave(x, 0, z, radius ?? 3.5);
+      } else if (type === 'heal') {
+        this.particles.healBurst(x, 0, z);
+        this.particles.levelUpBurst(x, 0, z);
+      } else if (type === 'blink') {
+        this.particles.levelUpBurst(x, 0, z);
+      } else if (type === 'burst' || type === 'smoke') {
+        this.particles.slamShockwave(x, 0, z, 3.0);
+      }
     });
 
     // v0.5 — Archer arrow shot
@@ -1431,6 +1473,12 @@ export class GameScene {
       this.player.group.position.copy(this.player.position);
     }
 
+    // v0.6 — Ability system
+    this.abilitySystem = new AbilitySystem(this.eventBus);
+
+    // v0.6 — Ability system (mana regen + cooldown ticks)
+    this.abilitySystem?.update(delta);
+
     // v0.6 — Points of Interest
     this.poiSystem?.update(delta);
 
@@ -1577,6 +1625,7 @@ export class GameScene {
     this.animSystem?.dispose();
     this.combatSystem?.dispose();
     this.poiSystem?.dispose();
+    this.abilitySystem?.dispose();
 
     this.world3d?.dispose();
 
