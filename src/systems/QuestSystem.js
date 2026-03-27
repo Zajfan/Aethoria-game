@@ -73,16 +73,21 @@ export class QuestSystem {
       if (factionSys.hasUnlock?.('guild_legend')) goldMult *= 1.20;
     }
 
+    // Generate waypoint from quest type (approximate target location)
+    const waypointCoords = this._estimateWaypoint(tpl.type, fill, worldCtx);
+
     const quest = {
-      id:       _nextId++,
-      type:     tpl.type,
+      id:         _nextId++,
+      type:       tpl.type,
       title,
-      desc:     flavor,
-      giver:    npcName,
-      target:   fill[tpl.target] ?? '',
-      needed:   adjCount,
-      progress: 0,
-      done:     false,
+      desc:       flavor,
+      giver:      npcName,
+      target:     fill[tpl.target] ?? '',
+      needed:     adjCount,
+      progress:   0,
+      done:       false,
+      waypointX:  waypointCoords.x,
+      waypointZ:  waypointCoords.z,
       reward: {
         xp:   Math.round(adjCount * 45 * xpMult),
         gold: Math.round(adjCount * 18 * goldMult),
@@ -95,6 +100,55 @@ export class QuestSystem {
     this.active.push(quest);
     this.scene.events.emit('questAdded', quest);
     return quest;
+  }
+
+  // ── Waypoint estimation ───────────────────────────────────────────────────
+
+  _estimateWaypoint(type, fill, worldCtx) {
+    const cx = 128, cz = 128;  // map centre = Hearthmoor
+    const act = worldCtx?.act ?? 0;
+
+    if (type === 'KILL') {
+      // Point toward a known enemy zone based on type
+      const zones = {
+        goblin:  { x: cx + 25,  z: cz + 10  },
+        wolf:    { x: cx - 30,  z: cz - 20  },
+        skeleton:{ x: cx + 48,  z: cz - 8   },
+        troll:   { x: cx - 45,  z: cz + 30  },
+        bandit:  { x: cx - 40,  z: cz - 35  },
+        spider:  { x: cx + 35,  z: cz + 40  },
+        wraith:  { x: cx + 55,  z: cz + 55  },
+        golem:   { x: cx + 70,  z: cz - 55  },
+        drake:   { x: cx + 72,  z: cz - 60  },
+      };
+      const enemyKey = (fill.enemy ?? '').toLowerCase();
+      return zones[enemyKey] ?? { x: cx + 20 + Math.random()*20, z: cz + 20 + Math.random()*20 };
+    }
+
+    if (type === 'COLLECT') {
+      // Items found in various regions
+      const itemZones = {
+        hide:    { x: cx - 30, z: cz - 20 },
+        fang:    { x: cx - 28, z: cz - 18 },
+        bones:   { x: cx + 45, z: cz - 10 },
+        gem:     { x: cx - 48, z: cz + 40 },
+        crystal: { x: cx + 60, z: cz - 45 },
+        herb:    { x: cx + 20, z: cz + 30 },
+        dragonscale: { x: cx + 72, z: cz - 58 },
+      };
+      return itemZones[fill.item] ?? { x: cx + 15, z: cz - 15 };
+    }
+
+    if (type === 'EXPLORE') {
+      if (act >= 3) return { x: cx + 48, z: cz - 12 }; // dungeon
+      return { x: cx + 25, z: cz - 15 };
+    }
+
+    if (type === 'TALK') {
+      return { x: cx, z: cz }; // Hearthmoor centre
+    }
+
+    return { x: cx, z: cz };
   }
 
   // ── Progress tracking ─────────────────────────────────────────────────────

@@ -454,6 +454,7 @@ export class HUD {
     this.factionOpen  = false;  // v0.4
     this.enchantOpen  = false;  // v0.5
     this.codexOpen    = false;  // v0.6
+    this.statOpen     = false;  // v0.6
     this._codexSystem   = null;   // v0.6
     this._regionSystem  = null;   // v0.6
     this._abilitySystem = null;   // v0.6
@@ -493,6 +494,7 @@ export class HUD {
     this._buildFactions();
     this._buildEnchant();
     this._buildCodex();
+    this._buildStatScreen();
     this._buildRegionBanner();
     this._buildScrollReader();
     this._buildMobileControls();
@@ -668,6 +670,55 @@ export class HUD {
       ctx.arc(pp.x / cols * W, pp.z / rows * H, 3, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    // ── Quest waypoints (cyan diamond) ──────────────────────────────────────
+    const activeQuests = this._questSystem?.active ?? this.questSystem?.active ?? [];
+    activeQuests.forEach(q => {
+      if (!q.waypointX || !q.waypointZ) return;
+      const wx = q.waypointX / cols * W;
+      const wz = q.waypointZ / rows * H;
+      ctx.fillStyle = '#00ffff';
+      ctx.save();
+      ctx.translate(wx, wz);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillRect(-3, -3, 6, 6);
+      ctx.restore();
+    });
+
+    // ── POI markers (small coloured squares) ────────────────────────────────
+    if (this._gameScene?.poiSystem) {
+      this._gameScene.poiSystem._pois?.forEach(poi => {
+        if (poi.used && !poi.def?.respawn) return;
+        const poiColors = {
+          SHRINE:'#ffdd44', HEALING_WELL:'#44ccaa', CRYSTAL_NODE:'#cc44ff',
+          RUIN:'#aa9977', STANDING_STONE:'#4488ff', MERCHANT_CART:'#ffaa44', GRAVE:'#888888',
+        };
+        const col = poiColors[poi.typeKey] ?? '#aaaaaa';
+        ctx.fillStyle = col;
+        ctx.fillRect(poi.tx / cols * W - 1.5, poi.tz / rows * H - 1.5, 3, 3);
+      });
+    }
+
+    // ── World boss marker (pulsing red skull) ────────────────────────────────
+    if (this._gameScene?._worldBoss && !this._gameScene._worldBoss.isDead) {
+      const wb = this._gameScene._worldBoss;
+      const bx = wb.position.x / cols * W;
+      const bz = wb.position.z / rows * H;
+      const pulse = 0.6 + 0.4 * Math.sin(Date.now() * 0.004);
+      ctx.fillStyle = `rgba(255,0,0,${pulse})`;
+      ctx.beginPath();
+      ctx.arc(bx, bz, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ff0000';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // ── Saltmere marker (second town dot) ───────────────────────────────────
+    const saltmereX = Math.floor(cols * 0.28) / cols * W;
+    const saltmereZ = Math.floor(rows * 0.78) / rows * H;
+    ctx.fillStyle = '#8a9a8a';
+    ctx.fillRect(saltmereX - 3, saltmereZ - 3, 6, 6);
   }
 
   // ── Combat log ──────────────────────────────────────────────────────────────
@@ -1386,7 +1437,7 @@ export class HUD {
     const isTouchDevice = (navigator.maxTouchPoints > 0) || ('ontouchstart' in window);
     el.textContent = isTouchDevice
       ? 'Left-drag: Move  |  Right-drag: Rotate Camera  |  Tap: Attack/Loot  |  ⚔ Attack  |  💬 Talk (E)  |  📦 Inventory'
-      : 'WASD/Arrows: Move  |  Q/E: Rotate  |  Left-click: Attack/Loot  |  E: Talk  |  I: Inv  |  M: Map  |  Q: Quests  |  K: Skills  |  F: Factions  |  N: Enchant  |  C: Codex';
+      : 'WASD/Arrows: Move  |  Q/E: Rotate  |  Left-click: Attack/Loot  |  E: Talk  |  I: Inv  |  M: Map  |  Q: Quests  |  K: Skills  |  1-4: Abilities  |  F/N/C/P: Panels';
     document.body.appendChild(el);
   }
 
@@ -1687,7 +1738,29 @@ export class HUD {
   }
 
   refreshAbilityBar(slots) {
-    if (!this._abilitySlots || !slots) return;
+    if (!slots) return;
+
+    // Update mobile ability buttons
+    if (this._mobileAbilityBtns) {
+      slots.forEach((data, i) => {
+        const btn = this._mobileAbilityBtns[i];
+        if (!btn) return;
+        // Set icon (without cd overlay child)
+        const icon = data.icon ?? '?';
+        btn.childNodes[0]?.nodeType === 3
+          ? (btn.childNodes[0].textContent = icon)
+          : btn.insertBefore(document.createTextNode(icon), btn.firstChild);
+        btn.style.borderColor = data.ready ? (data.color ?? '#334') : '#223';
+        btn.style.color = data.color ?? '#aaa';
+        const cd = btn._cdOverlay;
+        if (cd) {
+          cd.style.display = !data.ready && data.cdLeft > 0 ? 'flex' : 'none';
+          cd.textContent = data.cdLeft > 0 ? data.cdLeft.toFixed(0) + 's' : '';
+        }
+      });
+    }
+
+    if (!this._abilitySlots) return;
     slots.forEach((data, i) => {
       const s = this._abilitySlots[i];
       if (!s) return;
@@ -1943,6 +2016,169 @@ export class HUD {
     }, 25000);
   }
 
+
+  // ── v0.6: Player Stat Screen (P) ────────────────────────────────────────────
+
+  _buildStatScreen() {
+    const panel = document.createElement('div');
+    panel.id = 'hud-statscreen';
+    panel.style.cssText = `
+      display:none; position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(6,8,18,0.97); border:1px solid #334;
+      border-radius:6px; z-index:8100; width:520px; max-height:85vh;
+      font-family:'Courier New',monospace; overflow:hidden;
+      flex-direction:column; box-shadow:0 0 40px rgba(0,0,0,0.9);
+    `;
+    document.body.appendChild(panel);
+    this._statScreen = panel;
+
+    // Header
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 20px 10px;border-bottom:1px solid #223;flex-shrink:0;';
+    hdr.innerHTML = '<span style="color:#d4af37;font-size:15px;letter-spacing:2px;">// CHARACTER</span>';
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'background:none;border:1px solid #334;color:#aaa;border-radius:3px;padding:2px 8px;cursor:pointer;font-family:inherit;';
+    closeBtn.onclick = () => this.toggleStatScreen();
+    hdr.appendChild(closeBtn);
+    panel.appendChild(hdr);
+
+    this._statScreenBody = document.createElement('div');
+    this._statScreenBody.style.cssText = 'flex:1;overflow-y:auto;padding:16px 20px;';
+    panel.appendChild(this._statScreenBody);
+  }
+
+  toggleStatScreen() {
+    this.statOpen = !this.statOpen;
+    if (!this._statScreen) return;
+    this._statScreen.style.display = this.statOpen ? 'flex' : 'none';
+    if (this.statOpen) this._renderStatScreen();
+  }
+
+  _renderStatScreen() {
+    if (!this._statScreenBody) return;
+    const p = this._player;
+    if (!p) { this._statScreenBody.innerHTML = '<div style="color:#445;">No player data.</div>'; return; }
+    const s = p.stats;
+    const cls = p.playerClass ?? 'WARRIOR';
+    const clsColors = { WARRIOR:'#ff6633', MAGE:'#cc44ff', RANGER:'#44cc44' };
+    const clsColor  = clsColors[cls] ?? '#d4af37';
+
+    // Build HTML
+    const enc = p.enchantments ?? {};
+    const encWeapon = enc[p.equipment?.weapon] ?? [];
+    const encArmor  = enc[p.equipment?.armor]  ?? [];
+
+    const statRow = (label, val, color='#ccc') =>
+      `<div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+        <span style="color:#667;">${label}</span>
+        <span style="color:${color};font-weight:bold;">${val}</span>
+      </div>`;
+
+    const bar = (label, cur, max, color) => {
+      const pct = Math.min(100, cur / max * 100).toFixed(1);
+      return `<div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:#667;margin-bottom:2px;">
+          <span>${label}</span><span>${Math.floor(cur)}/${max}</span>
+        </div>
+        <div style="background:#111;border-radius:2px;height:6px;">
+          <div style="width:${pct}%;background:${color};height:100%;border-radius:2px;transition:width 0.3s;"></div>
+        </div>
+      </div>`;
+    };
+
+    const itemDisplay = (itemKey, slot) => {
+      if (!itemKey) return `<span style="color:#334;">— empty —</span>`;
+      const item = CONFIG.ITEMS[itemKey];
+      if (!item) return itemKey;
+      const rarity = item.rarity ?? 'common';
+      const rarColors = {common:'#aaa',uncommon:'#44ff44',rare:'#4488ff',epic:'#aa44ff',legendary:'#ffaa00'};
+      const col = rarColors[rarity] ?? '#aaa';
+      const encs = enc[itemKey] ?? [];
+      const encStr = encs.length ? ` <span style="color:#cc88ff;">[${encs.map(e=>e.id+'+'+e.level).join(', ')}]</span>` : '';
+      const stat = item.atk ? `+${item.atk} ATK` : item.def ? `+${item.def} DEF` : '';
+      return `<span style="color:${col};">${item.name}</span> <span style="color:#667;font-size:9px;">${stat}</span>${encStr}`;
+    };
+
+    // Faction summary
+    const factions = this.factionSystem?.getSummary?.() ?? [];
+    const factionHtml = factions.slice(0,4).map(f =>
+      `<div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:9px;">
+        <span style="color:${f.color};">${f.name}</span>
+        <span style="color:${f.standingData?.color??'#aaa'}">${f.standingData?.label??f.standing} (${f.rep>0?'+':''}${f.rep})</span>
+      </div>`
+    ).join('');
+
+    // Abilities
+    const abilityData = this._abilitySystem?.getSlotData?.() ?? [];
+    const abilityHtml = abilityData.map(a =>
+      `<div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:9px;">
+        <span style="color:${a.color};">[${a.slot}] ${a.icon} ${a.name}</span>
+        <span style="color:#667;">${a.manaCost}mp · ${a.cooldown}s cd</span>
+      </div>`
+    ).join('');
+
+    // Codex progress
+    const prog = this._codexSystem?.getProgress?.();
+    const progHtml = prog
+      ? `<div style="font-size:10px;color:#667;margin-bottom:6px;">${prog.foundN}/${prog.totalN} discovered (${prog.pct}%)</div>
+         <div style="background:#111;border-radius:2px;height:4px;margin-bottom:10px;">
+           <div style="width:${prog.pct}%;background:#4488ff;height:100%;border-radius:2px;"></div>
+         </div>` : '';
+
+    this._statScreenBody.innerHTML = `
+      <!-- Class header -->
+      <div style="text-align:center;margin-bottom:16px;">
+        <div style="font-size:18px;color:${clsColor};letter-spacing:2px;">${s.name ?? 'Hero'}</div>
+        <div style="font-size:11px;color:#667;margin-top:2px;">Level ${s.level} ${cls} · ${this._gameScene?.regionSystem?.getCurrent()?.name ?? 'Hearthmoor'}</div>
+      </div>
+
+      <!-- Bars -->
+      <div style="margin-bottom:14px;">
+        ${bar('HP', s.hp, s.maxHp, '#ff4444')}
+        ${bar('Mana', s.mana??100, s.maxMana??100, '#4488ff')}
+        ${bar('XP', s.xp, s.xpNeeded, '#d4af37')}
+      </div>
+
+      <!-- Core stats -->
+      <div style="border:1px solid #223;border-radius:4px;padding:10px 12px;margin-bottom:12px;">
+        <div style="font-size:9px;color:#556;letter-spacing:2px;margin-bottom:8px;">COMBAT STATS</div>
+        ${statRow('Attack',  s.attack,  '#ff8844')}
+        ${statRow('Defense', s.defense, '#4488ff')}
+        ${statRow('Speed',   (s.speed * 16).toFixed(0) + ' px/s', '#44cc44')}
+        ${statRow('Gold',    (s.gold ?? 0) + 'g', '#d4af37')}
+        ${statRow('Kills',   this._gameScene?.achievements?._data?.stats?.kills ?? 0, '#cc4444')}
+        ${statRow('Quests Done', this._gameScene?.questSystem?.done?.length ?? 0, '#88aaff')}
+      </div>
+
+      <!-- Equipment -->
+      <div style="border:1px solid #223;border-radius:4px;padding:10px 12px;margin-bottom:12px;">
+        <div style="font-size:9px;color:#556;letter-spacing:2px;margin-bottom:8px;">EQUIPMENT</div>
+        <div style="margin-bottom:6px;font-size:10px;">⚔ ${itemDisplay(p.equipment?.weapon, 'weapon')}</div>
+        <div style="font-size:10px;">🛡 ${itemDisplay(p.equipment?.armor,  'armor')}</div>
+      </div>
+
+      <!-- Abilities -->
+      <div style="border:1px solid #223;border-radius:4px;padding:10px 12px;margin-bottom:12px;">
+        <div style="font-size:9px;color:#556;letter-spacing:2px;margin-bottom:8px;">ABILITIES</div>
+        ${abilityHtml || '<div style="color:#445;font-size:9px;">No abilities loaded.</div>'}
+      </div>
+
+      <!-- Factions -->
+      <div style="border:1px solid #223;border-radius:4px;padding:10px 12px;margin-bottom:12px;">
+        <div style="font-size:9px;color:#556;letter-spacing:2px;margin-bottom:8px;">FACTION STANDING</div>
+        ${factionHtml || '<div style="color:#445;font-size:9px;">No faction data.</div>'}
+      </div>
+
+      <!-- Codex progress -->
+      <div style="border:1px solid #223;border-radius:4px;padding:10px 12px;">
+        <div style="font-size:9px;color:#556;letter-spacing:2px;margin-bottom:8px;">CODEX PROGRESS</div>
+        ${progHtml || '<div style="color:#445;font-size:9px;">Explore to discover lore.</div>'}
+      </div>
+    `;
+  }
+
   // ── Mobile touch controls ─────────────────────────────────────────────────────
 
   _buildMobileControls() {
@@ -1996,7 +2232,49 @@ export class HUD {
 
     document.body.appendChild(buttons);
     this._mobileButtonsEl = buttons;
-    this._mobileEls = [joystickBase, buttons];
+
+    // ── v0.6: Mobile ability buttons (1-4) ──────────────────────────────────
+    const abilityRow = document.createElement('div');
+    abilityRow.id = 'mobile-ability-row';
+    abilityRow.style.cssText = `
+      position:fixed; bottom:90px; right:12px;
+      display:flex; flex-direction:column; gap:5px; z-index:4100;
+    `;
+
+    this._mobileAbilityBtns = [];
+    for (let i = 0; i < 4; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'mobile-btn';
+      btn.style.cssText += `
+        width:52px; height:52px; font-size:18px; position:relative;
+        border:1px solid #334; background:rgba(8,8,18,0.88);
+      `;
+      btn.textContent = '—';
+      btn.dataset.slot = i;
+
+      // Cooldown overlay
+      const cd = document.createElement('div');
+      cd.style.cssText = `
+        position:absolute;inset:0;background:rgba(0,0,0,0.65);
+        border-radius:5px;display:none;align-items:center;justify-content:center;
+        font-size:11px;color:#fff;font-family:'Courier New',monospace;pointer-events:none;
+      `;
+      btn.appendChild(cd);
+      btn._cdOverlay = cd;
+
+      const fireAbility = () => {
+        const key = String(i + 1);
+        window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+      };
+      btn.addEventListener('touchstart', fireAbility, { passive: true });
+      btn.addEventListener('click', fireAbility);
+
+      abilityRow.appendChild(btn);
+      this._mobileAbilityBtns.push(btn);
+    }
+
+    document.body.appendChild(abilityRow);
+    this._mobileEls = [joystickBase, buttons, abilityRow];
   }
 
   /** Target and move toward the nearest living enemy within range. */
@@ -2068,6 +2346,7 @@ export class HUD {
         case 'f': this.toggleFactions(); break;
         case 'n': this.toggleEnchant(); break;
         case 'c': this.toggleCodex(); break;
+        case 'p': this.toggleStatScreen(); break;
         case 'escape':
           if (this.invOpen)   this.toggleInventory();
           if (this.mapOpen)   this.toggleMap();
@@ -2076,6 +2355,7 @@ export class HUD {
           if (this.factionOpen) this.toggleFactions();
           if (this.enchantOpen)  this.toggleEnchant();
           if (this.codexOpen)    this.toggleCodex();
+          if (this.statOpen)     this.toggleStatScreen();
           this._closeDialogue();
           break;
       }

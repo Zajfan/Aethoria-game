@@ -30,6 +30,7 @@ import { RegionSystem }       from '../systems/RegionSystem.js';
 import { CodexSystem }        from '../systems/CodexSystem.js';
 import { ItemSystem }         from '../systems/ItemSystem.js';
 import { AbilitySystem }      from '../systems/AbilitySystem.js';
+import { WorldBossSystem }    from '../systems/WorldBossSystem.js';
 import { PointsOfInterest }   from '../systems/PointsOfInterest.js';
 import { randomScroll }       from '../systems/LoreDatabase.js';
 
@@ -493,6 +494,7 @@ export class GameScene {
     this.itemSystem     = null;   // v0.6
     this.poiSystem      = null;   // v0.6
     this.abilitySystem  = null;   // v0.6
+    this.worldBossSystem = null;  // v0.6
     this._sceneProxy    = null;
 
     /** @type {import('../ui/HUD.js').HUD|null} */
@@ -557,6 +559,11 @@ export class GameScene {
     if (!this.player.playerClass) {
       this.player.applyClass(localStorage.getItem('aethoria_class') || 'WARRIOR');
     }
+    // v0.6 — World Boss system
+    this.worldBossSystem = new WorldBossSystem(this.scene3d, this.camera.threeCamera, this.eventBus);
+    this.worldBossSystem.setPlayer(this.player);
+    this.worldBossSystem.setPlayerLevel(this.player.stats.level);
+
     // Init abilities now that class is set (pass scene ref for AoE targeting)
     this.abilitySystem.init(this.player, this);
 
@@ -803,6 +810,7 @@ export class GameScene {
         '★ LEVEL ' + lv + '! ★', '#ffd700',
       );
       // v0.4 — particle burst at player position
+      this.worldBossSystem?.setPlayerLevel(this.player.stats.level);
       if (this.particles && this.player) {
         this.particles.levelUpBurst(
           this.player.position.x, this.player.position.y, this.player.position.z,
@@ -914,6 +922,14 @@ export class GameScene {
         if (buff.stat === 'hpRegen')  this._hpRegenPerSec = 0;
         this.eventBus.emit('statsChanged', this.player.stats);
       }, buff.dur * 1000);
+    });
+
+    // v0.6 — World boss faction rewards
+    bus.on('worldBossFactionGain', ({ gains }) => {
+      if (!this.factionSystem) return;
+      for (const [factionId, amount] of Object.entries(gains)) {
+        this.factionSystem.changeRep(factionId, amount, 'World boss slain');
+      }
     });
 
     // v0.6 — Ability bar updates
@@ -1479,6 +1495,14 @@ export class GameScene {
     // v0.6 — Ability system (mana regen + cooldown ticks)
     this.abilitySystem?.update(delta);
 
+    // v0.6 — World boss system
+    if (this.worldBossSystem) {
+      this.worldBossSystem.setPlayerLevel(this.player.stats.level);
+      this.worldBossSystem.update(delta);
+    }
+    // Expose active world boss for minimap
+    this._worldBoss = this.worldBossSystem?.getActiveBoss() ?? null;
+
     // v0.6 — Points of Interest
     this.poiSystem?.update(delta);
 
@@ -1626,6 +1650,7 @@ export class GameScene {
     this.combatSystem?.dispose();
     this.poiSystem?.dispose();
     this.abilitySystem?.dispose();
+    this.worldBossSystem?.dispose();
 
     this.world3d?.dispose();
 
