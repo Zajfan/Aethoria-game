@@ -517,6 +517,10 @@ export class Enemy3D extends Entity3D {
   // ── Combat ────────────────────────────────────────────────────────────────
 
   takeDamage(amount, attacker) {
+    // Blizzard: all hits apply FREEZE
+    if (this._scene3d?._weatherFreezeOnHit) {
+      this.eventBus?.emit('applyStatus', { target: this, key: 'FREEZE' });
+    }
     if (this.isDead) return;
     this.stats.hp = Math.max(0, this.stats.hp - amount);
     this.eventBus.emit('damage', this.position.x, this.position.y, amount, '#ffcc00');

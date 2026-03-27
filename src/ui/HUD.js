@@ -517,6 +517,8 @@ export class HUD {
     this.factionOpen  = false;  // v0.4
     this.enchantOpen  = false;  // v0.5
     this.codexOpen    = false;  // v0.6
+    this.achOpen      = false;  // v0.7
+    this.dailyOpen    = false;  // v0.7
     this.statOpen     = false;  // v0.6
     this._codexSystem   = null;   // v0.6
     this._regionSystem  = null;   // v0.6
@@ -557,6 +559,8 @@ export class HUD {
     this._buildFactions();
     this._buildEnchant();
     this._buildCodex();
+    this._buildAchievementGallery();
+    this._buildDailyChallenges();
     this._buildStatScreen();
     this._buildRegionBanner();
     this._buildScrollReader();
@@ -1623,10 +1627,13 @@ export class HUD {
   _buildAchievementPopup() {
     const el = document.createElement('div');
     el.id = 'hud-achievement';
-    el.innerHTML = `
-      <div class="ach-label">✦ ACHIEVEMENT UNLOCKED</div>
-      <div class="ach-name" id="ach-name">—</div>
-      <div class="ach-desc" id="ach-desc">—</div>
+    el.style.cssText = `
+      position:fixed; top:-110px; right:16px;
+      background:rgba(6,6,18,0.97); border:1px solid #334;
+      border-radius:6px; padding:12px 16px; z-index:9500;
+      font-family:'Courier New',monospace; min-width:260px; max-width:320px;
+      transition:top 0.4s cubic-bezier(0.34,1.56,0.64,1);
+      box-shadow:0 4px 20px rgba(0,0,0,0.8);
     `;
     document.body.appendChild(el);
     this._achEl = el;
@@ -1634,14 +1641,36 @@ export class HUD {
 
   showAchievement(ach) {
     if (!ach || !this._achEl) return;
-    document.getElementById('ach-name').textContent = ach.name || '—';
-    document.getElementById('ach-desc').textContent = ach.desc || '';
-    this._achEl.classList.add('show');
+    const { ACH_RARITY } = window._achRarity ?? {};
+    const rarDef = (ach.rarity && ACH_RARITY) ? ACH_RARITY[ach.rarity] : null;
+    const col    = rarDef?.color ?? '#d4af37';
+    const glow   = rarDef?.glow  ?? 'rgba(212,175,55,0.3)';
+    const rarLbl = rarDef?.label ?? '';
+    const rewardHtml = ach.reward
+      ? `<div style="font-size:9px;color:#44cc88;margin-top:4px;">🎁 ${ach.reward.label ?? ach.reward.type}</div>`
+      : '';
+
+    this._achEl.style.borderColor = col;
+    this._achEl.style.boxShadow   = `0 4px 20px rgba(0,0,0,0.8), 0 0 16px ${glow}`;
+    this._achEl.innerHTML = `
+      <div style="font-size:9px;color:#556;letter-spacing:2px;margin-bottom:4px;">✦ ACHIEVEMENT UNLOCKED</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+        <span style="font-size:24px;">${ach.icon ?? '🏆'}</span>
+        <div>
+          <div style="color:${col};font-size:13px;font-weight:bold;">${ach.name}</div>
+          <div style="font-size:9px;color:${col};opacity:0.7;">${rarLbl}</div>
+        </div>
+      </div>
+      <div style="font-size:10px;color:#889;line-height:1.4;">${ach.desc}</div>
+      ${rewardHtml}
+    `;
+
+    this._achEl.style.top = '16px';
     clearTimeout(this._achTimer);
     this._achTimer = setTimeout(() => {
-      this._achEl.classList.remove('show');
-    }, 4000);
-    this.logMsg('Achievement: ' + ach.name, '#d4af37');
+      this._achEl.style.top = '-110px';
+    }, 5000);
+    this.logMsg(`✦ ${ach.name}`, col);
   }
 
   // ── World event banner ────────────────────────────────────────────────────────
@@ -2031,6 +2060,239 @@ export class HUD {
         s.slot.style.boxShadow = 'inset 0 0 8px rgba(0,0,0,0.6)';
       }
     });
+  }
+
+
+  // ── v0.7: Achievement Gallery (A key) ─────────────────────────────────────
+
+  _buildAchievementGallery() {
+    const panel = document.createElement('div');
+    panel.id = 'hud-ach-gallery';
+    panel.style.cssText = `
+      display:none; position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(6,8,18,0.97); border:1px solid #334;
+      border-radius:6px; padding:0; z-index:8100;
+      width:580px; max-height:82vh;
+      font-family:'Courier New',monospace; overflow:hidden;
+      flex-direction:column; box-shadow:0 0 40px rgba(0,0,0,0.9);
+    `;
+    document.body.appendChild(panel);
+    this._achGallery = panel;
+
+    // Header
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 20px 10px;border-bottom:1px solid #223;flex-shrink:0;';
+    this._achHeaderEl = document.createElement('span');
+    this._achHeaderEl.style.cssText = 'color:#d4af37;font-size:15px;letter-spacing:2px;';
+    this._achHeaderEl.textContent = '// ACHIEVEMENTS';
+    hdr.appendChild(this._achHeaderEl);
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'background:none;border:1px solid #334;color:#aaa;border-radius:3px;padding:2px 8px;cursor:pointer;font-family:inherit;';
+    closeBtn.onclick = () => this.toggleAchievements();
+    hdr.appendChild(closeBtn);
+    panel.appendChild(hdr);
+
+    // Filter tabs
+    const tabs = document.createElement('div');
+    tabs.style.cssText = 'display:flex;border-bottom:1px solid #223;flex-shrink:0;overflow-x:auto;';
+    panel.appendChild(tabs);
+    this._achTabs = tabs;
+    this._achCatFilter = 'All';
+
+    // Body
+    const body = document.createElement('div');
+    body.style.cssText = 'flex:1;overflow-y:auto;padding:14px 20px;';
+    panel.appendChild(body);
+    this._achBody = body;
+  }
+
+  toggleAchievements() {
+    this.achOpen = !this.achOpen;
+    if (!this._achGallery) return;
+    this._achGallery.style.display = this.achOpen ? 'flex' : 'none';
+    if (this.achOpen) this._renderAchievements();
+  }
+
+  _renderAchievements() {
+    if (!this._achBody) return;
+    const achSys = this._gameScene?.achievements;
+    const all    = achSys?.getAll() ?? [];
+    const unlocked = all.filter(a => a.unlocked).length;
+    const total    = all.length;
+
+    // Header count
+    if (this._achHeaderEl) {
+      this._achHeaderEl.textContent = `// ACHIEVEMENTS  ${unlocked}/${total}`;
+    }
+
+    // Category tabs
+    if (this._achTabs) {
+      this._achTabs.innerHTML = '';
+      const cats = ['All', 'Combat', 'Explore', 'Progress', 'Economy', 'Lore', 'Survival'];
+      cats.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.style.cssText = `background:none;border:none;border-bottom:2px solid transparent;
+          color:${cat===this._achCatFilter?'#d4af37':'#556'};font-family:inherit;font-size:10px;
+          letter-spacing:1px;padding:8px 12px;cursor:pointer;white-space:nowrap;
+          border-bottom-color:${cat===this._achCatFilter?'#d4af37':'transparent'};`;
+        btn.textContent = cat;
+        btn.onclick = () => { this._achCatFilter = cat; this._renderAchievements(); };
+        this._achTabs.appendChild(btn);
+      });
+    }
+
+    // Filter
+    const filtered = this._achCatFilter === 'All'
+      ? all
+      : all.filter(a => a.cat === this._achCatFilter);
+
+    this._achBody.innerHTML = '';
+
+    // Progress bar
+    const pct = Math.round(unlocked / total * 100);
+    const progDiv = document.createElement('div');
+    progDiv.style.cssText = 'margin-bottom:14px;';
+    progDiv.innerHTML = `
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:#556;margin-bottom:4px;">
+        <span>${unlocked} unlocked</span><span>${pct}% complete</span>
+      </div>
+      <div style="background:#111;border-radius:2px;height:5px;">
+        <div style="width:${pct}%;background:#d4af37;height:100%;border-radius:2px;transition:width 0.4s;"></div>
+      </div>
+    `;
+    this._achBody.appendChild(progDiv);
+
+    // Achievement cards
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;';
+    this._achBody.appendChild(grid);
+
+    const rarColors = { COMMON:'#aaaaaa',UNCOMMON:'#44ff44',RARE:'#4488ff',EPIC:'#aa44ff',LEGENDARY:'#ffaa00' };
+
+    filtered.forEach(a => {
+      const col = rarColors[a.rarity] ?? '#aaa';
+      const card = document.createElement('div');
+      card.style.cssText = `
+        background:rgba(10,10,22,0.8); border:1px solid ${a.unlocked ? col : '#1a1a2a'};
+        border-radius:5px; padding:10px 12px; opacity:${a.unlocked ? '1' : '0.45'};
+        box-shadow:${a.unlocked ? '0 0 8px '+col+'33' : 'none'};
+      `;
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="font-size:18px;${a.unlocked?'':'filter:grayscale(1)'}">${a.icon ?? '🏆'}</span>
+          <div>
+            <div style="color:${a.unlocked?col:'#445'};font-size:11px;font-weight:bold;">${a.name}</div>
+            <div style="font-size:8px;color:${col};opacity:0.6;">${a.rarity}</div>
+          </div>
+        </div>
+        <div style="font-size:9px;color:${a.unlocked?'#889':'#334'};line-height:1.4;">${a.desc}</div>
+        ${a.reward && a.unlocked ? `<div style="font-size:8px;color:#44cc88;margin-top:4px;">🎁 ${a.reward.label??''}</div>` : ''}
+        ${!a.unlocked ? '<div style="font-size:8px;color:#334;margin-top:3px;">🔒 Locked</div>' : ''}
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+
+  // ── v0.7: Daily / Weekly Challenges (D key) ───────────────────────────────
+
+  _buildDailyChallenges() {
+    const panel = document.createElement('div');
+    panel.id = 'hud-daily';
+    panel.style.cssText = `
+      display:none; position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(6,8,18,0.97); border:1px solid #334;
+      border-radius:6px; z-index:8100; width:480px; max-height:80vh;
+      font-family:'Courier New',monospace; overflow:hidden;
+      flex-direction:column; box-shadow:0 0 40px rgba(0,0,0,0.9);
+    `;
+    document.body.appendChild(panel);
+    this._dailyPanel = panel;
+
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 20px 10px;border-bottom:1px solid #223;flex-shrink:0;';
+    hdr.innerHTML = '<span style="color:#44ff88;font-size:15px;letter-spacing:2px;">// CHALLENGES</span>';
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'background:none;border:1px solid #334;color:#aaa;border-radius:3px;padding:2px 8px;cursor:pointer;font-family:inherit;';
+    closeBtn.onclick = () => this.toggleDailyChallenges();
+    hdr.appendChild(closeBtn);
+    panel.appendChild(hdr);
+
+    this._dailyBody = document.createElement('div');
+    this._dailyBody.style.cssText = 'flex:1;overflow-y:auto;padding:16px 20px;';
+    panel.appendChild(this._dailyBody);
+  }
+
+  toggleDailyChallenges() {
+    this.dailyOpen = !this.dailyOpen;
+    if (!this._dailyPanel) return;
+    this._dailyPanel.style.display = this.dailyOpen ? 'flex' : 'none';
+    if (this.dailyOpen) this._renderDailyChallenges();
+  }
+
+  _renderDailyChallenges() {
+    if (!this._dailyBody) return;
+    const sys = this._gameScene?.dailyChallengeSystem;
+    if (!sys) {
+      this._dailyBody.innerHTML = '<div style="color:#445;font-size:11px;">No challenges available.</div>';
+      return;
+    }
+
+    const daily  = sys.getDaily();
+    const weekly = sys.getWeekly();
+    const reset  = sys.getTimeUntilReset();
+
+    const renderChallenge = (ch, isWeekly) => {
+      const pct    = Math.min(100, Math.round((ch.progress ?? 0) / ch.needed * 100));
+      const barCol = ch.done ? '#44ff88' : isWeekly ? '#aa44ff' : '#44aaff';
+      const rewardStr = ch.reward
+        ? `+${ch.reward.xp ?? 0}XP +${ch.reward.gold ?? 0}g${ch.reward.item ? ' + ' + ch.reward.item : ''}`
+        : '';
+      const div = document.createElement('div');
+      div.style.cssText = `
+        background:rgba(10,12,24,0.8); border:1px solid ${ch.done ? '#224422' : '#223'};
+        border-radius:5px; padding:10px 12px; margin-bottom:8px;
+        opacity:${ch.done ? '0.6' : '1'};
+      `;
+      div.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+          <span style="font-size:18px;">${ch.icon}</span>
+          <div style="flex:1;">
+            <div style="color:${ch.done ? '#44ff88' : '#ccc'};font-size:11px;font-weight:bold;">
+              ${ch.done ? '✅ ' : ''}${ch.title}
+            </div>
+            <div style="font-size:9px;color:#556;">${isWeekly ? 'WEEKLY' : 'DAILY'} · Resets in ${reset}</div>
+          </div>
+          <div style="font-size:10px;color:${barCol};">${ch.progress ?? 0}/${ch.needed}</div>
+        </div>
+        <div style="font-size:9px;color:#778;margin-bottom:6px;">${ch.desc}</div>
+        <div style="background:#111;border-radius:2px;height:5px;margin-bottom:5px;">
+          <div style="width:${pct}%;background:${barCol};height:100%;border-radius:2px;transition:width 0.3s;"></div>
+        </div>
+        ${rewardStr ? `<div style="font-size:9px;color:#44cc88;">🎁 ${rewardStr}</div>` : ''}
+      `;
+      return div;
+    };
+
+    this._dailyBody.innerHTML = '';
+
+    // Daily section
+    const dailyHdr = document.createElement('div');
+    dailyHdr.style.cssText = 'font-size:9px;color:#44aaff;letter-spacing:2px;margin-bottom:10px;';
+    dailyHdr.textContent = "TODAY'S CHALLENGES";
+    this._dailyBody.appendChild(dailyHdr);
+    daily.forEach(ch => this._dailyBody.appendChild(renderChallenge(ch, false)));
+
+    // Weekly section
+    const weeklyHdr = document.createElement('div');
+    weeklyHdr.style.cssText = 'font-size:9px;color:#aa44ff;letter-spacing:2px;margin:16px 0 10px;';
+    weeklyHdr.textContent = "THIS WEEK'S CHALLENGES";
+    this._dailyBody.appendChild(weeklyHdr);
+    weekly.forEach(ch => this._dailyBody.appendChild(renderChallenge(ch, true)));
   }
 
   // ── v0.6: Codex Panel ──────────────────────────────────────────────────────
@@ -2446,11 +2708,12 @@ export class HUD {
     quickMenu.id = 'mobile-quick-menu';
 
     const quickBtns = [
-      { icon:'🗺', label:'Map',    action:()=> this.toggleMap() },
-      { icon:'📦', label:'Inv',    action:()=> this.toggleInventory(this._player) },
-      { icon:'📜', label:'Quests', action:()=> this.toggleQuests() },
-      { icon:'⚙',  label:'Stats',  action:()=> this.toggleStatScreen() },
-      { icon:'📖', label:'Codex',  action:()=> this.toggleCodex() },
+      { icon:'🗺', label:'Map',        action:()=> this.toggleMap() },
+      { icon:'📦', label:'Inv',        action:()=> this.toggleInventory(this._player) },
+      { icon:'📜', label:'Quests',     action:()=> this.toggleQuests() },
+      { icon:'⚙',  label:'Stats',      action:()=> this.toggleStatScreen() },
+      { icon:'📖', label:'Codex',      action:()=> this.toggleCodex() },
+      { icon:'✅', label:'Challenges', action:()=> this.toggleDailyChallenges() },
     ];
     quickBtns.forEach(({ icon, label, action }) => {
       const btn = document.createElement('button');
@@ -2607,6 +2870,8 @@ export class HUD {
         case 'f': this.toggleFactions(); break;
         case 'n': this.toggleEnchant(); break;
         case 'c': this.toggleCodex(); break;
+        case 'a': this.toggleAchievements(); break;
+        case 'd': this.toggleDailyChallenges(); break;
         case 'p': this.toggleStatScreen(); break;
         case 'escape':
           if (this.invOpen)   this.toggleInventory();
@@ -2616,6 +2881,8 @@ export class HUD {
           if (this.factionOpen) this.toggleFactions();
           if (this.enchantOpen)  this.toggleEnchant();
           if (this.codexOpen)    this.toggleCodex();
+          if (this.achOpen)      this.toggleAchievements();
+          if (this.dailyOpen)    this.toggleDailyChallenges();
           if (this.statOpen)     this.toggleStatScreen();
           this._closeDialogue();
           break;

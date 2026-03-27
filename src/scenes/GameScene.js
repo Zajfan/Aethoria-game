@@ -31,6 +31,11 @@ import { CodexSystem }        from '../systems/CodexSystem.js';
 import { ItemSystem }         from '../systems/ItemSystem.js';
 import { AbilitySystem }      from '../systems/AbilitySystem.js';
 import { WorldBossSystem }    from '../systems/WorldBossSystem.js';
+import { WeatherSystem }        from '../systems/WeatherSystem.js';
+import { PrestigeSystem }       from '../systems/PrestigeSystem.js';
+import { DailyChallengeSystem } from '../systems/DailyChallengeSystem.js';
+import { GamepadManager }       from '../engine/GamepadManager.js';
+import { ACH_RARITY }           from '../systems/AchievementSystem.js';
 import { PointsOfInterest }   from '../systems/PointsOfInterest.js';
 import { randomScroll }       from '../systems/LoreDatabase.js';
 
@@ -495,6 +500,10 @@ export class GameScene {
     this.poiSystem      = null;   // v0.6
     this.abilitySystem  = null;   // v0.6
     this.worldBossSystem = null;  // v0.6
+    this.weatherSystem      = null;  // v0.7
+    this.prestigeSystem     = null;  // v0.7
+    this.dailyChallengeSystem = null; // v0.7
+    this.gamepadManager     = null;  // v0.7
     this._sceneProxy    = null;
 
     /** @type {import('../ui/HUD.js').HUD|null} */
@@ -559,6 +568,21 @@ export class GameScene {
     if (!this.player.playerClass) {
       this.player.applyClass(localStorage.getItem('aethoria_class') || 'WARRIOR');
     }
+    // v0.7 — Weather gameplay system
+    this.weatherSystem = new WeatherSystem(this.eventBus);
+
+    // v0.7 — Prestige system
+    this.prestigeSystem = new PrestigeSystem(this.eventBus);
+    this.prestigeSystem.applyToPlayer(this.player);
+    if (savedPlayerData?.prestige) this.prestigeSystem.deserialize(savedPlayerData.prestige);
+
+    // v0.7 — Daily/Weekly challenges
+    this.dailyChallengeSystem = new DailyChallengeSystem(this.eventBus);
+
+    // v0.7 — Gamepad
+    this.gamepadManager = new GamepadManager(this.input, this.eventBus);
+    this.weatherSystem.attach(this.renderer.canvas);
+
     // v0.6 — World Boss system
     this.worldBossSystem = new WorldBossSystem(this.scene3d, this.camera.threeCamera, this.eventBus);
     this.worldBossSystem.setPlayer(this.player);
@@ -834,9 +858,27 @@ export class GameScene {
     bus.on('questProgress', () => this.hud?.refreshQuests?.());
 
     bus.on('weatherChanged', w => {
-      this.hud?.logMsg('Weather: ' + w, '#aaccff');
-      if (w === 'STORM') this.audio?.startAmbience('storm');
-      else if (w === 'CLEAR') this.audio?.startAmbience('day');
+      // WeatherSystem handles its own hintMsg via hudLog event
+      if (w === 'STORM' || w === 'BLIZZARD') this.audio?.startAmbience('storm');
+      else if (w === 'FOG' || w === 'RAIN')  this.audio?.startAmbience('night');
+      else                                    this.audio?.startAmbience('day');
+      // Apply enemy modifiers immediately
+      const mults = this.weatherSystem;
+      if (mults) {
+        this.enemies.forEach(e => {
+          if (e.isDead) return;
+          e._weatherSpeedMult    = mults.getEnemySpeedMult() * mults.getEnemyTypeMult(e.typeKey);
+          e._weatherDetectMult   = mults.getDetectRangeMult();
+        });
+      }
+    });
+
+    // v0.7 — Thunder SFX
+    bus.on('thunderClap', () => this.audio?.sfxWorldEvent());
+
+    // v0.7 — Weather XP mult applied at XP gain time via player._weatherXPMult
+    bus.on('weatherEffectsChanged', effects => {
+      if (this.player) this.player._weatherXPMult = effects.xpMult ?? 1.0;
     });
 
     bus.on('playerDead', () => {
@@ -923,6 +965,40 @@ export class GameScene {
         this.eventBus.emit('statsChanged', this.player.stats);
       }, buff.dur * 1000);
     });
+
+    // v0.7 — Prestige unlock on Act 5 complete
+    bus.on('actAdvanced', ({ actId }) => {
+      if (actId >= 5) this.prestigeSystem?.unlock();
+    });
+
+    // v0.7 — Daily challenge rewards
+    bus.on('challengeXP',   ({ amount }) => this.player?.gainXP?.(amount));
+    bus.on('challengeGold',  ({ amount }) => {
+      if (this.player) {
+        this.player.stats.gold = (this.player.stats.gold ?? 0) + amount;
+        this.eventBus.emit('statsChanged', this.player.stats);
+      }
+    });
+
+    // v0.7 — Gamepad attack button
+    bus.on('mobileAttack', () => this.hud?._mobileAttack?.());
+
+    // v0.7 — Gamepad camera rotation
+    bus.on('gamepadCamera', ({ dx }) => {
+      if (this.camera) this.camera._yaw = (this.camera._yaw ?? 0) + dx * 0.04;
+    });
+
+    // v0.7 — Expose ACH_RARITY to HUD achievement popup
+    window._achRarity = { ACH_RARITY };
+
+    // v0.7 — Weather kill tracking for challenges + achievements
+    bus.on('enemyKilled', ({ typeKey }) => {
+      const weather = this.weatherSystem?.getCurrent?.();
+      if (weather === 'STORM')    { bus.emit('weatherKill', { weather }); this.achievements?.track('stormKills'); }
+      if (weather === 'BLIZZARD') { bus.emit('weatherKill', { weather }); this.achievements?.track('blizzardKills'); }
+    });
+
+    // v0.7 — Achievement system now uses EventBus (update constructor call)
 
     // v0.6 — World boss faction rewards
     bus.on('worldBossFactionGain', ({ gains }) => {
@@ -1489,6 +1565,28 @@ export class GameScene {
       this.player.group.position.copy(this.player.position);
     }
 
+    // v0.7 — Gamepad poll
+    this.gamepadManager?.poll();
+
+    // v0.7 — Apply gamepad analog movement to player
+    if (this.gamepadManager?.isConnected()) {
+      const mv = this.gamepadManager.getMovement();
+      if (this.input && (Math.abs(mv.x) > 0 || Math.abs(mv.y) > 0)) {
+        this.input._gamepadAxis = mv;
+      }
+    }
+
+    // v0.7 — Weather system (lightning flicker etc)
+    this.weatherSystem?.update(delta);
+
+    // v0.7 — Apply weather player speed modifier
+    if (this.weatherSystem && this.player) {
+      const wsm = this.weatherSystem.getPlayerSpeedMult();
+      if (this.player._weatherSpeedMult !== wsm) {
+        this.player._weatherSpeedMult = wsm;
+      }
+    }
+
     // v0.6 — Ability system (mana regen + cooldown ticks)
     this.abilitySystem?.update(delta);
 
@@ -1648,6 +1746,7 @@ export class GameScene {
     this.poiSystem?.dispose();
     this.abilitySystem?.dispose();
     this.worldBossSystem?.dispose();
+    this.gamepadManager?.dispose();
 
     this.world3d?.dispose();
 

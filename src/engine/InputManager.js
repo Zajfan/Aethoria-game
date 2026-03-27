@@ -207,6 +207,13 @@ export class InputManager {
     if (x === 0) x = this.joystick.x;
     if (y === 0) y = this.joystick.y;
 
+    // Blend gamepad analog stick (highest magnitude wins)
+    const gp = this._gamepadAxis;
+    if (gp) {
+      if (Math.abs(gp.x) > Math.abs(x)) x = gp.x;
+      if (Math.abs(gp.y) > Math.abs(y)) y = gp.y;
+    }
+
     // Normalise diagonal keyboard input
     const len = Math.sqrt(x * x + y * y);
     if (len > 1) { x /= len; y /= len; }
