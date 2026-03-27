@@ -1139,6 +1139,12 @@ export class HUD {
     // Story flag
     if (nd.name === 'Elder Lyra') {
       this._gameScene?.storySystem?.flagSet('talked_to_lyra');
+
+      // v0.7 — Show prestige button if unlocked
+      const ps = this._gameScene?.prestigeSystem;
+      if (ps?.isUnlocked() && ps.canPrestige()) {
+        setTimeout(() => this._showPrestigePanel(ps), 600);
+      }
     }
 
     this._dlgInput.value = '';
@@ -2443,6 +2449,96 @@ export class HUD {
         <div style="font-size:10px;color:#889;line-height:1.6;">${bodyText}</div>`;
       this._codexContent.appendChild(div);
     });
+  }
+
+
+  // ── v0.7: Prestige Panel (shown via Elder Lyra dialogue) ─────────────────────
+
+  _showPrestigePanel(prestigeSystem) {
+    // Remove any existing panel
+    document.getElementById('prestige-panel')?.remove();
+
+    const ps   = prestigeSystem;
+    const data = ps.getUIData();
+    const next = data.nextRank;
+    if (!next) return;  // already max rank
+
+    const panel = document.createElement('div');
+    panel.id = 'prestige-panel';
+    panel.style.cssText = `
+      position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+      background:rgba(8,4,18,0.98); border:2px solid #8844cc;
+      border-radius:8px; padding:24px 28px; z-index:9200;
+      font-family:'Courier New',monospace; width:420px;
+      box-shadow:0 0 40px rgba(120,40,200,0.5), 0 0 80px rgba(60,0,100,0.3);
+    `;
+
+    const bonusLines = Object.entries(next.bonuses).map(([k, v]) => {
+      const labels = {
+        maxHp:'Max HP', attack:'Attack', defense:'Defense',
+        manaRegen:'Mana Regen/s', xpMult:'XP Gain',
+        abilityDmgMult:'Ability Damage', startGold:'Starting Gold',
+      };
+      const fmt = k === 'xpMult' || k === 'abilityDmgMult' ? `+${Math.round(v*100)}%` : `+${v}`;
+      return `<div style="color:#cc88ff;font-size:10px;">✦ ${labels[k]??k}: ${fmt}</div>`;
+    }).join('');
+
+    const titleLine = next.title
+      ? `<div style="color:#ffaa00;font-size:10px;margin-top:6px;">★ Unlocks title: "${next.title}"</div>`
+      : '';
+
+    panel.innerHTML = `
+      <div style="text-align:center;margin-bottom:16px;">
+        <div style="font-size:11px;color:#8844cc;letter-spacing:3px;margin-bottom:6px;">✦ PRESTIGE ✦</div>
+        <div style="font-size:18px;color:#cc88ff;">Rank ${data.rank} → ${data.rank + 1}</div>
+        <div style="font-size:9px;color:#556;margin-top:4px;">${data.rank + 1} / ${data.maxRank}</div>
+      </div>
+
+      <div style="background:rgba(60,20,100,0.3);border-radius:5px;padding:12px;margin-bottom:16px;">
+        <div style="font-size:9px;color:#667;letter-spacing:2px;margin-bottom:8px;">PERMANENT REWARDS</div>
+        ${bonusLines}
+        ${titleLine}
+      </div>
+
+      <div style="background:rgba(80,0,0,0.3);border-radius:5px;padding:10px;margin-bottom:16px;">
+        <div style="font-size:9px;color:#cc4444;letter-spacing:1px;margin-bottom:4px;">⚠ WARNING</div>
+        <div style="font-size:9px;color:#aa6666;line-height:1.5;">
+          Prestige resets your level, inventory, and gold.<br>
+          Skill tree unlocks and equipment are lost.<br>
+          All permanent bonuses carry forward.
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <button id="prestige-confirm" style="
+          flex:1;padding:10px;border-radius:4px;cursor:pointer;
+          background:rgba(120,40,200,0.3);border:1px solid #8844cc;
+          color:#cc88ff;font-family:inherit;font-size:11px;letter-spacing:1px;
+        ">✦ BECOME REBORN</button>
+        <button id="prestige-cancel" style="
+          flex:1;padding:10px;border-radius:4px;cursor:pointer;
+          background:transparent;border:1px solid #334;
+          color:#667;font-family:inherit;font-size:11px;
+        ">Not yet</button>
+      </div>
+    `;
+
+    document.body.appendChild(panel);
+
+    document.getElementById('prestige-cancel').onclick = () => panel.remove();
+    document.getElementById('prestige-confirm').onclick = () => {
+      panel.remove();
+      const result = ps.doPrestige(this._player);
+      if (!result) return;
+
+      // Apply immediate stat boost from this rank
+      ps.applyToPlayer(this._player);
+      this._gameScene?.eventBus?.emit('statsChanged', this._player?.stats);
+
+      // Show confirmation
+      this.logMsg(`✦ PRESTIGE RANK ${result.rank}! ${result.def.title ? '"' + result.def.title + '"' : 'Reborn.'}`, '#cc88ff');
+      this._gameScene?.eventBus?.emit('levelUp', this._player?.stats?.level);
+    };
   }
 
   // ── v0.6: Region Entry Banner ─────────────────────────────────────────────

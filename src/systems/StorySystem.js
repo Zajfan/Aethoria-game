@@ -80,6 +80,56 @@ export const STORY_QUESTS = [
   { id:'a3_4', act:3, giver:'Mira',      title:'What the Dark Does',   desc:'Mira needs samples from inside the dungeon. Three bone samples from skeletons there.',    type:'DUNGEON', target:'dungeon',    needed:1, reward:{ xp:750, gold:0, item:'elixir' } },
   { id:'a3_5', act:3, giver:'Dorin',     title:'Debt Uncollected',     desc:'Dorin says he left something in the dungeon three years ago. He wants it back.',          type:'DUNGEON', target:'dungeon',    needed:1, reward:{ xp:800, gold:250 } },
   { id:'a3_6', act:3, giver:'Elder Lyra','title':'What He Said',       desc:'After the Void Knight fell, Lyra needs to know what, if anything, it said to you.',       type:'TALK',    target:'Elder Lyra', needed:1, reward:{ xp:1200,gold:0, unlocks_act:4 } },
+
+  // Act IV — Storm and Reckoning: The fourth shard reveals Lyra's true history
+  { id:'a4_1', act:4, giver:'Elder Lyra',  title:'The Name He Said',
+    desc:"The Void Knight said Lyra's name before it died. She needs a moment. Then she tells you everything.",
+    type:'TALK',    target:'Elder Lyra',  needed:1, reward:{ xp:1500, gold:0 } },
+
+  { id:'a4_2', act:4, giver:'Capt. Vel',  title:'The Village Reacts',
+    desc:'Word spreads. Half the village believes Lyra opened the Gate. Vel needs the situation contained before it turns violent. Talk to 3 upset villagers.',
+    type:'TALK',    target:'villager',    needed:3, reward:{ xp:1200, gold:200 } },
+
+  { id:'a4_3', act:4, giver:'Dorin',      title:'The Shard of Storm',
+    desc:"Dorin's maps show the fourth shard at the lightning-struck spire on the Eastern Cliffs. Something enormous nests there now.",
+    type:'KILL',    target:'Drake',       needed:3, reward:{ xp:1600, gold:300 } },
+
+  { id:'a4_4', act:4, giver:'Gareth',     title:'The Iron Crown Responds',
+    desc:"When the third shard returned, the Iron Crown on Gareth's forge wall lit up. Now it pulses with the fourth. Retrieve it from him — he won't let go willingly.",
+    type:'TALK',    target:'Gareth',      needed:1, reward:{ xp:1400, gold:0, item:'crystal' } },
+
+  { id:'a4_5', act:4, giver:'Sister Vashe', title:'What the Veilbound Know',
+    desc:"Vashe in Saltmere has translated the Void Gate inscription. She says there's a fifth shard and she knows where. She wants something in return: 3 Void Crystals.",
+    type:'COLLECT', target:'crystal',     needed:3, reward:{ xp:1800, gold:400 } },
+
+  { id:'a4_6', act:4, giver:'Elder Lyra',  title:'She Confesses',
+    desc:"Lyra admits everything. The gate. The pact. The three hundred years. She asks you one question: knowing all of it, will you still return the last shard?",
+    type:'TALK',    target:'Elder Lyra',  needed:1, reward:{ xp:2000, gold:0, unlocks_act:5 } },
+
+  // Act V — The Last Shard: The fifth shard is in the Void itself
+  { id:'a5_1', act:5, giver:'Elder Lyra',  title:'The Way In',
+    desc:"Lyra opens the old gate — not the one in the dungeon, the real one, sealed for three hundred years beneath the well. You go in first.",
+    type:'DUNGEON', target:'dungeon',     needed:1, reward:{ xp:2500, gold:0 } },
+
+  { id:'a5_2', act:5, giver:'Capt. Vel',  title:'Hold the Line',
+    desc:'Something comes through the gate behind you. Vel holds it. Kill everything that emerges before the village falls.',
+    type:'KILL',    target:'Wraith',      needed:8, reward:{ xp:2200, gold:500 } },
+
+  { id:'a5_3', act:5, giver:'Elder Lyra',  title:'The Herald Rises',
+    desc:'Deep in the Void Rift dungeon, the Void Herald guards the fifth shard. Kill it. The gate will close when the shard is returned. Probably.',
+    type:'BOSS',    target:'Void Herald', needed:1, reward:{ xp:3000, gold:0, item:'voidessence' } },
+
+  { id:'a5_4', act:5, giver:'Elder Lyra',  title:'The Fifth Shard',
+    desc:'You have it. Return to Lyra at the old well. The Crown can be restored. She is waiting. She has been waiting for three hundred years.',
+    type:'SHARD',   target:'shard_5',     needed:1, reward:{ xp:3500, gold:1000 } },
+
+  { id:'a5_5', act:5, giver:'Elder Lyra',  title:'Dawn or Dusk',
+    desc:'The Crown is whole. Lyra says: put it on and heal the leylines, or give it to her and let her undo what she did. Your choice. One ending or the other.',
+    type:'TALK',    target:'Elder Lyra',  needed:1, reward:{ xp:5000, gold:2000, unlocks_act:6 } },
+
+  { id:'a5_6', act:5, giver:'Elder Lyra',  title:'What Comes After',
+    desc:"Aethoria is changed. Lyra is finally still. You are whatever you chose to be. The village remains. The well still needs water drawn from it every day. Some things do not change.",
+    type:'EXPLORE', target:'well',        needed:1, reward:{ xp:2000, gold:0 } },
 ];
 
 // ── Side quests (always available, repeatable pool) ───────────

@@ -633,7 +633,7 @@ export class GameScene {
       this.enemies.push(e);
     });
 
-    this.achievements = new AchievementSystem(this._sceneProxy);
+    this.achievements = new AchievementSystem(this.eventBus);
     this.storySystem  = new StorySystem(this._sceneProxy);
 
     this.shardSystem = new ShardSystem3D(this.eventBus, this.scene3d, this.camera.threeCamera);
@@ -694,6 +694,11 @@ export class GameScene {
 
     // 9. Dungeon portal (50 tiles east, 10 tiles north of center)
     this._buildDungeonPortal(cx, cz);
+
+    // v0.7 — Saltmere dungeon portal (near Shattered Coast settlement)
+    const sx = Math.floor(MAP_W * 0.28);
+    const sz = Math.floor(MAP_H * 0.78);
+    this._buildSaltmereDungeonPortal(sx, sz);
 
     // 10. Event wiring
     this._setupEvents();
@@ -798,6 +803,39 @@ export class GameScene {
     this._overlay().appendChild(this._portalLabelEl);
 
     this._portalPos = new THREE.Vector3(px, 0, pz);
+  }
+
+  _buildSaltmereDungeonPortal(sx, sz) {
+    // Place portal 6 tiles north of Saltmere centre
+    const px = sx + 0.5;
+    const pz = (sz - 6) + 0.5;
+
+    const geo = new THREE.TorusGeometry(1.2, 0.15, 8, 32);
+    const mat = new THREE.MeshLambertMaterial({
+      color:    0x006666,
+      emissive: new THREE.Color(0x003333),
+    });
+    this._saltmerePortalMesh = new THREE.Mesh(geo, mat);
+    this._saltmerePortalMesh.position.set(px, 1.2, pz);
+    this._saltmerePortalMesh.rotation.x = Math.PI / 2;
+    this.scene3d.add(this._saltmerePortalMesh);
+
+    this._saltmerePortalLight = new THREE.PointLight(0x008888, 2.0, 9);
+    this._saltmerePortalLight.position.set(px, 1.5, pz);
+    this.scene3d.add(this._saltmerePortalLight);
+
+    this._saltmerePortalLabelEl = document.createElement('div');
+    Object.assign(this._saltmerePortalLabelEl.style, {
+      position: 'absolute', pointerEvents: 'none',
+      fontFamily: "'Courier New', monospace", fontSize: '11px',
+      color: '#44cccc', textShadow: '0 0 8px #008888',
+      transform: 'translate(-50%, -100%)', whiteSpace: 'nowrap',
+    });
+    this._saltmerePortalLabelEl.textContent = '[ SUNKEN VAULTS ]';
+    this._overlay().appendChild(this._saltmerePortalLabelEl);
+
+    this._saltmerePortalPos  = new THREE.Vector3(px, 0, pz);
+    this._saltmerePortalUsed = false;
   }
 
   // ── Event wiring ────────────────────────────────────────────────────────────
@@ -1555,6 +1593,32 @@ export class GameScene {
 
     // World events
     this.worldEvents?.update(delta);
+
+    // v0.7 — Periodic enemy repopulation scaled to current level
+    this._enemyRespawnTimer = (this._enemyRespawnTimer ?? 0) + delta;
+    if (this._enemyRespawnTimer > 45) {  // every 45 seconds
+      this._enemyRespawnTimer = 0;
+      const dead = this.enemies.filter(e => e.isDead).length;
+      if (dead > 15 && this.mapData) {
+        const gen = new WorldGen();
+        const toSpawn = Math.min(dead, 20);
+        const spawns  = gen.getEnemySpawns(this.mapData, toSpawn);
+        const allTypes= Object.keys(CONFIG.ENEMY_TYPES);
+        const playerLv= this.player?.stats?.level ?? 1;
+        spawns.forEach(sp => {
+          const tier  = Math.min(4, Math.floor(playerLv / 5));
+          const pool  = tier <= 1 ? allTypes.slice(0,4) : tier <= 2 ? allTypes.slice(0,8) : allTypes;
+          const type  = pool[Math.floor(Math.random() * pool.length)];
+          const e     = new Enemy3D(this.scene3d, sp.x + 0.5, sp.y + 0.5, type, this.eventBus, this.world3d);
+          e.setCamera(this.camera.threeCamera);
+          const scaleMult = 1 + (playerLv - 1) * 0.08;
+          e.stats.hp = Math.round(e.stats.hp * scaleMult);
+          e.stats.maxHp = e.stats.hp;
+          e.stats.atk   = Math.round(e.stats.atk * scaleMult);
+          this.enemies.push(e);
+        });
+      }
+    }
 
     // v0.5 — Terrain height tracking — player smoothly follows terrain
     if (this.player && this.world3d) {
