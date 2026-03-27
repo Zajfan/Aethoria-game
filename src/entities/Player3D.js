@@ -73,6 +73,7 @@ export class Player3D extends Entity3D {
     this.stats = {
       name:     'Hero',
       level:    1,
+      skillPoints: 0,
       xp:       0,
       xpNeeded: CONFIG.PLAYER.XP_PER_LEVEL,
       hp:       CONFIG.PLAYER.BASE_HP,
@@ -175,9 +176,24 @@ export class Player3D extends Entity3D {
     if (!sk) return false;
     const rank = (this.skills[key] || 0) + 1;
     if (rank > sk.maxRank) return false;
+
+    // Check skill points
+    const cost = CONFIG.SKILL_POINT_COST?.[rank] ?? rank;
+    if ((this.stats.skillPoints ?? 0) < cost) return false;
+
+    // Check prerequisites
+    const reqs = sk.requires ?? [];
+    for (const req of reqs) {
+      const [reqKey, reqRank] = req.split(':');
+      const have = this.skills[reqKey] ?? 0;
+      if (have < parseInt(reqRank ?? 1)) return false;
+    }
+
+    this.stats.skillPoints = (this.stats.skillPoints ?? 0) - cost;
     this.skills[key] = rank;
     try { sk.effect(this, rank); } catch (_) {}
     this.eventBus.emit('skillLearned', key, rank);
+    this.eventBus.emit('statsChanged', this.stats);
     return true;
   }
 
@@ -189,8 +205,9 @@ export class Player3D extends Entity3D {
 
     const deltaMs = delta * 1000;
     this.attackCooldown = Math.max(0, this.attackCooldown - deltaMs);
-    if (this.fireballCD > 0) this.fireballCD = Math.max(0, this.fireballCD - deltaMs);
-    if (this.slamCD     > 0) this.slamCD     = Math.max(0, this.slamCD     - deltaMs);
+    if (this.fireballCD   > 0) this.fireballCD   = Math.max(0, this.fireballCD - deltaMs);
+    if (this.slamCD       > 0) this.slamCD       = Math.max(0, this.slamCD - deltaMs);
+    if (this._deathMarkCD > 0) this._deathMarkCD = Math.max(0, this._deathMarkCD - deltaMs);
 
     // ── Active skills ──────────────────────────────────────────────────────
     // SLAM (Warrior): AoE hit on all nearby enemies every 8s
@@ -398,10 +415,41 @@ export class Player3D extends Entity3D {
       ? (CONFIG.ITEMS[this.equipment.weapon]?.atk || 0)
       : 0;
     const rnd = _randInt(-2, 3);
-    const dmg = Math.max(1, this.stats.attack + eqAtk + rnd - (enemy.stats?.def || 0));
+    let dmg = Math.max(1, this.stats.attack + eqAtk + rnd - (enemy.stats?.def || 0));
+
+    // Execute: +100% dmg on low-HP enemies
+    if (this._executeRanks > 0 && enemy.stats.hp < enemy.stats.maxHp * 0.25) {
+      dmg = Math.floor(dmg * (1 + this._executeRanks));
+    }
+
+    // Arcane Surge passive: boosted by arcaneMastery rank
+    if (this._arcaneMasteryRanks > 0) {
+      dmg = Math.floor(dmg * (1 + this._arcaneMasteryRanks * 0.15));
+    }
+
+    // Predator: bonus per status effect on target
+    if (this._predatorRanks > 0) {
+      const statusCount = this._scene3d?._combatSys?.getActiveStatuses?.(enemy)?.length ?? 0;
+      dmg = Math.floor(dmg * (1 + statusCount * this._predatorRanks * 0.08));
+    }
+
+    // Death Mark: 3× damage on full-HP target
+    if (this._deathMarkRanks > 0 && (this._deathMarkCD ?? 0) === 0 &&
+        enemy.stats.hp >= enemy.stats.maxHp * 0.99) {
+      dmg *= 3;
+      this._deathMarkCD = 20000;
+      this.eventBus.emit('damage', this.position.x, this.position.y, '☠ DEATH MARK', '#ff4444');
+    }
+
+    // Arcane Surge XP boost (handled in gainXP)
     enemy.takeDamage(dmg, this);
     this.attackCooldown = this.attackCooldownBase;
     this.eventBus.emit('damage', this.position.x, this.position.y, dmg, '#ffffff');
+
+    // Void Touch skill proc
+    if (this._voidTouchSkillRanks > 0 && Math.random() < 0.20) {
+      this.eventBus.emit('enemyVoidHit', { target: enemy });
+    }
   }
 
   // ── Damage / death ────────────────────────────────────────────────────────
@@ -442,10 +490,11 @@ export class Player3D extends Entity3D {
       this.stats.xp      -= this.stats.xpNeeded;
       this.stats.xpNeeded = Math.floor(this.stats.xpNeeded * 1.45);
       this.stats.level++;
-      this.stats.maxHp  += 15;
-      this.stats.hp      = this.stats.maxHp;
-      this.stats.attack  += 2;
-      this.stats.defense += 1;
+      this.stats.maxHp    += 15;
+      this.stats.hp        = this.stats.maxHp;
+      this.stats.attack   += 2;
+      this.stats.defense  += 1;
+      this.stats.skillPoints = (this.stats.skillPoints ?? 0) + (CONFIG.PLAYER.SKILL_POINTS_PER_LEVEL ?? 1);
       this.eventBus.emit('levelUp', this.stats.level);
     }
     this.eventBus.emit('statsChanged', this.stats);

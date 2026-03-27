@@ -35,6 +35,7 @@ export const CONFIG = {
     ATTACK_RANGE:     54,
     ATTACK_COOLDOWN:  850,
     XP_PER_LEVEL:     100,
+    SKILL_POINTS_PER_LEVEL: 1,
   },
 
   ENEMY_TYPES: {
@@ -168,39 +169,213 @@ export const CONFIG = {
   CLASSES: {
     WARRIOR: {
       name: 'Warrior', color: 0xff6633,
-      desc: 'Unbreakable frontliner. High HP, melee power.',
+      desc: 'Unbreakable frontliner. High HP, melee power, battlefield control.',
       bonuses: { hp: 40, attack: 4, defense: 6, speed: -10 },
-      skills: ['TOUGHNESS', 'SLAM', 'IRON_SKIN'],
+      skills: ['TOUGHNESS','SLAM','IRON_SKIN','BATTLECRY','WARCRY','SHIELD_WALL','EXECUTE','BLOOD_RAGE'],
     },
     MAGE: {
       name: 'Mage', color: 0x8866ff,
-      desc: 'Master of arcane destruction. Ranged, fragile.',
+      desc: 'Master of arcane destruction. Ranged, fragile, devastating.',
       bonuses: { hp: -10, attack: 8, defense: -2, speed: 5 },
-      skills: ['FIREBALL', 'MANA_SHIELD', 'ARCANE_POWER'],
+      skills: ['FIREBALL','MANA_SHIELD','ARCANE_POWER','FROST_BOLT','CHAIN_LIGHTNING','MANA_SURGE','ARCANE_MASTERY','VOID_TOUCH_S'],
     },
     RANGER: {
       name: 'Ranger', color: 0x44cc88,
-      desc: 'Swift hunter. Attack speed and evasion.',
+      desc: 'Swift hunter. Deadly at range, impossible to pin down.',
       bonuses: { hp: 10, attack: 3, defense: 2, speed: 25 },
-      skills: ['SWIFT_SHOT', 'EVASION', 'EAGLE_EYE'],
+      skills: ['SWIFT_SHOT','EVASION','EAGLE_EYE','POISON_ARROW','SHADOW_STEP','TRAPPER','PREDATOR','DEATH_MARK'],
     },
   },
 
+  // Skill point cost per rank (rank 1 costs 1pt, rank 2 costs 2pt, etc.)
+  SKILL_POINT_COST: [0, 1, 2, 3, 4, 5],
+
   SKILLS: {
-    // Warrior
-    TOUGHNESS:    { name:'Toughness',    class:'WARRIOR', desc:'Max HP +25 per rank', maxRank:3, effect:(p,r)=>{ p.stats.maxHp+=25; p.stats.hp=Math.min(p.stats.hp+25,p.stats.maxHp); } },
-    SLAM:         { name:'Slam',         class:'WARRIOR', desc:'AoE attack every 8s', maxRank:3, effect:(p)=>{ p.slamCD = 0; } },
-    IRON_SKIN:    { name:'Iron Skin',    class:'WARRIOR', desc:'Defense +4 per rank',  maxRank:3, effect:(p,r)=>{ p.stats.defense+=4; } },
-    // Warrior — new
-    BATTLECRY:    { name:'Battlecry',     class:'WARRIOR', desc:'On kill: +15% attack for 5s (stacks 3×)', maxRank:3, effect:(p,r)=>{ p._battlecryRanks = r; } },
-    // Mage
-    FIREBALL:     { name:'Fireball',     class:'MAGE',    desc:'Ranged attack 180px',  maxRank:3, effect:(p)=>{ p.fireballCD = 0; } },
-    MANA_SHIELD:  { name:'Mana Shield',  class:'MAGE',    desc:'15% dmg reduction/rank', maxRank:3, effect:()=>{} },
-    ARCANE_POWER: { name:'Arcane Power', class:'MAGE',    desc:'Attack +6 per rank',   maxRank:3, effect:(p,r)=>{ p.stats.attack+=6; } },
-    // Ranger
-    SWIFT_SHOT:   { name:'Swift Shot',   class:'RANGER',  desc:'Atk speed +15% / rank', maxRank:3, effect:(p,r)=>{ p.attackCooldownBase = Math.max(300, (p.attackCooldownBase||850) - 130); } },
-    EVASION:      { name:'Evasion',      class:'RANGER',  desc:'20% dodge chance/rank', maxRank:3, effect:(p,r)=>{ p.dodgeChance = r * 0.20; } },
-    EAGLE_EYE:    { name:'Eagle Eye',    class:'RANGER',  desc:'Attack range +20/rank', maxRank:3, effect:(p,r)=>{ p.attackRange = CONFIG.PLAYER.ATTACK_RANGE / 16 + r * 1.25; } },
+    // ══════════════════════════════════════════════════════════════
+    // WARRIOR — Tier 1 (available from level 1)
+    // ══════════════════════════════════════════════════════════════
+    TOUGHNESS: {
+      name:'Toughness', class:'WARRIOR', tier:1,
+      desc:'Fortify your body. Max HP +30 per rank.',
+      maxRank:5, icon:'🛡',
+      requires: [],
+      effect:(p,r)=>{ p.stats.maxHp+=30; p.stats.hp=Math.min(p.stats.hp+30,p.stats.maxHp); },
+    },
+    SLAM: {
+      name:'Slam', class:'WARRIOR', tier:1,
+      desc:'Seismic AoE strike every 6s. Range and damage grow per rank.',
+      maxRank:3, icon:'💥',
+      requires: [],
+      effect:(p,r)=>{ p.slamCD = 0; },
+    },
+    IRON_SKIN: {
+      name:'Iron Skin', class:'WARRIOR', tier:1,
+      desc:'Harden your armour. Defense +5 per rank.',
+      maxRank:5, icon:'⚙',
+      requires: [],
+      effect:(p,r)=>{ p.stats.defense+=5; },
+    },
+    // WARRIOR — Tier 2 (requires 1 Tier 1 skill at rank 2+)
+    BATTLECRY: {
+      name:'Battlecry', class:'WARRIOR', tier:2,
+      desc:'On kill: gain +12% attack for 6s, stacks up to 4×.',
+      maxRank:4, icon:'📯',
+      requires: ['TOUGHNESS:2'],
+      effect:(p,r)=>{ p._battlecryRanks = r; },
+    },
+    WARCRY: {
+      name:'Warcry', class:'WARRIOR', tier:2,
+      desc:'Reduce all ability cooldowns by 15% per rank.',
+      maxRank:3, icon:'📢',
+      requires: ['SLAM:2'],
+      effect:(p,r)=>{ p._warcryRanks = r; },
+    },
+    SHIELD_WALL: {
+      name:'Shield Wall', class:'WARRIOR', tier:2,
+      desc:'While not moving: take 20% less damage per rank.',
+      maxRank:3, icon:'🏛',
+      requires: ['IRON_SKIN:2'],
+      effect:(p,r)=>{ p._shieldWallRanks = r; },
+    },
+    // WARRIOR — Tier 3 (requires 2 Tier 2 skills at rank 2+)
+    EXECUTE: {
+      name:'Execute', class:'WARRIOR', tier:3,
+      desc:'Attacks deal +100% damage to enemies below 25% HP.',
+      maxRank:3, icon:'☠',
+      requires: ['BATTLECRY:2', 'WARCRY:2'],
+      effect:(p,r)=>{ p._executeRanks = r; },
+    },
+    BLOOD_RAGE: {
+      name:'Blood Rage', class:'WARRIOR', tier:3,
+      desc:'On taking damage: gain 8% attack speed for 4s. Stacks 5×.',
+      maxRank:3, icon:'🩸',
+      requires: ['WARCRY:2', 'SHIELD_WALL:2'],
+      effect:(p,r)=>{ p._bloodRageRanks = r; },
+    },
+
+    // ══════════════════════════════════════════════════════════════
+    // MAGE — Tier 1
+    // ══════════════════════════════════════════════════════════════
+    FIREBALL: {
+      name:'Fireball', class:'MAGE', tier:1,
+      desc:'Ranged fire attack. Burns target. Range +20 per rank.',
+      maxRank:5, icon:'🔥',
+      requires: [],
+      effect:(p,r)=>{ p.fireballCD = 0; p.attackRange = (54+r*20)/16; },
+    },
+    MANA_SHIELD: {
+      name:'Mana Shield', class:'MAGE', tier:1,
+      desc:'Convert incoming damage to mana loss. 15% reduction per rank.',
+      maxRank:3, icon:'🔮',
+      requires: [],
+      effect:()=>{},
+    },
+    ARCANE_POWER: {
+      name:'Arcane Power', class:'MAGE', tier:1,
+      desc:'Raw spell power. Attack +7 per rank.',
+      maxRank:5, icon:'✨',
+      requires: [],
+      effect:(p,r)=>{ p.stats.attack+=7; },
+    },
+    // MAGE — Tier 2
+    FROST_BOLT: {
+      name:'Frost Bolt', class:'MAGE', tier:2,
+      desc:'Ranged ice attack that slows targets by 40% per rank for 3s.',
+      maxRank:3, icon:'❄',
+      requires: ['FIREBALL:2'],
+      effect:(p,r)=>{ p._frostBoltRanks = r; },
+    },
+    CHAIN_LIGHTNING: {
+      name:'Chain Lightning', class:'MAGE', tier:2,
+      desc:'Attacks chain to 1 nearby enemy per rank. 70% damage per jump.',
+      maxRank:3, icon:'⚡',
+      requires: ['ARCANE_POWER:2'],
+      effect:(p,r)=>{ p._chainLightningRanks = r; },
+    },
+    MANA_SURGE: {
+      name:'Mana Surge', class:'MAGE', tier:2,
+      desc:'Mana regen +3/s per rank. Excess mana converts to shield.',
+      maxRank:4, icon:'💧',
+      requires: ['MANA_SHIELD:2'],
+      effect:(p,r)=>{ p._manaSurgeRanks = r; },
+    },
+    // MAGE — Tier 3
+    ARCANE_MASTERY: {
+      name:'Arcane Mastery', class:'MAGE', tier:3,
+      desc:'All spells cost 20% less mana and deal 15% more damage per rank.',
+      maxRank:3, icon:'🌟',
+      requires: ['FROST_BOLT:2', 'CHAIN_LIGHTNING:2'],
+      effect:(p,r)=>{ p._arcaneMasteryRanks = r; },
+    },
+    VOID_TOUCH_S: {
+      name:'Void Touch', class:'MAGE', tier:3,
+      desc:'20% chance on hit to apply VOID_CURSE. Void damage +25% per rank.',
+      maxRank:3, icon:'👁',
+      requires: ['CHAIN_LIGHTNING:2', 'MANA_SURGE:2'],
+      effect:(p,r)=>{ p._voidTouchSkillRanks = r; },
+    },
+
+    // ══════════════════════════════════════════════════════════════
+    // RANGER — Tier 1
+    // ══════════════════════════════════════════════════════════════
+    SWIFT_SHOT: {
+      name:'Swift Shot', class:'RANGER', tier:1,
+      desc:'Attack speed +18% per rank. Arrow release is instant.',
+      maxRank:5, icon:'🏹',
+      requires: [],
+      effect:(p,r)=>{ p.attackCooldownBase = Math.max(250, (p.attackCooldownBase||850) - 120); },
+    },
+    EVASION: {
+      name:'Evasion', class:'RANGER', tier:1,
+      desc:'Dodge chance +18% per rank. Dodged hits restore 5 mana.',
+      maxRank:4, icon:'💨',
+      requires: [],
+      effect:(p,r)=>{ p.dodgeChance = r * 0.18; },
+    },
+    EAGLE_EYE: {
+      name:'Eagle Eye', class:'RANGER', tier:1,
+      desc:'Attack range +25 per rank. Critical hits reveal enemy location.',
+      maxRank:4, icon:'👁',
+      requires: [],
+      effect:(p,r)=>{ p.attackRange = (54+r*25)/16; },
+    },
+    // RANGER — Tier 2
+    POISON_ARROW: {
+      name:'Poison Arrow', class:'RANGER', tier:2,
+      desc:'Attacks have 30% (+10%/rank) chance to POISON. Stacks up to 3×.',
+      maxRank:3, icon:'☠',
+      requires: ['SWIFT_SHOT:2'],
+      effect:(p,r)=>{ p._poisonArrowRanks = r; },
+    },
+    SHADOW_STEP: {
+      name:'Shadow Step', class:'RANGER', tier:2,
+      desc:'On dodge: teleport 3 tiles away from attacker. Cooldown 8s.',
+      maxRank:2, icon:'🌑',
+      requires: ['EVASION:2'],
+      effect:(p,r)=>{ p._shadowStepRanks = r; },
+    },
+    TRAPPER: {
+      name:'Trapper', class:'RANGER', tier:2,
+      desc:'Enemies that attack you are SLOWED 30% for 4s per rank.',
+      maxRank:3, icon:'🪤',
+      requires: ['EAGLE_EYE:2'],
+      effect:(p,r)=>{ p._trapperRanks = r; },
+    },
+    // RANGER — Tier 3
+    PREDATOR: {
+      name:'Predator', class:'RANGER', tier:3,
+      desc:'Deal +8% damage per rank for each status effect on the target.',
+      maxRank:3, icon:'🐺',
+      requires: ['POISON_ARROW:2', 'SHADOW_STEP:1'],
+      effect:(p,r)=>{ p._predatorRanks = r; },
+    },
+    DEATH_MARK: {
+      name:'Death Mark', class:'RANGER', tier:3,
+      desc:'First hit on a full-HP enemy deals 3× damage. 20s cooldown.',
+      maxRank:3, icon:'💀',
+      requires: ['SHADOW_STEP:1', 'TRAPPER:2'],
+      effect:(p,r)=>{ p._deathMarkRanks = r; p._deathMarkCD = 0; },
+    },
   },
 
   BOSS_TYPES: {

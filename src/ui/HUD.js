@@ -346,64 +346,127 @@ function injectCSS() {
     .hud-panel ::-webkit-scrollbar-track  { background:#111; }
     .hud-panel ::-webkit-scrollbar-thumb  { background:#333; border-radius:3px; }
 
-    /* ── Mobile touch controls ── */
+    /* ══════════════════════════════════════════════════════
+       MOBILE UI — Complete redesign v0.6
+       Layout:
+         Left  : large joystick (bottom-left quadrant)
+         Right : 2×2 ability grid (bottom-right)
+         Right : 3 core action buttons in arc above ability grid
+         Top-right: quick-access menu strip (map, inv, quests, stat)
+       ══════════════════════════════════════════════════════ */
     #mobile-joystick {
       position: fixed;
-      width: 120px; height: 120px;
+      width: 150px; height: 150px;
       border-radius: 50%;
-      border: 2px solid rgba(212,175,55,0.45);
-      background: rgba(255,255,255,0.06);
+      border: 2px solid rgba(212,175,55,0.35);
+      background: rgba(255,255,255,0.04);
       pointer-events: none;
       display: none;
       z-index: 92;
       transform: translate(-50%, -50%);
+      box-shadow: 0 0 20px rgba(0,0,0,0.4), inset 0 0 30px rgba(0,0,0,0.3);
     }
     #mobile-joystick-knob {
       position: absolute;
-      width: 44px; height: 44px;
+      width: 52px; height: 52px;
       border-radius: 50%;
-      background: rgba(212,175,55,0.5);
-      border: 2px solid rgba(212,175,55,0.8);
+      background: radial-gradient(circle at 35% 35%, rgba(212,175,55,0.7), rgba(150,120,30,0.5));
+      border: 2px solid rgba(212,175,55,0.9);
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       pointer-events: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
     }
-    #mobile-buttons {
+
+    /* ── Core action buttons (right side arc) ── */
+    #mobile-action-arc {
       position: fixed;
-      bottom: 220px; right: 14px;
+      bottom: 180px; right: 20px;
       display: none;
       flex-direction: column;
-      align-items: center;
       gap: 10px;
+      z-index: 96;
       pointer-events: none;
-      z-index: 95;
+      align-items: flex-end;
     }
+
+    /* ── Ability grid (2×2, bottom right) ── */
+    #mobile-ability-grid {
+      position: fixed;
+      bottom: 20px; right: 20px;
+      display: none;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      z-index: 96;
+      pointer-events: none;
+    }
+
+    /* ── Quick menu strip (top right) ── */
+    #mobile-quick-menu {
+      position: fixed;
+      top: 12px; right: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 97;
+      pointer-events: none;
+    }
+
+    /* ── Base button style ── */
     .mobile-btn {
-      width: 56px; height: 56px;
       border-radius: 50%;
-      background: rgba(8,8,20,0.88);
-      border: 2px solid rgba(212,175,55,0.6);
+      background: rgba(6,6,18,0.90);
+      border: 1.5px solid rgba(212,175,55,0.55);
       color: ${THEME.gold};
-      font-size: 22px;
       display: flex; align-items: center; justify-content: center;
       cursor: pointer;
       pointer-events: auto;
       user-select: none;
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+      box-shadow: 0 3px 12px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05);
       flex-shrink: 0;
+      transition: background 0.1s, transform 0.1s;
+      font-size: 20px;
+      width: 58px; height: 58px;
     }
-    .mobile-btn:active { background: rgba(212,175,55,0.22); transform: scale(0.93); }
-    #mobile-btn-label {
-      font-size: 8px; color: rgba(212,175,55,0.5);
-      pointer-events: none; letter-spacing: 0.05em;
-      text-align: center; margin-top: -4px;
+    .mobile-btn.large { width: 64px; height: 64px; font-size: 24px; }
+    .mobile-btn.small { width: 44px; height: 44px; font-size: 16px; }
+    .mobile-btn.ability {
+      width: 60px; height: 60px; border-radius: 10px;
+      flex-direction: column; gap: 0; font-size: 22px;
+      border-color: rgba(100,120,180,0.55);
+      position: relative;
     }
-    /* Show mobile controls only on touch devices */
+    .mobile-btn:active { background: rgba(212,175,55,0.18); transform: scale(0.90); }
+    .mobile-btn.attack-btn {
+      border-color: rgba(255,80,50,0.7);
+      background: rgba(20,4,4,0.92);
+      width: 70px; height: 70px; font-size: 26px;
+    }
+    .mobile-btn.attack-btn:active { background: rgba(255,80,50,0.25); }
+
+    /* ── Mobile cooldown overlay ── */
+    .mob-cd {
+      position:absolute; inset:0; background:rgba(0,0,0,0.72);
+      border-radius:9px; display:none; align-items:center; justify-content:center;
+      font-size:12px; font-weight:bold; color:#fff;
+      font-family:'Courier New',monospace; pointer-events:none;
+    }
+    .mob-ability-name {
+      font-size:7px; color:rgba(180,200,255,0.7); letter-spacing:0.5px;
+      line-height:1; margin-top:1px; text-align:center; pointer-events:none;
+    }
+
+    /* ── Only show on touch devices ── */
     @media (hover: none) and (pointer: coarse) {
-      #mobile-buttons { display: flex; }
+      #mobile-action-arc  { display: flex; }
+      #mobile-ability-grid { display: grid; }
+      #mobile-quick-menu   { display: flex; }
     }
+
+    /* Legacy selector kept for joystick show/hide logic */
+    #mobile-buttons { display: none; }
   `;
   document.head.appendChild(style);
 }
@@ -1291,19 +1354,42 @@ export class HUD {
   // ── Skill tree ────────────────────────────────────────────────────────────────
 
   _buildSkillTree() {
-    const overlay = this._el('div', 'hud-fullscreen', document.body);
+    const overlay = document.createElement('div');
     overlay.id = 'hud-skills';
-    overlay.style.display = 'none';
-
-    const closeBtn = this._el('button', 'fs-close', overlay);
-    closeBtn.textContent = '✕';
-    closeBtn.onclick = () => this.toggleSkillTree();
-
-    const title = this._el('div', 'fs-title', overlay);
-    title.textContent = '// SKILL TREE';
-
-    this._skillBody = this._el('div', 'skill-grid', overlay);
+    overlay.style.cssText = `
+      display:none; position:fixed; inset:0;
+      background:rgba(4,4,12,0.97); z-index:7800;
+      flex-direction:column; font-family:'Courier New',monospace;
+      overflow:hidden;
+    `;
+    document.body.appendChild(overlay);
     this._skillOverlay = overlay;
+
+    // Header
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #223;flex-shrink:0;';
+    overlay.appendChild(header);
+
+    this._skillTitle = document.createElement('div');
+    this._skillTitle.style.cssText = 'color:#d4af37;font-size:15px;letter-spacing:2px;';
+    this._skillTitle.textContent = '// SKILL TREE';
+    header.appendChild(this._skillTitle);
+
+    this._skillPointsEl = document.createElement('div');
+    this._skillPointsEl.style.cssText = 'color:#aaddff;font-size:12px;';
+    header.appendChild(this._skillPointsEl);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕ (K)';
+    closeBtn.style.cssText = 'background:none;border:1px solid #334;color:#aaa;border-radius:3px;padding:3px 10px;cursor:pointer;font-family:inherit;font-size:11px;';
+    closeBtn.onclick = () => this.toggleSkillTree();
+    header.appendChild(closeBtn);
+
+    // Tier labels + scroll body
+    const body = document.createElement('div');
+    body.style.cssText = 'flex:1;overflow-y:auto;padding:16px 20px;';
+    overlay.appendChild(body);
+    this._skillBody = body;
   }
 
   toggleSkillTree(player) {
@@ -1316,38 +1402,195 @@ export class HUD {
   _renderSkills() {
     if (!this._player || !this._skillBody) return;
     this._skillBody.innerHTML = '';
-    const playerClass = this._player.playerClass;
-    const classSkills = playerClass ? (CONFIG.CLASSES[playerClass]?.skills || []) : [];
 
-    Object.entries(CONFIG.SKILLS).forEach(([key, sk]) => {
-      const card    = this._el('div', 'skill-card', this._skillBody);
-      const ownCls  = classSkills.includes(key);
-      if (ownCls) card.classList.add('own-class');
+    const p          = this._player;
+    const cls        = p.playerClass ?? 'WARRIOR';
+    const classSkills= CONFIG.CLASSES[cls]?.skills ?? [];
+    const sp         = p.stats?.skillPoints ?? 0;
+    const clsColors  = { WARRIOR:'#ff6633', MAGE:'#cc44ff', RANGER:'#44cc88' };
+    const clsColor   = clsColors[cls] ?? '#d4af37';
 
-      const nm = this._el('div', 'sk-name', card);
-      nm.textContent = sk.name;
-      const dc = this._el('div', 'sk-desc', card);
-      dc.textContent = sk.desc;
+    // Update header
+    if (this._skillTitle) this._skillTitle.textContent = `// ${cls} SKILL TREE`;
+    if (this._skillPointsEl) {
+      this._skillPointsEl.innerHTML =
+        `<span style="color:#667;">Skill Points: </span>` +
+        `<span style="color:#aaddff;font-weight:bold;">${sp}</span>`;
+    }
 
-      const ranks     = this._el('div', 'sk-ranks', card);
-      const curRank   = this._player.skills?.[key] || 0;
-      for (let r = 0; r < sk.maxRank; r++) {
-        const pip = this._el('div', 'sk-pip', ranks);
-        if (r < curRank) pip.classList.add('on');
+    // Helper: check if prereqs are met
+    const prereqsMet = (key) => {
+      const sk = CONFIG.SKILLS[key];
+      if (!sk?.requires?.length) return true;
+      return sk.requires.every(req => {
+        const [rKey, rRank] = req.split(':');
+        return (p.skills?.[rKey] ?? 0) >= parseInt(rRank ?? 1);
+      });
+    };
+
+    const canAfford = (key) => {
+      const rank = (p.skills?.[key] ?? 0) + 1;
+      const cost = CONFIG.SKILL_POINT_COST?.[rank] ?? rank;
+      return sp >= cost;
+    };
+
+    // Render skills by tier
+    for (const tier of [1, 2, 3]) {
+      const tierNames = { 1:'FOUNDATION', 2:'ADVANCED', 3:'MASTERY' };
+      const tierColors= { 1:'#667788', 2:'#8899aa', 3:clsColor };
+
+      // Tier separator
+      const sep = document.createElement('div');
+      sep.style.cssText = `
+        display:flex; align-items:center; gap:12px; margin:${tier===1?'0':'24px'} 0 14px;
+      `;
+      const line1 = document.createElement('div');
+      line1.style.cssText = 'flex:1;height:1px;background:#223;';
+      const tierLabel = document.createElement('div');
+      tierLabel.style.cssText = `font-size:9px;color:${tierColors[tier]};letter-spacing:3px;white-space:nowrap;`;
+      tierLabel.textContent = `TIER ${tier} — ${tierNames[tier]}`;
+      const line2 = document.createElement('div');
+      line2.style.cssText = 'flex:1;height:1px;background:#223;';
+      sep.appendChild(line1); sep.appendChild(tierLabel); sep.appendChild(line2);
+      this._skillBody.appendChild(sep);
+
+      // Skills grid for this tier
+      const grid = document.createElement('div');
+      grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;';
+      this._skillBody.appendChild(grid);
+
+      const tierSkills = classSkills
+        .filter(key => CONFIG.SKILLS[key]?.tier === tier);
+
+      if (!tierSkills.length) {
+        const none = document.createElement('div');
+        none.style.cssText = 'color:#334;font-size:10px;padding:8px 0;';
+        none.textContent = '— locked —';
+        grid.appendChild(none);
+        continue;
       }
 
-      const btn = this._el('button', 'skill-learn', card);
-      btn.textContent = curRank >= sk.maxRank ? 'MAX' : 'Learn (Lv.' + (curRank + 1) * 3 + ')';
-      const canLearn  = ownCls && curRank < sk.maxRank &&
-                        (this._player.stats?.level || 1) >= (curRank + 1) * 3;
-      btn.disabled    = !canLearn;
-      btn.onclick = () => {
-        if (this._player.learnSkill(key)) {
-          this._renderSkills();
-          this.logMsg('Learned: ' + sk.name, '#aaddff');
+      tierSkills.forEach(key => {
+        const sk      = CONFIG.SKILLS[key];
+        if (!sk) return;
+        const curRank = p.skills?.[key] ?? 0;
+        const maxed   = curRank >= sk.maxRank;
+        const met     = prereqsMet(key);
+        const afford  = canAfford(key);
+        const nextCost= CONFIG.SKILL_POINT_COST?.[curRank + 1] ?? (curRank + 1);
+
+        // Card
+        const card = document.createElement('div');
+        const locked = !met;
+        card.style.cssText = `
+          background:${locked ? 'rgba(10,10,20,0.5)' : 'rgba(14,14,28,0.9)'};
+          border:1px solid ${maxed ? clsColor : met ? '#334' : '#1a1a2a'};
+          border-radius:6px; padding:12px 14px;
+          opacity:${locked ? '0.5' : '1'};
+          transition:border-color 0.2s;
+          position:relative; overflow:hidden;
+        `;
+
+        // Maxed shimmer
+        if (maxed) {
+          card.style.boxShadow = `0 0 12px ${clsColor}44`;
         }
-      };
-    });
+
+        // Icon + name row
+        const nameRow = document.createElement('div');
+        nameRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
+        nameRow.innerHTML = `
+          <span style="font-size:18px;">${sk.icon ?? '?'}</span>
+          <span style="color:${maxed ? clsColor : met ? '#ccc' : '#556'};font-size:12px;font-weight:bold;">${sk.name}</span>
+          ${maxed ? `<span style="font-size:9px;color:${clsColor};margin-left:auto;">MAX</span>` : ''}
+        `;
+        card.appendChild(nameRow);
+
+        // Description
+        const desc = document.createElement('div');
+        desc.style.cssText = 'font-size:10px;color:#889;line-height:1.5;margin-bottom:8px;';
+        desc.textContent = sk.desc;
+        card.appendChild(desc);
+
+        // Rank pips
+        const pipsRow = document.createElement('div');
+        pipsRow.style.cssText = 'display:flex;gap:4px;margin-bottom:8px;align-items:center;';
+        for (let r = 0; r < sk.maxRank; r++) {
+          const pip = document.createElement('div');
+          const filled = r < curRank;
+          pip.style.cssText = `
+            width:${Math.min(24, Math.floor(160/sk.maxRank))}px; height:6px;
+            border-radius:2px; flex:1; max-width:28px;
+            background:${filled ? clsColor : '#223'};
+            border:1px solid ${filled ? clsColor : '#334'};
+            transition:background 0.2s;
+          `;
+          pipsRow.appendChild(pip);
+        }
+        const rankText = document.createElement('span');
+        rankText.style.cssText = 'font-size:9px;color:#556;margin-left:6px;';
+        rankText.textContent = `${curRank}/${sk.maxRank}`;
+        pipsRow.appendChild(rankText);
+        card.appendChild(pipsRow);
+
+        // Prerequisites display
+        if (sk.requires?.length) {
+          const reqDiv = document.createElement('div');
+          reqDiv.style.cssText = 'font-size:9px;color:#445;margin-bottom:7px;';
+          reqDiv.textContent = 'Requires: ' + sk.requires.map(r => {
+            const [rk, rr] = r.split(':');
+            const have = p.skills?.[rk] ?? 0;
+            const need = parseInt(rr ?? 1);
+            const done = have >= need;
+            return `<span style="color:${done ? '#44aa44' : '#aa4444'}">${CONFIG.SKILLS[rk]?.name ?? rk} ${rr ? 'Rank '+rr : ''}</span>`;
+          }).join(', ');
+          reqDiv.innerHTML = 'Requires: ' + sk.requires.map(r => {
+            const [rk, rr] = r.split(':');
+            const have = p.skills?.[rk] ?? 0;
+            const need = parseInt(rr ?? 1);
+            const done = have >= need;
+            return `<span style="color:${done?'#44cc44':'#cc4444'}">${CONFIG.SKILLS[rk]?.name??rk}${rr?' Rk'+rr:''}</span>`;
+          }).join(' · ');
+          card.appendChild(reqDiv);
+        }
+
+        // Learn button
+        if (!maxed) {
+          const btn = document.createElement('button');
+          const canLearn = met && afford && !maxed;
+          btn.style.cssText = `
+            width:100%; padding:6px; border-radius:4px; cursor:${canLearn?'pointer':'not-allowed'};
+            font-family:'Courier New',monospace; font-size:10px; letter-spacing:1px;
+            background:${canLearn ? clsColor+'22' : 'transparent'};
+            border:1px solid ${canLearn ? clsColor : '#334'};
+            color:${canLearn ? clsColor : '#445'};
+            transition:all 0.15s;
+          `;
+          if (!met) btn.textContent = '🔒 Locked';
+          else if (!afford) btn.textContent = `⚠ Need ${nextCost} SP (have ${sp})`;
+          else btn.textContent = `▲ Rank ${curRank+1}  [${nextCost} SP]`;
+
+          btn.onclick = () => {
+            if (!canLearn) return;
+            if (p.learnSkill(key)) {
+              this._renderSkills();
+              this.logMsg(`✓ ${sk.name} → Rank ${(p.skills?.[key]??0)}`, clsColor);
+            }
+          };
+          card.appendChild(btn);
+        }
+
+        grid.appendChild(card);
+      });
+    }
+
+    // Unspent SP warning
+    if (sp > 0) {
+      const warn = document.createElement('div');
+      warn.style.cssText = 'text-align:center;padding:16px;color:#aaddff;font-size:11px;margin-top:8px;';
+      warn.textContent = `You have ${sp} unspent skill point${sp!==1?'s':''}!`;
+      this._skillBody.appendChild(warn);
+    }
   }
 
   // ── Act banner ────────────────────────────────────────────────────────────────
@@ -1745,13 +1988,13 @@ export class HUD {
       slots.forEach((data, i) => {
         const btn = this._mobileAbilityBtns[i];
         if (!btn) return;
-        // Set icon (without cd overlay child)
-        const icon = data.icon ?? '?';
-        btn.childNodes[0]?.nodeType === 3
-          ? (btn.childNodes[0].textContent = icon)
-          : btn.insertBefore(document.createTextNode(icon), btn.firstChild);
-        btn.style.borderColor = data.ready ? (data.color ?? '#334') : '#223';
+        if (btn._iconEl) btn._iconEl.textContent = data.icon ?? '?';
+        if (btn._nameEl) btn._nameEl.textContent = data.name?.slice(0,8) ?? '';
+        btn.style.borderColor = data.ready ? (data.color ?? '#334') : '#334';
         btn.style.color = data.color ?? '#aaa';
+        btn.style.boxShadow = data.ready && data.color
+          ? `0 0 8px ${data.color}55, inset 0 1px 0 rgba(255,255,255,0.05)`
+          : 'inset 0 1px 0 rgba(255,255,255,0.05)';
         const cd = btn._cdOverlay;
         if (cd) {
           cd.style.display = !data.ready && data.cdLeft > 0 ? 'flex' : 'none';
@@ -2179,10 +2422,10 @@ export class HUD {
     `;
   }
 
-  // ── Mobile touch controls ─────────────────────────────────────────────────────
+  // ── Mobile touch controls — v0.6 complete overhaul ─────────────────────────
 
   _buildMobileControls() {
-    // Floating joystick visual — positioned dynamically in update()
+    // ── Floating joystick (positioned dynamically in update()) ───────────────
     const joystickBase = document.createElement('div');
     joystickBase.id = 'mobile-joystick';
     const joystickKnob = document.createElement('div');
@@ -2192,89 +2435,107 @@ export class HUD {
     this._joystickBaseEl = joystickBase;
     this._joystickKnobEl = joystickKnob;
 
-    // Action button container (always in DOM; CSS shows only on touch devices)
-    const buttons = document.createElement('div');
-    buttons.id = 'mobile-buttons';
+    // Legacy empty div so old CSS selector still matches
+    const legacyDiv = document.createElement('div');
+    legacyDiv.id = 'mobile-buttons';
+    document.body.appendChild(legacyDiv);
+    this._mobileButtonsEl = legacyDiv;
 
-    // ── Attack nearest enemy button ──
-    const btnAttack = this._el('button', 'mobile-btn', buttons);
-    btnAttack.id = 'mobile-btn-attack';
-    btnAttack.title = 'Attack Nearest Enemy';
+    // ── Quick menu strip (top-right) ─────────────────────────────────────────
+    const quickMenu = document.createElement('div');
+    quickMenu.id = 'mobile-quick-menu';
+
+    const quickBtns = [
+      { icon:'🗺', label:'Map',    action:()=> this.toggleMap() },
+      { icon:'📦', label:'Inv',    action:()=> this.toggleInventory(this._player) },
+      { icon:'📜', label:'Quests', action:()=> this.toggleQuests() },
+      { icon:'⚙',  label:'Stats',  action:()=> this.toggleStatScreen() },
+      { icon:'📖', label:'Codex',  action:()=> this.toggleCodex() },
+    ];
+    quickBtns.forEach(({ icon, label, action }) => {
+      const btn = document.createElement('button');
+      btn.className = 'mobile-btn small';
+      btn.title = label;
+      btn.innerHTML = `<span style="font-size:15px;">${icon}</span>`;
+      btn.addEventListener('touchstart', action, { passive: true });
+      btn.addEventListener('click', action);
+      quickMenu.appendChild(btn);
+    });
+    document.body.appendChild(quickMenu);
+
+    // ── Core action arc (right side, above ability grid) ─────────────────────
+    const actionArc = document.createElement('div');
+    actionArc.id = 'mobile-action-arc';
+
+    // ATTACK — largest, most prominent
+    const btnAttack = document.createElement('button');
+    btnAttack.className = 'mobile-btn attack-btn';
+    btnAttack.title = 'Attack (nearest enemy)';
     btnAttack.textContent = '⚔';
-    btnAttack.addEventListener('touchstart', () => {
-      this._mobileAttack();
-    }, { passive: true });
+    btnAttack.addEventListener('touchstart', () => this._mobileAttack(), { passive: true });
     btnAttack.addEventListener('click', () => this._mobileAttack());
+    actionArc.appendChild(btnAttack);
 
-    // ── Interact / E-key button ──
-    const btnInteract = this._el('button', 'mobile-btn', buttons);
-    btnInteract.id = 'mobile-btn-interact';
+    // INTERACT
+    const btnInteract = document.createElement('button');
+    btnInteract.className = 'mobile-btn';
     btnInteract.title = 'Interact (E)';
     btnInteract.textContent = '💬';
-    const _fireE = () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', bubbles: true }));
-      setTimeout(
-        () => window.dispatchEvent(new KeyboardEvent('keyup', { key: 'e', bubbles: true })),
-        60,
-      );
-    };
-    btnInteract.addEventListener('touchstart', _fireE, { passive: true });
-    btnInteract.addEventListener('click', _fireE);
+    const fireE = () => window.dispatchEvent(new KeyboardEvent('keydown', { key:'e', bubbles:true }));
+    btnInteract.addEventListener('touchstart', fireE, { passive: true });
+    btnInteract.addEventListener('click', fireE);
+    actionArc.appendChild(btnInteract);
 
-    // ── Inventory button ──
-    const btnInv = this._el('button', 'mobile-btn', buttons);
-    btnInv.id = 'mobile-btn-inventory';
-    btnInv.title = 'Inventory (I)';
-    btnInv.textContent = '📦';
-    const _fireInv = () => this.toggleInventory(this._player);
-    btnInv.addEventListener('touchstart', _fireInv, { passive: true });
-    btnInv.addEventListener('click', _fireInv);
+    // SKILL TREE toggle
+    const btnSkills = document.createElement('button');
+    btnSkills.className = 'mobile-btn small';
+    btnSkills.title = 'Skill Tree (K)';
+    btnSkills.textContent = '⚡';
+    const fireK = () => this.toggleSkillTree(this._player);
+    btnSkills.addEventListener('touchstart', fireK, { passive: true });
+    btnSkills.addEventListener('click', fireK);
+    actionArc.appendChild(btnSkills);
 
-    document.body.appendChild(buttons);
-    this._mobileButtonsEl = buttons;
+    document.body.appendChild(actionArc);
 
-    // ── v0.6: Mobile ability buttons (1-4) ──────────────────────────────────
-    const abilityRow = document.createElement('div');
-    abilityRow.id = 'mobile-ability-row';
-    abilityRow.style.cssText = `
-      position:fixed; bottom:90px; right:12px;
-      display:flex; flex-direction:column; gap:5px; z-index:4100;
-    `;
+    // ── Ability grid (2×2, bottom right) ─────────────────────────────────────
+    const abilityGrid = document.createElement('div');
+    abilityGrid.id = 'mobile-ability-grid';
 
     this._mobileAbilityBtns = [];
+    const abilityLabels = ['1','2','3','4'];
     for (let i = 0; i < 4; i++) {
       const btn = document.createElement('button');
-      btn.className = 'mobile-btn';
-      btn.style.cssText += `
-        width:52px; height:52px; font-size:18px; position:relative;
-        border:1px solid #334; background:rgba(8,8,18,0.88);
-      `;
-      btn.textContent = '—';
+      btn.className = 'mobile-btn ability';
       btn.dataset.slot = i;
 
-      // Cooldown overlay
-      const cd = document.createElement('div');
-      cd.style.cssText = `
-        position:absolute;inset:0;background:rgba(0,0,0,0.65);
-        border-radius:5px;display:none;align-items:center;justify-content:center;
-        font-size:11px;color:#fff;font-family:'Courier New',monospace;pointer-events:none;
-      `;
-      btn.appendChild(cd);
-      btn._cdOverlay = cd;
+      const iconEl = document.createElement('div');
+      iconEl.style.cssText = 'font-size:22px;line-height:1;pointer-events:none;';
+      iconEl.textContent = '—';
+      btn.appendChild(iconEl);
 
-      const fireAbility = () => {
-        const key = String(i + 1);
-        window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
-      };
-      btn.addEventListener('touchstart', fireAbility, { passive: true });
-      btn.addEventListener('click', fireAbility);
+      const nameEl = document.createElement('div');
+      nameEl.className = 'mob-ability-name';
+      nameEl.textContent = abilityLabels[i];
+      btn.appendChild(nameEl);
 
-      abilityRow.appendChild(btn);
+      const cdOverlay = document.createElement('div');
+      cdOverlay.className = 'mob-cd';
+      btn.appendChild(cdOverlay);
+      btn._cdOverlay  = cdOverlay;
+      btn._iconEl     = iconEl;
+      btn._nameEl     = nameEl;
+
+      const fire = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: String(i+1), bubbles:true }));
+      btn.addEventListener('touchstart', fire, { passive: true });
+      btn.addEventListener('click', fire);
+
+      abilityGrid.appendChild(btn);
       this._mobileAbilityBtns.push(btn);
     }
+    document.body.appendChild(abilityGrid);
 
-    document.body.appendChild(abilityRow);
-    this._mobileEls = [joystickBase, buttons, abilityRow];
+    this._mobileEls = [joystickBase, legacyDiv, quickMenu, actionArc, abilityGrid];
   }
 
   /** Target and move toward the nearest living enemy within range. */
