@@ -564,8 +564,7 @@ export class GameScene {
     this.worldBossSystem.setPlayer(this.player);
     this.worldBossSystem.setPlayerLevel(this.player.stats.level);
 
-    // Init abilities now that class is set (pass scene ref for AoE targeting)
-    this.abilitySystem.init(this.player, this);
+
 
     // Torch light — warm point-light that follows the player.
     // Provides local illumination so nights are navigable without making
@@ -637,6 +636,7 @@ export class GameScene {
 
     // v0.6 — Ability system
     this.abilitySystem = new AbilitySystem(this.eventBus);
+    this.abilitySystem.init(this.player, this);
 
     // v0.6 — Points of Interest
     this.poiSystem = new PointsOfInterest(this.scene3d, this.camera.threeCamera, this.eventBus);
@@ -1488,9 +1488,6 @@ export class GameScene {
       this.player.position.y += (targetY - this.player.position.y) * Math.min(1, delta * 12);
       this.player.group.position.copy(this.player.position);
     }
-
-    // v0.6 — Ability system
-    this.abilitySystem = new AbilitySystem(this.eventBus);
 
     // v0.6 — Ability system (mana regen + cooldown ticks)
     this.abilitySystem?.update(delta);
