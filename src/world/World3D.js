@@ -199,6 +199,12 @@ export class World3D {
     return computeTopY(tileId, elev);
   }
 
+  /** Alias for getHeightAt — used by GameScene, Player3D, Enemy3D. */
+  getGroundY(tx, tz) { return this.getHeightAt(tx, tz); }
+
+  /** World-space coords version. */
+  getGroundYWorld(wx, wz) { return this.getHeightAt(Math.floor(wx), Math.floor(wz)); }
+
   isBlocked(tx, tz) {
     if (tx < 0 || tz < 0 || tx >= this._mapW || tz >= this._mapH) return true;
     return CONFIG.BLOCKED_TILES.includes(this._mapData[tz]?.[tx]);

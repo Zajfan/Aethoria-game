@@ -514,11 +514,11 @@ export class GameScene {
     // v0.5: WorldGen now returns { data, elevMap }
     const worldResult = gen.generate(MAP_W, MAP_H);
     this.mapData = worldResult.data ?? worldResult;   // backward compat
-    this._elevMap = worldResult.elevMap ?? null;  // { tiles, heightmap }
+    this._elevMap = worldResult.elevMap ?? null;
 
     // 3. Build 3D world
     this.world3d = new World3D(this.scene3d);
-    this.world3d.build(worldResult);  // accepts {tiles,heightmap} from v0.5 WorldGen
+    this.world3d.build(worldResult);  // { data, elevMap } from WorldGen
     const cx = Math.floor(MAP_W / 2);
     const cz = Math.floor(MAP_H / 2);
     this.world3d.updateVisibleChunks(cx, cz);
