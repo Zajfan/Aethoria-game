@@ -64,6 +64,7 @@ async function startGame(savedPlayerData) {
 
   hud = new HUD(eventBus, scene.questSystem, scene.tradeSystem);
   hud.bindGame(scene);
+  scene.hud = hud;
 
   if (!running) { running = true; loop(); }
   await fadeTo(0, 600);
