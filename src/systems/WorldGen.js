@@ -134,9 +134,10 @@ export class WorldGen {
     const sx = Math.floor(W * 0.28);
     const sz = Math.floor(H * 0.78);
     return [
-      { x: sx-3, y: sz-3 },   // Captain Redd
-      { x: sx+3, y: sz-2 },   // Sister Vashe
-      { x: sx,   y: sz+4 },   // Old Brennan
+      { x: sx-3, y: sz-3 },   // NPC idx 5 — Sister Vashe
+      { x: sx+3, y: sz-2 },   // NPC idx 6 — Master Theron
+      { x: sx,   y: sz+4 },   // NPC idx 7 — Aldric
+      { x: sx+5, y: sz+2 },   // NPC idx 8 — High Priestess Solara
     ];
   }
 

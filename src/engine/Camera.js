@@ -17,7 +17,6 @@
  */
 
 import { THREE, getRenderer } from './Renderer.js';
-import { Keys } from './InputManager.js';
 
 // ---------------------------------------------------------------------------
 // Tuning constants
@@ -26,10 +25,10 @@ const DEFAULT_ZOOM      = 20;     // initial distance from target
 const MIN_ZOOM          = 8;      // closest the camera can get
 const MAX_ZOOM          = 30;     // furthest the camera can get
 const ZOOM_SPEED        = 0.015;  // wheel units → zoom units
-const ROTATE_SPEED      = 1.8;    // radians per second for Q/E keys
 const PITCH_DEGREES     = 52;     // fixed vertical angle (degrees)
 const LERP_FACTOR       = 0.06;   // camera smoothing (0 = no movement, 1 = instant)
 const INITIAL_YAW       = 0;      // starting horizontal angle (radians)
+const MOUSE_ROTATE_SPEED = 0.008; // radians per pixel for RMB drag rotation
 
 // ---------------------------------------------------------------------------
 // Camera class
@@ -88,12 +87,10 @@ class Camera {
    * @param {import('./InputManager.js').InputManager} input
    */
   update(delta, input) {
-    // --- Yaw rotation (Q / E keys or touch right-drag) -------------------
-    if (input.isHeld(Keys.Q)) {
-      this.yaw -= ROTATE_SPEED * delta;
-    }
-    if (input.isHeld(Keys.E)) {
-      this.yaw += ROTATE_SPEED * delta;
+    // --- Yaw rotation: right-mouse drag (desktop) or touch right-drag (mobile) ---
+    if (input.mouseRightDragDelta.x !== 0) {
+      // Drag left → rotate left (negative x drag = camera turns left)
+      this.yaw -= input.mouseRightDragDelta.x * MOUSE_ROTATE_SPEED;
     }
     // Touch-based camera rotation (right-side drag on mobile)
     if (input.touchCameraYawDelta !== 0) {

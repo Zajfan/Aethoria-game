@@ -155,8 +155,6 @@ export class QuestSystem {
 
   onKill(enemyName) {
     this._progress('KILL', enemyName.toLowerCase());
-    // Emit for faction system wiring
-    this.scene.events.emit('enemyKilled', { typeKey: enemyName.toUpperCase() });
   }
 
   onCollect(itemKey) {

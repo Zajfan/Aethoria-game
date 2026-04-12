@@ -57,6 +57,22 @@ export class InputManager {
     /** Whether the pointer is locked (for future FPS-style modes) */
     this.isPointerLocked = false;
 
+    // ---- Right-mouse-button drag (camera rotation) -----------------------
+    /**
+     * Per-frame mouse delta while RMB is held and dragging.
+     * Camera.js uses .x to rotate yaw. Reset each update().
+     */
+    this.mouseRightDragDelta = { x: 0, y: 0 };
+    /**
+     * True for exactly one frame after RMB is released WITHOUT a drag
+     * (i.e. it was a quick tap → click-to-move).
+     */
+    this.rmbWasClick = false;
+    /** Pixels mouse must move before RMB press becomes a "drag" instead of a click. */
+    this.rmbDragThreshold = 5;
+    this._rmbStartPos   = null; // {x,y} when RMB was pressed
+    this._rmbDragging   = false;
+
     // ---- Touch / Virtual joystick ----------------------------------------
     /**
      * Virtual joystick axis values in [-1, 1].
@@ -171,6 +187,9 @@ export class InputManager {
     this.mouseReleased.clear();
     this.wheelDelta = 0;
     this.touchCameraYawDelta = 0;
+    this.mouseRightDragDelta.x = 0;
+    this.mouseRightDragDelta.y = 0;
+    this.rmbWasClick = false;
   }
 
   // -------------------------------------------------------------------------
@@ -268,6 +287,8 @@ export class InputManager {
   // -------------------------------------------------------------------------
 
   _onMouseMove(e) {
+    const prevX = this.mouse.x;
+    const prevY = this.mouse.y;
     this.mouse.x = e.clientX;
     this.mouse.y = e.clientY;
 
@@ -276,6 +297,20 @@ export class InputManager {
       this.mouseNDC.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
       this.mouseNDC.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
     }
+
+    // RMB drag → camera rotation
+    if (this.mouseButtons.has(2) && this._rmbStartPos) {
+      const totalDx = e.clientX - this._rmbStartPos.x;
+      const totalDy = e.clientY - this._rmbStartPos.y;
+      if (!this._rmbDragging && Math.hypot(totalDx, totalDy) > this.rmbDragThreshold) {
+        this._rmbDragging = true;
+        if (this._canvas) this._canvas.style.cursor = 'grabbing';
+      }
+      if (this._rmbDragging) {
+        this.mouseRightDragDelta.x += e.clientX - prevX;
+        this.mouseRightDragDelta.y += e.clientY - prevY;
+      }
+    }
   }
 
   _onMouseDown(e) {
@@ -283,11 +318,24 @@ export class InputManager {
       this.mousePressed.add(e.button);
     }
     this.mouseButtons.add(e.button);
+    if (e.button === 2) {
+      this._rmbStartPos = { x: e.clientX, y: e.clientY };
+      this._rmbDragging = false;
+    }
   }
 
   _onMouseUp(e) {
     this.mouseButtons.delete(e.button);
     this.mouseReleased.add(e.button);
+    if (e.button === 2) {
+      if (!this._rmbDragging) {
+        // Short tap without drag → treat as click-to-move
+        this.rmbWasClick = true;
+      }
+      this._rmbStartPos = null;
+      this._rmbDragging = false;
+      if (this._canvas) this._canvas.style.cursor = '';
+    }
   }
 
   _onWheel(e) {

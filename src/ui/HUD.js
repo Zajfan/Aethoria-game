@@ -341,6 +341,47 @@ function injectCSS() {
     }
     .trade-btn:hover { background:#1a1500; }
 
+    /* ── Gathering panel ── */
+    #hud-gathering { display:none; }
+    .gather-skill-row {
+      display:flex; align-items:center; gap:10px;
+      padding:8px 4px; border-bottom:1px solid #1a1a22;
+    }
+    .gather-skill-icon { font-size:18px; width:24px; text-align:center; flex-shrink:0; }
+    .gather-skill-info { flex:1; }
+    .gather-skill-name { font-size:11px; color:#aaccff; }
+    .gather-skill-xp   { font-size:9px; color:#666677; margin-top:2px; }
+    .gather-skill-bar  { height:5px; background:#1a1a22; border-radius:3px; overflow:hidden; margin-top:4px; }
+    .gather-skill-fill { height:100%; background:#33aa88; border-radius:3px; transition:width 0.2s; }
+    .gather-skill-lvl  { font-size:13px; color:${THEME.gold}; min-width:30px; text-align:right; flex-shrink:0; }
+
+    /* ── Slayer panel ── */
+    #hud-slayer { display:none; }
+    .slayer-task-box {
+      background:#0d0d18; border:1px solid #336; border-radius:4px;
+      padding:10px 14px; margin-bottom:14px;
+    }
+    .slayer-task-label { font-size:9px; color:${THEME.gold}; letter-spacing:2px; margin-bottom:4px; }
+    .slayer-task-name  { font-size:13px; color:#aaccff; }
+    .slayer-task-prog  { font-size:10px; color:#888899; margin-top:4px; }
+    .slayer-task-bar   { height:6px; background:#1a1a22; border-radius:3px; overflow:hidden; margin-top:6px; }
+    .slayer-task-fill  { height:100%; background:#ff8844; border-radius:3px; transition:width 0.2s; }
+    .slayer-pts        { font-size:12px; color:${THEME.gold}; margin-bottom:12px; }
+    .slayer-btn        {
+      padding:5px 14px; font-size:10px; cursor:pointer;
+      background:none; border:1px solid ${THEME.gold}; color:${THEME.gold};
+      border-radius:3px; font-family:${THEME.font}; margin-right:8px;
+    }
+    .slayer-btn:hover  { background:#1a1500; }
+    .slayer-btn.danger { border-color:#cc3333; color:#cc3333; }
+    .slayer-btn.danger:hover { background:#1a0000; }
+    .slayer-shop-row   {
+      display:flex; align-items:center; gap:10px;
+      padding:6px; border-bottom:1px solid #1a1a22;
+    }
+    .slayer-shop-name  { flex:1; font-size:11px; color:#ccccdd; }
+    .slayer-shop-cost  { font-size:10px; color:#ff8844; min-width:50px; text-align:right; }
+
     /* ── Scrollbars ── */
     .hud-panel ::-webkit-scrollbar        { width:5px; }
     .hud-panel ::-webkit-scrollbar-track  { background:#111; }
@@ -542,6 +583,18 @@ export class HUD {
   // ── Build panels ────────────────────────────────────────────────────────────
 
   _buildAll() {
+    // Hidden assertive live region — used for critical announcements
+    // (level-up, act change, achievement) that screen readers must interrupt for.
+    this._announcer = document.createElement('div');
+    this._announcer.setAttribute('aria-live', 'assertive');
+    this._announcer.setAttribute('aria-atomic', 'true');
+    this._announcer.setAttribute('aria-relevant', 'text');
+    Object.assign(this._announcer.style, {
+      position: 'absolute', width: '1px', height: '1px',
+      overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap',
+    });
+    document.body.appendChild(this._announcer);
+
     this._buildStats();
     this._buildAbilityBar();
     this._buildMinimap();
@@ -564,6 +617,8 @@ export class HUD {
     this._buildStatScreen();
     this._buildRegionBanner();
     this._buildScrollReader();
+    this._buildGatheringPanel();
+    this._buildSlayerPanel();
     this._buildMobileControls();
   }
 
@@ -579,6 +634,8 @@ export class HUD {
   _buildStats() {
     const panel = this._el('div', 'hud-panel', this._overlay);
     panel.id = 'hud-stats';
+    panel.setAttribute('role', 'region');
+    panel.setAttribute('aria-label', 'Player stats');
 
     const header = this._el('div', '', panel);
     this._statName  = this._el('div', 'stat-name',  header);
@@ -609,6 +666,12 @@ export class HUD {
     const lbl   = this._el('div', 'bar-label', wrap);
     lbl.textContent = label;
     const track = this._el('div', 'bar-track', wrap);
+    // role=meter + aria-label lets screen readers report the bar value
+    track.setAttribute('role', 'meter');
+    track.setAttribute('aria-label', label);
+    track.setAttribute('aria-valuemin', '0');
+    track.setAttribute('aria-valuenow', '100');
+    track.setAttribute('aria-valuemax', '100');
     const fill  = this._el('div', 'bar-fill', track);
     fill.id = fillId;
     fill.style.width = '100%';
@@ -630,11 +693,24 @@ export class HUD {
     this._hpFill.style.background =
       (s.hp / s.maxHp > 0.6) ? '#22aa44' :
       (s.hp / s.maxHp > 0.3) ? '#cc8800' : '#cc3333';
+    // Keep ARIA meter in sync for screen readers
+    const hpTrack = this._hpFill.parentElement;
+    if (hpTrack) {
+      hpTrack.setAttribute('aria-valuenow', Math.max(0, s.hp));
+      hpTrack.setAttribute('aria-valuemax', s.maxHp);
+      hpTrack.setAttribute('aria-label', `HP: ${s.hp} of ${s.maxHp}`);
+    }
 
     const hpNum = this._hpFill.parentElement?.nextElementSibling;
     if (hpNum) hpNum.textContent = s.hp + '/' + s.maxHp;
 
     this._xpFill.style.width = xpPct + '%';
+    const xpTrack = this._xpFill.parentElement;
+    if (xpTrack) {
+      xpTrack.setAttribute('aria-valuenow', s.xp);
+      xpTrack.setAttribute('aria-valuemax', s.xpNeeded);
+      xpTrack.setAttribute('aria-label', `XP: ${s.xp} of ${s.xpNeeded}`);
+    }
     const xpNum = this._xpFill.parentElement?.nextElementSibling;
     if (xpNum) xpNum.textContent = s.xp + '/' + s.xpNeeded;
 
@@ -654,6 +730,8 @@ export class HUD {
     this._mmCanvas.width  = 180;
     this._mmCanvas.height = 180;
     this._mmCanvas.style.cssText = 'width:180px;height:180px;';
+    this._mmCanvas.setAttribute('aria-label', 'Minimap — shows surrounding terrain and player position');
+    this._mmCanvas.setAttribute('role', 'img');
     this._mmCtx = this._mmCanvas.getContext('2d');
 
     this._el('div', '', panel).id = 'minimap-label';
@@ -794,7 +872,25 @@ export class HUD {
     const panel = this._el('div', 'hud-panel', this._overlay);
     panel.id = 'hud-log';
     panel.style.pointerEvents = 'none';
+    // ARIA live region: polite so screen readers announce messages without
+    // interrupting the user. aria-atomic=false lets them hear each new entry.
+    panel.setAttribute('role', 'log');
+    panel.setAttribute('aria-live', 'polite');
+    panel.setAttribute('aria-atomic', 'false');
+    panel.setAttribute('aria-label', 'Game log');
     this._logContainer = panel;
+  }
+
+  /**
+   * Announce text to screen readers via the assertive live region.
+   * Clears and re-sets the text so repeated identical messages still fire.
+   * @param {string} text
+   */
+  _announce(text) {
+    if (!this._announcer) return;
+    this._announcer.textContent = '';
+    // Microtask gap ensures the DOM mutation is observed as two separate changes
+    requestAnimationFrame(() => { this._announcer.textContent = text; });
   }
 
   /**
@@ -1104,7 +1200,9 @@ export class HUD {
     this._dlgNpcName.style.color  = col;
     this._dlgNpcRole.textContent  = '[' + nd.role + ']';
     this._dlgPortrait.textContent = { 'Village Elder':'🧙', 'Blacksmith':'⚒️',
-      'Herbalist':'🌿', 'Merchant':'🛒', 'Guard Captain':'⚔️' }[nd.role] || '🧑';
+      'Herbalist':'🌿', 'Merchant':'🛒', 'Guard Captain':'⚔️',
+      'Slayer Master':'⚔', 'Veilbound Mage':'🔮',
+      'Necromancer Outcast':'💀', 'Order of the Sealed Sun':'✝' }[nd.role] || '🧑';
     this._dlgPortrait.style.background = col + '22';
     this._dlgPortrait.style.borderColor = col;
 
@@ -1135,6 +1233,26 @@ export class HUD {
 
     // v0.6 — unlock NPC bio in codex
     this._codexSystem?.unlockNPC(nd.name);
+
+    // v0.5 — Slayer task: Theron assigns/reports tasks on open
+    if (nd.role === 'Slayer Master') {
+      const ss = this._gameScene?.slayerSystem;
+      if (ss) {
+        setTimeout(() => {
+          const task = ss.currentTask;
+          if (!task) {
+            const newTask = ss.requestTask(player);
+            if (newTask) {
+              this._dlgText.textContent +=
+                `\n\n[Task assigned: Kill ${newTask.count} ${newTask.targetLabel}. Worth ${newTask.pts} pts.]`;
+            }
+          } else {
+            this._dlgText.textContent +=
+              `\n\n[Active task: ${task.targetLabel} — ${task.progress}/${task.count} slain. Press X to view Slayer panel.]`;
+          }
+        }, 800);
+      }
+    }
 
     // Story flag
     if (nd.name === 'Elder Lyra') {
@@ -1622,6 +1740,7 @@ export class HUD {
       <div class="act-sub">${act.desc || ''}</div>
     `;
     this._actBanner.classList.add('show');
+    this._announce(`${act.name || 'New act'}: ${act.title || ''}`);
     clearTimeout(this._actBannerTimer);
     this._actBannerTimer = setTimeout(() => {
       this._actBanner.classList.remove('show');
@@ -1672,6 +1791,7 @@ export class HUD {
     `;
 
     this._achEl.style.top = '16px';
+    this._announce(`Achievement unlocked: ${ach.name}. ${ach.desc}`);
     clearTimeout(this._achTimer);
     this._achTimer = setTimeout(() => {
       this._achEl.style.top = '-110px';
@@ -2780,6 +2900,140 @@ export class HUD {
     `;
   }
 
+  // ── Gathering Skills panel (G key) ───────────────────────────────────────────
+
+  _buildGatheringPanel() {
+    const overlay = this._el('div', 'hud-fullscreen', this._root);
+    overlay.id    = 'hud-gathering';
+    overlay.style.display = 'none';
+
+    const close = this._el('button', 'fs-close', overlay);
+    close.textContent = '✕';
+    close.onclick = () => this.toggleGathering();
+
+    const title = this._el('div', 'fs-title', overlay);
+    title.textContent = 'GATHERING SKILLS';
+
+    this._gatherContent = this._el('div', '', overlay);
+    this._gatherContent.style.cssText = 'width:100%;max-width:420px;';
+  }
+
+  toggleGathering() {
+    this.gatherOpen = !this.gatherOpen;
+    const el = document.getElementById('hud-gathering');
+    if (!el) return;
+    el.style.display = this.gatherOpen ? 'flex' : 'none';
+    if (this.gatherOpen) this._renderGathering();
+  }
+
+  _renderGathering() {
+    if (!this._gatherContent) return;
+    const gs = this._gameScene?.gatheringSystem;
+    if (!gs) {
+      this._gatherContent.innerHTML = '<div style="color:#445;font-size:11px;">Gathering system not active.</div>';
+      return;
+    }
+    const summary = gs.getSummary();
+    this._gatherContent.innerHTML = summary.map(sk => `
+      <div class="gather-skill-row">
+        <div class="gather-skill-icon">${sk.icon}</div>
+        <div class="gather-skill-info">
+          <div class="gather-skill-name">${sk.name}</div>
+          <div class="gather-skill-xp">${sk.xp.toLocaleString()} xp  •  ${sk.xpToNext.toLocaleString()} to next</div>
+          <div class="gather-skill-bar"><div class="gather-skill-fill" style="width:${(sk.progress*100).toFixed(1)}%"></div></div>
+        </div>
+        <div class="gather-skill-lvl">${sk.level}</div>
+      </div>
+    `).join('');
+  }
+
+  // ── Slayer panel (X key) ──────────────────────────────────────────────────────
+
+  _buildSlayerPanel() {
+    const overlay = this._el('div', 'hud-fullscreen', this._root);
+    overlay.id    = 'hud-slayer';
+    overlay.style.display = 'none';
+
+    const close = this._el('button', 'fs-close', overlay);
+    close.textContent = '✕';
+    close.onclick = () => this.toggleSlayer();
+
+    const title = this._el('div', 'fs-title', overlay);
+    title.textContent = 'SLAYER';
+
+    this._slayerContent = this._el('div', '', overlay);
+    this._slayerContent.style.cssText = 'width:100%;max-width:460px;';
+  }
+
+  toggleSlayer() {
+    this.slayerOpen = !this.slayerOpen;
+    const el = document.getElementById('hud-slayer');
+    if (!el) return;
+    el.style.display = this.slayerOpen ? 'flex' : 'none';
+    if (this.slayerOpen) this._renderSlayer();
+  }
+
+  _renderSlayer() {
+    if (!this._slayerContent) return;
+    const ss  = this._gameScene?.slayerSystem;
+    const bus = this.eventBus;
+    if (!ss) {
+      this._slayerContent.innerHTML = '<div style="color:#445;font-size:11px;">Slayer system not active.</div>';
+      return;
+    }
+    const d = ss.getSummary();
+    const task = d.currentTask;
+
+    let taskHtml = task ? `
+      <div class="slayer-task-box">
+        <div class="slayer-task-label">ACTIVE TASK</div>
+        <div class="slayer-task-name">Kill ${task.count} ${task.targetLabel}${task.streakBonus ? ' ★ STREAK BONUS' : ''}</div>
+        <div class="slayer-task-prog">${task.progress} / ${task.count} slain</div>
+        <div class="slayer-task-bar"><div class="slayer-task-fill" style="width:${Math.min(100,(task.progress/task.count)*100).toFixed(1)}%"></div></div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <button class="slayer-btn danger" id="slayer-cancel-btn">Cancel Task (−30 pts)</button>
+      </div>
+    ` : `
+      <div class="slayer-task-box" style="border-color:#333;">
+        <div class="slayer-task-label">NO ACTIVE TASK</div>
+        <div class="slayer-task-prog" style="margin-top:4px;">Speak to Master Theron in Saltmere to get a task.</div>
+      </div>
+    `;
+
+    const shopHtml = d.shop.map(s => `
+      <div class="slayer-shop-row">
+        <div class="slayer-shop-name">${s.name}<div style="font-size:9px;color:#556;">${s.desc}</div></div>
+        <div class="slayer-shop-cost">${s.pts} pts</div>
+        <button class="slayer-btn" data-buy="${s.id}" ${s.owned ? 'disabled' : ''}>${s.owned ? 'Owned' : 'Buy'}</button>
+      </div>
+    `).join('');
+
+    this._slayerContent.innerHTML = `
+      <div class="slayer-pts">⚔ Slayer Points: <span style="color:#ff8844">${d.points}</span>
+        &nbsp;&nbsp; Tasks: ${d.tasksTotal} &nbsp;&nbsp; Streak: ${d.streak}</div>
+      ${taskHtml}
+      <div class="trade-title">SLAYER SHOP</div>
+      <div style="max-height:240px;overflow-y:auto;">${shopHtml}</div>
+    `;
+
+    // Wire cancel button
+    const cancelBtn = this._slayerContent.querySelector('#slayer-cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.onclick = () => { ss.cancelTask(); this._renderSlayer(); };
+    }
+
+    // Wire shop buy buttons
+    this._slayerContent.querySelectorAll('[data-buy]').forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.dataset.buy;
+        const result = ss.buyFromShop(id, this._player);
+        if (result.ok) this._renderSlayer();
+        else bus?.emit('hudLog', { msg: result.reason, color: '#ff6666' });
+      };
+    });
+  }
+
   // ── Mobile touch controls — v0.6 complete overhaul ─────────────────────────
 
   _buildMobileControls() {
@@ -2966,9 +3220,11 @@ export class HUD {
         case 'f': this.toggleFactions(); break;
         case 'n': this.toggleEnchant(); break;
         case 'c': this.toggleCodex(); break;
-        case 'a': this.toggleAchievements(); break;
-        case 'd': this.toggleDailyChallenges(); break;
+        case 'h': this.toggleAchievements(); break;   // was 'a' — conflicts with WASD left
+        case 'j': this.toggleDailyChallenges(); break; // was 'd' — conflicts with WASD right
         case 'p': this.toggleStatScreen(); break;
+        case 'g': this.toggleGathering(); break;
+        case 'x': this.toggleSlayer(); break;
         case 'escape':
           if (this.invOpen)   this.toggleInventory();
           if (this.mapOpen)   this.toggleMap();
@@ -2980,6 +3236,8 @@ export class HUD {
           if (this.achOpen)      this.toggleAchievements();
           if (this.dailyOpen)    this.toggleDailyChallenges();
           if (this.statOpen)     this.toggleStatScreen();
+          if (this.gatherOpen)   this.toggleGathering();
+          if (this.slayerOpen)   this.toggleSlayer();
           this._closeDialogue();
           break;
       }
@@ -3001,6 +3259,7 @@ export class HUD {
 
   anyPanelOpen() {
     return this.invOpen || this.mapOpen || this.skillOpen || this.tradeOpen ||
+           this.gatherOpen || this.slayerOpen ||
            this._dlgPanel.classList.contains('open');
   }
 
@@ -3025,7 +3284,7 @@ export class HUD {
     const bus = this.eventBus;
     bus.on('statsChanged',     s  => this._updateStats(s));
     bus.on('inventoryChanged', () => { if (this.invOpen) this._renderInv(this._player); });
-    bus.on('levelUp',          lv => this.logMsg('Level Up! Now level ' + lv, '#ffd700'));
+    bus.on('levelUp',          lv => { this.logMsg('Level Up! Now level ' + lv, '#ffd700'); this._announce('Level up! You are now level ' + lv); });
     bus.on('questAdded',       () => this.refreshQuests());
 
     this._updateStats(this._player?.stats);
@@ -3094,6 +3353,8 @@ export class HUD {
       document.getElementById('hud-act-banner'),
       document.getElementById('hud-hint'),
       document.getElementById('hud-trade'),
+      document.getElementById('hud-gathering'),
+      document.getElementById('hud-slayer'),
     ].forEach(el => el?.parentNode?.removeChild(el));
 
     // Remove mobile controls

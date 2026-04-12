@@ -45,6 +45,27 @@ export const ACTS = [
     requirement: { act: 4, level: 18 },
     complete_when: { shard: 5 },
   },
+  {
+    id: 6, name: 'Act VI',
+    title: 'The Void Bleeds Back',
+    desc: 'The Crown is restored — but the Void does not close quietly. Shards of the old gate rupture across Aethoria. Something vast and patient begins to wake.',
+    requirement: { act: 5, level: 22 },
+    complete_when: { boss_killed: 'Bone Tyrant', level: 25 },
+  },
+  {
+    id: 7, name: 'Act VII',
+    title: 'The Fractured Kingdoms',
+    desc: 'The old kingdoms remember themselves. Ruins fill with their original defenders — and their original enemies. The Void Empress leads the second incursion.',
+    requirement: { act: 6, level: 25 },
+    complete_when: { boss_killed: 'The Void Empress', level: 30 },
+  },
+  {
+    id: 8, name: 'Act VIII',
+    title: 'Aethoria Reborn',
+    desc: 'The Amalgam — a fusion of every Voidlord ever denied passage — rises from the deep gate. Lyra says only the one who chose to put on the Crown can stop it.',
+    requirement: { act: 7, level: 30 },
+    complete_when: { boss_killed: 'The Amalgam' },
+  },
 ];
 
 // ── Main quest chain (6 quests per act) ──────────────────────
@@ -130,6 +151,81 @@ export const STORY_QUESTS = [
   { id:'a5_6', act:5, giver:'Elder Lyra',  title:'What Comes After',
     desc:"Aethoria is changed. Lyra is finally still. You are whatever you chose to be. The village remains. The well still needs water drawn from it every day. Some things do not change.",
     type:'EXPLORE', target:'well',        needed:1, reward:{ xp:2000, gold:0 } },
+
+  // ── Act VI — The Void Bleeds Back ─────────────────────────────────────────────
+  { id:'a6_1', act:6, giver:'Elder Lyra', title:'The Gate Did Not Close',
+    desc:"Lyra stands at the old well at dawn. She says: I can feel them through the stone. The Crown sealed the main gate but not the fragments. There are seven of them.",
+    type:'TALK', target:'Elder Lyra', needed:1, reward:{ xp:4000, gold:0 } },
+
+  { id:'a6_2', act:6, giver:'Master Theron', title:'The Necropolis Stirs',
+    desc:"Theron has heard reports from the east road: dead things walking in formation, directed. Not random. The Necropolis beneath the old city is active. He wants scouts — dead scouts coming back from there.",
+    type:'KILL', target:'BONE_GIANT', needed:4, reward:{ xp:4500, gold:600 } },
+
+  { id:'a6_3', act:6, giver:'Sister Vashe', title:'Fragment Resonance',
+    desc:"Vashe detects seven resonance spikes — void-gate fragments embedded in the world. She can close them if she has enough Void Essence to power the ritual. She needs 5.",
+    type:'COLLECT', target:'voidessence', needed:5, reward:{ xp:5000, gold:500, item:'spectral_robe' } },
+
+  { id:'a6_4', act:6, giver:'Capt. Vel', title:'Hold Hearthmoor',
+    desc:"A Bone Tyrant leads a column of undead toward the village. Vel holds the north road. You hold the east. Kill everything that reaches the gate.",
+    type:'KILL', target:'BONE_GIANT', needed:6, reward:{ xp:5500, gold:700 } },
+
+  { id:'a6_5', act:6, giver:'Aldric', title:'The Tyrant\'s Name',
+    desc:"Aldric says the Bone Tyrant was a king — Verath's last. He wants to know if it still speaks. Face it in the Necropolis. Listen to what it says before you kill it.",
+    type:'BOSS', target:'Bone Tyrant', needed:1, reward:{ xp:7000, gold:0, item:'soulstone' } },
+
+  { id:'a6_6', act:6, giver:'Elder Lyra', title:'Echoes of Verath',
+    desc:"The Bone Tyrant is dead. Three fragments sealed. Lyra plays back what it said — in her memory, because she was there when it was alive. The Act is not over.",
+    type:'TALK', target:'Elder Lyra', needed:1, reward:{ xp:6000, gold:1000, unlocks_act:7 } },
+
+  // ── Act VII — The Fractured Kingdoms ─────────────────────────────────────────
+  { id:'a7_1', act:7, giver:'Sister Vashe', title:'The Empress Speaks',
+    desc:"Vashe intercepts a void-message. The Empress is not here yet. She is sending heralds — Void Elementals carrying her voice. Destroy them before they reach enough minds.",
+    type:'KILL', target:'VOID_ELEMENTAL', needed:5, reward:{ xp:7000, gold:800 } },
+
+  { id:'a7_2', act:7, giver:'High Priestess Solara', title:'The Order\'s Last Light',
+    desc:"Solara says three Order temples fell before she fled. The Shattered Ruins hold the last functioning Sealed Sun altar. She needs you to clear the Corrupted Paladins guarding it.",
+    type:'KILL', target:'CORRUPTED_PALADIN', needed:6, reward:{ xp:8000, gold:900, item:'aegis_of_dawn' } },
+
+  { id:'a7_3', act:7, giver:'Gareth', title:'The Iron Crown Works',
+    desc:"Something changed when the real Crown was restored. Gareth's replica lit up. It works now. He does not know what it does — he hands it to you and says he is going to go sit down for a while.",
+    type:'TALK', target:'Gareth', needed:1, reward:{ xp:6500, gold:0, item:'amulet_fury' } },
+
+  { id:'a7_4', act:7, giver:'Master Theron', title:'Void Citadel Advance',
+    desc:"The Empress is building something in the Void Citadel. Soul Reavers reinforce it. Theron wants the reinforcements stopped before the structure completes.",
+    type:'KILL', target:'SOUL_REAVER', needed:8, reward:{ xp:9000, gold:1000 } },
+
+  { id:'a7_5', act:7, giver:'Elder Lyra', title:'A Promise Collected',
+    desc:"The Voidlords send the Empress because they are owed something. Lyra finally says what she promised them: a successor. Someone who can bear the weight of the Crown forever. She is looking at you when she says this.",
+    type:'TALK', target:'Elder Lyra', needed:1, reward:{ xp:10000, gold:0 } },
+
+  { id:'a7_6', act:7, giver:'Sister Vashe', title:'Kill the Empress',
+    desc:"The Void Citadel is open. The Empress waits at its centre. She knows your name. She knew it before you arrived. Kill her anyway.",
+    type:'BOSS', target:'The Void Empress', needed:1, reward:{ xp:15000, gold:2000, item:'voidplate', unlocks_act:8 } },
+
+  // ── Act VIII — Aethoria Reborn ────────────────────────────────────────────────
+  { id:'a8_1', act:8, giver:'Elder Lyra', title:'What Was Promised',
+    desc:"Lyra tells you everything she told the Voidlords. The price. The timeline. The loophole she found after two hundred years of searching. She says there is a way out. One of you has to take it.",
+    type:'TALK', target:'Elder Lyra', needed:1, reward:{ xp:12000, gold:0 } },
+
+  { id:'a8_2', act:8, giver:'Aldric', title:'The Amalgam Rising',
+    desc:"Aldric tracks the signature: every Voidlord that ever lost a piece of itself to this world has fused into one. The Amalgam. It rises from the old deep gate under the well. Every soul it consumes makes it larger.",
+    type:'KILL', target:'VOID_HORROR', needed:6, reward:{ xp:12000, gold:1200 } },
+
+  { id:'a8_3', act:8, giver:'Capt. Vel', title:'The Last Stand',
+    desc:"Vel says: I am not telling you to come back from this. I am telling you to go anyway. Every sword arm in Hearthmoor is on the wall. You are the only one who can reach the Amalgam's core.",
+    type:'DUNGEON', target:'dungeon', needed:1, reward:{ xp:14000, gold:0, item:'ring_void' } },
+
+  { id:'a8_4', act:8, giver:'High Priestess Solara', title:'The Final Sealing',
+    desc:"Solara channels the last of the Order's power into you. It will not last long. The Amalgam's defenses are weakening. This is the moment.",
+    type:'BOSS', target:'The Amalgam', needed:1, reward:{ xp:25000, gold:5000, item:'crownblade' } },
+
+  { id:'a8_5', act:8, giver:'Elder Lyra', title:'The Loophole',
+    desc:"The Amalgam is dead. Lyra stands in the well chamber. She says: the loophole is you. They wanted a successor who would bear the Crown forever. The Crown is restored. The Voidlords have what they asked for. So do we.",
+    type:'TALK', target:'Elder Lyra', needed:1, reward:{ xp:20000, gold:0 } },
+
+  { id:'a8_6', act:8, giver:'Elder Lyra', title:'Draw Water',
+    desc:"It is morning. The well still needs water drawn from it every day. You are still the one drawing it. The Voidlords are gone. Lyra is finally, impossibly, at rest. Aethoria remains. So do you.",
+    type:'EXPLORE', target:'well', needed:1, reward:{ xp:10000, gold:10000, item:'crownguard' } },
 ];
 
 // ── Side quests (always available, repeatable pool) ───────────
@@ -143,7 +239,33 @@ export const SIDE_QUESTS = [
   { id:'sq7', giver:'Gareth',     title:'The Old Forge',                desc:'Somewhere in the dungeon there is an ancient forge. Gareth wants proof of it.',   type:'DUNGEON', target:'dungeon', needed:1,  reward:{ xp:500, gold:200, item:'axe'    } },
   { id:'sq8', giver:'Elder Lyra', title:'Eyes Open',                   desc:'The world is larger than Hearthmoor. Explore beyond the dungeon portal and return.',type:'EXPLORE',target:'portal',  needed:1,  reward:{ xp:250, gold:0                } },
   { id:'sq9', giver:'Dorin',      title:'Moving Stock',                 desc:'Help Dorin sell by killing 8 goblins — they have been raiding his supply runs.',  type:'KILL',    target:'Goblin',  needed:8,  reward:{ xp:280, gold:160              } },
-  { id:'sq10',giver:'Capt. Vel',  title:'Reinforcement Needed',        desc:'Three waves of enemies have probed the walls. Kill 6 wolves, 4 goblins.',          type:'KILL',    target:'multi',   needed:10, reward:{ xp:400, gold:180, item:'shield' } },
+  { id:'sq10', giver:'Capt. Vel',    title:'Reinforcement Needed',      desc:'Three waves of enemies have probed the walls. Kill 6 wolves, 4 goblins.',         type:'KILL',    target:'multi',    needed:10, reward:{ xp:400,  gold:180, item:'shield'    } },
+
+  // ── New side quests — gathering and crafting ──────────────────────────────
+  { id:'sq11', giver:'Gareth',      title:'Iron for the Forge',         desc:'The smithy is running dry. Mine 6 iron ore from the old quarry north of the village.', type:'COLLECT', target:'iron_ore',  needed:6,  reward:{ xp:300,  gold:150, item:'iron_bar'  } },
+  { id:'sq12', giver:'Gareth',      title:'Mithril Whispers',           desc:'Gareth heard rumours of mithril ore near the Crystal Wastes. Bring back 4 pieces.',    type:'COLLECT', target:'mithril_ore',needed:4, reward:{ xp:600,  gold:400, item:'mithril_bar'} },
+  { id:'sq13', giver:'Mira',        title:'The Flax Run',               desc:'The herbalist needs flax to spin into bandages. Collect 8 from the riverside field.',  type:'COLLECT', target:'flax',      needed:8,  reward:{ xp:200,  gold:80               } },
+  { id:'sq14', giver:'Mira',        title:'Cook for the Sick',          desc:'Three villagers are recovering. Bring 4 cooked fish to the healer\'s hut.',            type:'COLLECT', target:'cooked_fish',needed:4, reward:{ xp:250,  gold:100, item:'potion'   } },
+  { id:'sq15', giver:'Dorin',       title:'Timber Contract',            desc:'Dorin needs 8 oak logs to repair his trading cart.',                                   type:'COLLECT', target:'oak_log',   needed:8,  reward:{ xp:300,  gold:120               } },
+  { id:'sq16', giver:'Dorin',       title:'Yew for the War Bows',       desc:'Capt. Vel commissioned hunting bows for the guard. Bring Dorin 5 yew logs.',          type:'COLLECT', target:'yew_log',   needed:5,  reward:{ xp:500,  gold:250, item:'hunting_bow'} },
+
+  // ── New side quests — new NPCs ────────────────────────────────────────────
+  { id:'sq17', giver:'Sister Vashe',title:'Void Trace Mapping',         desc:'Vashe needs someone to locate void traces in the east ruins. Explore the area.',      type:'EXPLORE', target:'ruins',     needed:1,  reward:{ xp:600,  gold:200, item:'crystal'  } },
+  { id:'sq18', giver:'Sister Vashe',title:'Crystal Harvest',            desc:'Vashe requires 3 void crystals for her translation work. Dangerous ones near Drakes.', type:'COLLECT', target:'crystal',   needed:3,  reward:{ xp:800,  gold:350               } },
+  { id:'sq19', giver:'Master Theron',title:'First Blood',               desc:'Take your first Slayer task and complete it. Report back to Theron.',                 type:'KILL',    target:'GOBLIN',    needed:15, reward:{ xp:500,  gold:200, item:'herb_knife'} },
+  { id:'sq20', giver:'Master Theron',title:'Dragon Scale Contract',     desc:'A Drake nest was found in the volcanic peaks. Theron wants 4 dragonscales.',         type:'COLLECT', target:'dragonscale',needed:4, reward:{ xp:900,  gold:500, item:'dragonhide'} },
+  { id:'sq21', giver:'Aldric',      title:'Bone Harvest',               desc:'Aldric studies undead anatomy. Bring 8 fresh bone samples from the Necropolis.',      type:'COLLECT', target:'bones',     needed:8,  reward:{ xp:700,  gold:300, item:'bone_staff'} },
+  { id:'sq22', giver:'Aldric',      title:'The Spectral Archer Problem',desc:'Spectral Archers haunt the road to the ruins. Aldric wants 5 destroyed for study.',   type:'KILL',    target:'SPECTRAL_ARCHER',needed:5,reward:{ xp:900,  gold:350, item:'scroll'  } },
+  { id:'sq23', giver:'High Priestess Solara','title':'Cleanse the Shrine',desc:'A corrupted Sealed Sun shrine lies east of Hearthmoor. Clear the Cultists defiling it.', type:'KILL', target:'CULTIST', needed:8, reward:{ xp:1000, gold:400, item:'holy_water'} },
+  { id:'sq24', giver:'High Priestess Solara','title':'Paladin\'s Trial', desc:'Solara demands proof of conviction: kill the Corrupted Paladin that guards the old temple.', type:'KILL',target:'CORRUPTED_PALADIN',needed:3, reward:{ xp:1200, gold:500, item:'blessed_shield'} },
+
+  // ── New side quests — endgame ─────────────────────────────────────────────
+  { id:'sq25', giver:'Capt. Vel',   title:'Void Stalker Hunt',          desc:'Something invisible has been killing sentries. Vel needs 4 Void Stalkers dead.',       type:'KILL',    target:'VOID_STALKER',needed:4, reward:{ xp:1400, gold:600, item:'amulet_soul'} },
+  { id:'sq26', giver:'Gareth',      title:'The Ancient Golem\'s Core',  desc:'Gareth believes the Ancient Golem has a workable heart at its centre. Kill one.',      type:'KILL',    target:'ANCIENT_GOLEM',needed:2, reward:{ xp:1800, gold:800, item:'ring_power'} },
+  { id:'sq27', giver:'Mira',        title:'Nullwort Purification',      desc:'Mira finally knows what Nullwort does. She needs 3 gathered to brew the antidote.',    type:'COLLECT', target:'void_herb',  needed:3,  reward:{ xp:1200, gold:0,  item:'nullwort_tea'} },
+  { id:'sq28', giver:'Dorin',       title:'The Forty-Third Settlement', desc:'Dorin found a map of a settlement that might still exist. Explore the old ruins.',     type:'EXPLORE', target:'ruins',     needed:1,  reward:{ xp:1500, gold:700, item:'scroll'   } },
+  { id:'sq29', giver:'Elder Lyra',  title:'Three Hundred Years',        desc:'Lyra asks you to sit with her at the well. She wants to say the names she has never said aloud.', type:'TALK', target:'Elder Lyra', needed:1, reward:{ xp:3000, gold:0 } },
+  { id:'sq30', giver:'Sister Vashe','title':'Sealbreaker\'s Codex',    desc:'Vashe recovered a Voidlord codex from the Void Citadel. It describes three unknown seal locations.', type:'EXPLORE', target:'dungeon', needed:1, reward:{ xp:2500, gold:1000, item:'amulet_void'} },
 ];
 
 export class StorySystem {
@@ -166,10 +288,10 @@ export class StorySystem {
 
     const cw = actData.complete_when;
     let done = true;
-    if (cw.level && this.scene.player?.stats.level < cw.level)          done = false;
-    if (cw.shard && this.shards < cw.shard)                             done = false;
-    if (cw.talked_to_lyra && !this.flags.talked_to_lyra)                done = false;
-    if (cw.boss_killed && !this.flags['boss_' + cw.boss_killed])        done = false;
+    if (cw.level      && this.scene.player?.stats.level < cw.level)  done = false;
+    if (cw.shard      && this.shards < cw.shard)                      done = false;
+    if (cw.talked_to_lyra && !this.flags.talked_to_lyra)              done = false;
+    if (cw.boss_killed && !this.flags['boss_' + cw.boss_killed])      done = false;
 
     if (done && this.act < ACTS.length - 1) {
       this.advanceAct();

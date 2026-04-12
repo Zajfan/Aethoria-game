@@ -38,6 +38,8 @@ import { GamepadManager }       from '../engine/GamepadManager.js';
 import { ACH_RARITY }           from '../systems/AchievementSystem.js';
 import { PointsOfInterest }   from '../systems/PointsOfInterest.js';
 import { randomScroll }       from '../systems/LoreDatabase.js';
+import { GatheringSystem }    from '../systems/GatheringSystem.js';
+import { SlayerSystem }       from '../systems/SlayerSystem.js';
 
 // Map dimensions (override config for 3D world)
 const MAP_W = 256;
@@ -311,11 +313,13 @@ class ShardSystem3D {
     this._bus       = eventBus;
     this._scene3d   = scene3d;
     this._camera    = threeCamera;
+    this._world3d   = null;
     this._shards    = [];
     this._overlay   = document.getElementById('ui-overlay') || document.body;
   }
 
   setCamera(cam) { this._camera = cam; }
+  setWorld3D(world3d) { this._world3d = world3d; }
 
   spawnShards(mapData) {
     const mw = mapData[0].length;
@@ -637,6 +641,7 @@ export class GameScene {
     this.storySystem  = new StorySystem(this._sceneProxy);
 
     this.shardSystem = new ShardSystem3D(this.eventBus, this.scene3d, this.camera.threeCamera);
+    this.shardSystem.setWorld3D(this.world3d);
     this.shardSystem.spawnShards(this.mapData);
 
     // v0.5 — Combat system (status effects, screen shake, combo)
@@ -644,8 +649,6 @@ export class GameScene {
 
     // v0.5 — Enchant system
     this.enchantSystem = new EnchantSystem(this.eventBus);
-
-    if (savedPlayerData?.abilities) this.abilitySystem?.deserialize(savedPlayerData.abilities);
 
     // v0.6 — Region system
     this.regionSystem = new RegionSystem(this.eventBus);
@@ -658,9 +661,10 @@ export class GameScene {
     // v0.6 — Item rarity system
     this.itemSystem = new ItemSystem(this.eventBus);
 
-    // v0.6 — Ability system
+    // v0.6 — Ability system (must be created before deserialize)
     this.abilitySystem = new AbilitySystem(this.eventBus);
     this.abilitySystem.init(this.player, this);
+    if (savedPlayerData?.abilities) this.abilitySystem.deserialize(savedPlayerData.abilities);
 
     // v0.6 — Points of Interest
     this.poiSystem = new PointsOfInterest(this.scene3d, this.camera.threeCamera, this.eventBus);
@@ -676,10 +680,25 @@ export class GameScene {
     // v0.4 — Animation system
     this.animSystem = new AnimationSystem(this.scene3d);
 
+    // v0.5 — Gathering skill system
+    this.gatheringSystem = new GatheringSystem(this._sceneProxy);
+    this._registerGatherNodes(cx, cz);
+
+    // v0.5 — Slayer system
+    this.slayerSystem = new SlayerSystem(this._sceneProxy);
+    this._sceneProxy.slayerSystem = this.slayerSystem;
+
+    // Wire slayer kill tracking into event bus
+    this.eventBus.on('enemyKilled', ({ typeKey }) => {
+      this.slayerSystem.onKill(typeKey);
+    });
+
     // Restore saved state
     if (savedPlayerData?.quests)       this.questSystem.deserialize(savedPlayerData.quests);
     if (savedPlayerData?.story)        this.storySystem.deserialize(savedPlayerData.story);
     if (savedPlayerData?.achievements) this.achievements.deserialize(savedPlayerData.achievements);
+    if (savedPlayerData?.gathering)    this.gatheringSystem.deserialize(savedPlayerData.gathering);
+    if (savedPlayerData?.slayer)       this.slayerSystem.deserialize(savedPlayerData.slayer);
     if (savedPlayerData?.shards) {
       const ids = Object.entries(savedPlayerData.shards)
         .filter(([, v]) => v).map(([k]) => Number(k));
@@ -756,7 +775,7 @@ export class GameScene {
       this.npcs.push(npc);
     });
 
-    // Saltmere NPCs (indices 5-7)
+    // Saltmere NPCs (indices 5-8)
     const smPos = gen.getSaltmereSpawns(MAP_W, MAP_H);
     smPos.forEach((p, i) => {
       const idx = 5 + i;
@@ -765,6 +784,36 @@ export class GameScene {
       npc.setCamera(this.camera.threeCamera);
       this.npcs.push(npc);
     });
+  }
+
+  /**
+   * Register gathering nodes from CONFIG.GATHER_REGIONS around world centre.
+   * Nodes are placed at approximate biome-appropriate positions.
+   */
+  _registerGatherNodes(cx, cz) {
+    const instances = [];
+    let id = 1;
+
+    for (const [skill, positions] of Object.entries(CONFIG.GATHER_REGIONS ?? {})) {
+      const skillDef = CONFIG.GATHERING_SKILLS[skill];
+      if (!skillDef) continue;
+
+      for (const pos of positions) {
+        for (const node of skillDef.nodes) {
+          // Slightly randomise each node position so they don't stack
+          const offsetX = (Math.random() - 0.5) * 4;
+          const offsetZ = (Math.random() - 0.5) * 4;
+          instances.push({
+            id:     `node_${id++}`,
+            nodeId: node.id,
+            x:      pos.x + offsetX,
+            z:      pos.z + offsetZ,
+          });
+        }
+      }
+    }
+
+    this.gatheringSystem.registerNodes(instances);
   }
 
   _buildDungeonPortal(cx, cz) {
@@ -987,17 +1036,20 @@ export class GameScene {
     // v0.6 — Shrine blessing applies buff to player
     bus.on('shrineBlessing', ({ buff }) => {
       if (!this.player) return;
+      // Snapshot original speed before multiplying so revert is exact (no float drift)
+      const origSpeed = this.player.stats.speed ?? 2;
       if (buff.stat === 'attack')   this.player.stats.attack   = (this.player.stats.attack   ?? 10) + buff.amount;
       if (buff.stat === 'defense')  this.player.stats.defense  = (this.player.stats.defense  ?? 5)  + buff.amount;
-      if (buff.stat === 'speedMult')this.player.stats.speed    = (this.player.stats.speed    ?? 2)  * (1 + buff.amount);
+      if (buff.stat === 'speedMult')this.player.stats.speed    = origSpeed * (1 + buff.amount);
       if (buff.stat === 'xpMult')   this._xpBoostMult = 1 + buff.amount;
       if (buff.stat === 'hpRegen')  this._hpRegenPerSec = buff.amount;
       this.eventBus.emit('statsChanged', this.player.stats);
       // Clear buff after duration
       setTimeout(() => {
+        if (!this.player) return;
         if (buff.stat === 'attack')   this.player.stats.attack   = Math.max(1, (this.player.stats.attack  ?? 10) - buff.amount);
         if (buff.stat === 'defense')  this.player.stats.defense  = Math.max(0, (this.player.stats.defense ?? 5)  - buff.amount);
-        if (buff.stat === 'speedMult')this.player.stats.speed    = this.player.stats.speed / (1 + buff.amount);
+        if (buff.stat === 'speedMult')this.player.stats.speed    = origSpeed;
         if (buff.stat === 'xpMult')   this._xpBoostMult = 1.0;
         if (buff.stat === 'hpRegen')  this._hpRegenPerSec = 0;
         this.eventBus.emit('statsChanged', this.player.stats);
@@ -1005,8 +1057,8 @@ export class GameScene {
     });
 
     // v0.7 — Prestige unlock on Act 5 complete
-    bus.on('actAdvanced', ({ actId }) => {
-      if (actId >= 5) this.prestigeSystem?.unlock();
+    bus.on('actAdvanced', ({ id }) => {
+      if (id >= 5) this.prestigeSystem?.unlock();
     });
 
     // v0.7 — Daily challenge rewards
@@ -1170,6 +1222,51 @@ export class GameScene {
       this.audio?.sfxAchieve();
       this.hud?.showAchievement(ach);
     });
+
+    // v0.5 — Gathering events
+    bus.on('gatherStart',    ({ skill }) => {
+      const sdef = CONFIG.GATHERING_SKILLS[skill];
+      this.hud?.logMsg(`Gathering ${sdef?.name ?? skill}…`, '#88ddaa');
+    });
+    bus.on('gatherStop',     ()           => this.hud?.logMsg('Stopped gathering.', '#888899'));
+    bus.on('itemGathered',   ({ itemKey, skill }) => {
+      const iname = CONFIG.ITEMS[itemKey]?.name ?? itemKey;
+      this.hud?.logMsg(`+ ${iname}`, '#aaffcc');
+      this.questSystem?.onCollect(itemKey);
+    });
+    bus.on('gatherXP',       ({ skill, amount }) => {
+      const lvl = this.gatheringSystem?.levelFor(skill);
+      this.hud?.logMsg(`${skill} +${amount} xp (lvl ${lvl})`, '#66bb88');
+    });
+    bus.on('gatherLevelUp',  ({ skill, level }) => {
+      const sdef = CONFIG.GATHERING_SKILLS[skill];
+      this.audio?.sfxLevelUp();
+      this.hud?.logMsg(`⬆ ${sdef?.name ?? skill} level ${level}!`, '#88ffcc');
+    });
+    bus.on('nodeDepleted',   ()           => this.hud?.logMsg('Node depleted — it will respawn shortly.', '#777766'));
+    bus.on('nodeRespawned',  ()           => {});  // silent
+    bus.on('gatherFail',     msg          => this.hud?.logMsg(msg, '#ffaa44'));
+    bus.on('rewardItem',     ({ itemKey, reason }) => {
+      this.hud?.logMsg(`Reward: ${CONFIG.ITEMS[itemKey]?.name ?? itemKey} — ${reason}`, '#ffd700');
+    });
+
+    // v0.5 — Slayer events
+    bus.on('slayerTaskAssigned', task => {
+      this.hud?.logMsg(
+        `⚔ Slayer task: Kill ${task.count} ${task.targetLabel}${task.streakBonus ? ' [STREAK BONUS!]' : ''}`,
+        '#ff8844',
+      );
+    });
+    bus.on('slayerProgress',  ({ progress, needed }) => {
+      if (progress === needed - 1) this.hud?.logMsg('Almost done — one more!', '#ff8844');
+    });
+    bus.on('slayerTaskComplete', task => {
+      this.audio?.sfxQuestGet();
+      this.hud?.logMsg(`✔ Slayer task complete! +${task.pts} pts. (Total: ${this.slayerSystem?.points})`, '#ffaa22');
+    });
+    bus.on('slayerTaskCancelled', ()    => this.hud?.logMsg('Slayer task cancelled (-30 pts).', '#ff6666'));
+    bus.on('slayerCancelFail',   msg   => this.hud?.logMsg(msg, '#ff6666'));
+    bus.on('slayerShopBuy',      item  => this.hud?.logMsg(`Purchased: ${item.name}`, '#ffd700'));
 
     bus.on('craftedItem', () => {
       this.achievements?.track('crafts');
@@ -1451,6 +1548,57 @@ export class GameScene {
     if (this.player.position.distanceTo(this._portalPos) < 2) this._enterDungeon();
   }
 
+  _updateSaltmerePortal(delta) {
+    if (!this._saltmerePortalMesh) return;
+
+    // Animate portal ring
+    this._saltmerePortalMesh.rotation.z += delta * 0.7;
+    if (this._saltmerePortalLight) {
+      this._saltmerePortalLight.intensity = 1.6 + Math.sin(this._totalTime * 2.2) * 0.5;
+    }
+
+    // Project label
+    if (this._saltmerePortalLabelEl && this._saltmerePortalPos) {
+      const wp = new THREE.Vector3(this._saltmerePortalPos.x, 3.0, this._saltmerePortalPos.z);
+      wp.project(this.camera.threeCamera);
+      if (wp.z > 1) {
+        this._saltmerePortalLabelEl.style.display = 'none';
+      } else {
+        this._saltmerePortalLabelEl.style.display = 'block';
+        this._saltmerePortalLabelEl.style.left = ((wp.x *  0.5 + 0.5) * window.innerWidth)  + 'px';
+        this._saltmerePortalLabelEl.style.top  = ((wp.y * -0.5 + 0.5) * window.innerHeight) + 'px';
+      }
+    }
+
+    // Collision — enter Sunken Vaults dungeon
+    if (!this._saltmerePortalUsed && this._saltmerePortalPos &&
+        this.player.position.distanceTo(this._saltmerePortalPos) < 2) {
+      this._enterSaltmereDungeon();
+    }
+  }
+
+  _enterSaltmereDungeon() {
+    if (this._saltmerePortalUsed) return;
+    this._saltmerePortalUsed = true;
+    this.questSystem?.onExplore();
+    this.achievements?.track('dungeons');
+    AIMemory.recordDungeonRun();
+    this.audio?.sfxPortal();
+    this.hud?.logMsg('Entering the Sunken Vaults…', '#44cccc');
+    this._doSave();
+
+    this.eventBus.emit('enterDungeon', {
+      dungeonKey: 'SUNKEN_VAULTS',
+      savedPlayer: {
+        stats:       { ...this.player.stats },
+        inventory:   { ...this.player.inventory },
+        equipment:   { ...this.player.equipment },
+        skills:      { ...(this.player.skills || {}) },
+        playerClass: this.player.playerClass,
+      },
+    });
+  }
+
   _enterDungeon() {
     if (this._portalUsed) return;
     this._portalUsed = true;
@@ -1510,7 +1658,14 @@ export class GameScene {
         story:        this.storySystem?.serialize(),
         shards:       this.storySystem?.shardFlags || {},
         achievements: this.achievements?.serialize() || {},
-        factions:    this.factionSystem?.serialize()  ?? {},
+        factions:     this.factionSystem?.serialize()  ?? {},
+        gathering:    this.gatheringSystem?.serialize() ?? {},
+        slayer:       this.slayerSystem?.serialize()    ?? {},
+        regions:      this.regionSystem?.serialize()    ?? {},
+        codex:        this.codexSystem?.serialize()     ?? {},
+        abilities:    this.abilitySystem?.serialize()   ?? {},
+        prestige:     this.prestigeSystem?.serialize()  ?? {},
+        poi:          this.poiSystem?.serialize()       ?? {},
       });
     } catch (_) {}
   }
@@ -1559,7 +1714,7 @@ export class GameScene {
       }
       if (e.isDead && !e._questTracked) {
         e._questTracked = true;
-        this.questSystem?.onKill(e._data?.name || '');
+        // questSystem.onKill + factionSystem.onKill are handled via the 'enemyKilled' event
         AIMemory.recordKill(e._data?.name || 'enemy');
         this.achievements?.track('kills');
         this.audio?.sfxKill();
@@ -1711,6 +1866,7 @@ export class GameScene {
     this._updatePortalAnimation(delta);
     this._updatePortalLabel();
     this._checkPortalCollision();
+    this._updateSaltmerePortal(delta);
 
     // Footstep audio
     const spd = Math.hypot(this.player.velocity.x, this.player.velocity.z);
@@ -1739,6 +1895,9 @@ export class GameScene {
       this.audio.setCombatIntensity(combatIntensity);
       this.audio.updateMusic(delta);
     }
+
+    // Gathering system tick
+    this.gatheringSystem?.update(delta);
 
     // Auto-save
     this._saveTimer -= delta;
@@ -1797,6 +1956,17 @@ export class GameScene {
       this._portalLight.dispose();
     }
     this._portalLabelEl?.parentNode?.removeChild(this._portalLabelEl);
+
+    if (this._saltmerePortalMesh) {
+      this.scene3d.remove(this._saltmerePortalMesh);
+      this._saltmerePortalMesh.geometry.dispose();
+      this._saltmerePortalMesh.material.dispose();
+    }
+    if (this._saltmerePortalLight) {
+      this.scene3d.remove(this._saltmerePortalLight);
+      this._saltmerePortalLight.dispose();
+    }
+    this._saltmerePortalLabelEl?.parentNode?.removeChild(this._saltmerePortalLabelEl);
 
     if (this._torchLight) {
       this.scene3d.remove(this._torchLight);

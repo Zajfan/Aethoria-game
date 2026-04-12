@@ -2,13 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0a0a0f">
   <title>Aethoria</title>
   <link rel="manifest" href="manifest.json">
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{background:#0a0a0f;overflow:hidden;width:100vw;height:100vh;font-family:"Courier New",monospace}
+    /* Skip-navigation link — visible on focus for keyboard users */
+    #skip-nav{position:fixed;top:-100%;left:6px;z-index:99999;background:#d4af37;color:#0a0a0f;padding:8px 16px;font-family:monospace;font-size:14px;font-weight:bold;border-radius:0 0 4px 4px;text-decoration:none;transition:top .15s}
+    #skip-nav:focus{top:0}
     #game-container{position:absolute;inset:0;width:100%;height:100%}
     #game-container canvas{display:block;width:100%!important;height:100%!important;touch-action:none}
     /* UI overlay: click-through by default; children may override */
@@ -27,15 +30,18 @@
     .class-row{display:flex;gap:14px;margin-bottom:32px;flex-wrap:wrap;justify-content:center}
     .class-box{background:#0d0f1a;border:2px solid #333;border-radius:6px;padding:16px 22px;width:160px;cursor:pointer;transition:border-color .2s,box-shadow .2s;text-align:center;pointer-events:auto}
     .class-box:hover,.class-box.selected{border-color:#d4af37;box-shadow:0 0 18px #d4af3755}
+    .class-box:focus-visible{outline:3px solid #d4af37;outline-offset:3px}
     .class-box .cname{font-size:15px;font-weight:bold;margin-bottom:6px;font-family:monospace}
-    .class-box .cdesc{font-size:10px;color:#777;line-height:1.5;margin-bottom:8px}
-    .class-box .cstats{font-size:10px;color:#aaa;line-height:1.6}
+    .class-box .cdesc{font-size:12px;color:#777;line-height:1.5;margin-bottom:8px}
+    .class-box .cstats{font-size:12px;color:#aaa;line-height:1.6}
     .menu-btn{background:#d4af37;color:#0a0a0f;border:none;padding:13px 44px;font-family:monospace;font-size:14px;font-weight:bold;cursor:pointer;border-radius:4px;letter-spacing:0.1em;transition:background .15s,transform .1s;pointer-events:auto;margin:4px}
     .menu-btn:hover{background:#f0ca50;transform:scale(1.03)}
+    .menu-btn:focus-visible{outline:3px solid #fff;outline-offset:3px}
     .menu-btn.secondary{background:transparent;color:#d4af37;border:1px solid #d4af37}
     .menu-btn.secondary:hover{background:#d4af3722}
     .menu-btn:disabled{opacity:.4;cursor:default;transform:none}
-    #menu-controls{margin-top:22px;font-size:10px;color:#555;text-align:center;line-height:1.8;letter-spacing:.06em}
+    #menu-controls{margin-top:22px;font-size:12px;color:#666;text-align:center;line-height:1.8;letter-spacing:.06em}
+    #menu-controls .touch-hint{color:#777;font-size:11px}
     /* Error box */
     #err-box{display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.93);align-items:center;justify-content:center;padding:24px}
     #err-box.show{display:flex}
@@ -43,103 +49,124 @@
     #err-inner h2{color:#ff4444;font-size:15px;margin-bottom:10px}
     #err-inner pre{font-size:11px;line-height:1.6;white-space:pre-wrap;word-break:break-all;max-height:260px;overflow:auto}
     #err-inner button{margin-top:14px;background:#cc2222;color:#fff;border:none;padding:8px 20px;font-family:monospace;font-size:12px;cursor:pointer;border-radius:3px}
+    #err-inner button:focus-visible{outline:3px solid #ff9999;outline-offset:3px}
     /* API modal */
     #api-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:2000;align-items:center;justify-content:center}
     #api-modal.show{display:flex}
     .mbox{background:#0d1117;border:1px solid #d4af37;padding:36px 44px;max-width:480px;width:92%;border-radius:4px;color:#d4af37}
     .mbox h2{font-size:18px;margin-bottom:8px}
-    .mbox p{font-size:12px;color:#666;margin-bottom:22px;line-height:1.7}
+    .mbox p{font-size:12px;color:#888;margin-bottom:22px;line-height:1.7}
     .mbox input{width:100%;background:#161b22;border:1px solid #444;color:#fff;padding:10px 14px;font-family:monospace;font-size:13px;border-radius:3px;margin-bottom:16px;outline:none}
-    .mbox input:focus{border-color:#d4af37}
+    .mbox input:focus{border-color:#d4af37;outline:2px solid #d4af37;outline-offset:2px}
     .mbox .row{display:flex;gap:10px;flex-wrap:wrap}
     .mbox button{background:#d4af37;color:#0a0a0f;border:none;padding:10px 22px;font-family:monospace;font-size:13px;font-weight:bold;cursor:pointer;border-radius:3px}
-    .mbox .skip{background:transparent;color:#666;border:1px solid #444}
+    .mbox button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+    .mbox .skip{background:transparent;color:#aaa;border:1px solid #555}
     /* NPC dialogue input */
     #dlg-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1500;align-items:flex-end;justify-content:center;padding-bottom:190px}
     #dlg-overlay.show{display:flex}
     #dlg-box{background:#0d1117;border:1px solid #d4af37;border-radius:3px;display:flex;gap:8px;padding:8px 12px;width:min(600px,94vw)}
     #dlg-box input{flex:1;background:transparent;border:none;outline:none;color:#fff;font-family:monospace;font-size:14px}
+    #dlg-box input:focus{outline:2px solid #d4af37;outline-offset:2px;border-radius:2px}
     #dlg-box button{background:#d4af37;border:none;color:#0a0a0f;padding:6px 16px;font-family:monospace;font-size:12px;font-weight:bold;cursor:pointer;border-radius:2px}
+    #dlg-box button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+    /* Screen-reader-only utility (visually hidden but accessible) */
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    /* Reduced motion: disable all transitions and animations */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+    }
   </style>
 </head>
 <body>
 
+<!-- Skip navigation for keyboard users (WCAG 2.4.1) -->
+<a href="#game-container" id="skip-nav">Skip to game</a>
+
 <!-- Three.js renders into this container -->
-<div id="game-container"></div>
+<main id="game-container" aria-label="Aethoria game canvas"></main>
 
 <!-- Floating entity labels / world-space UI (click-through; children opt-in) -->
-<div id="ui-overlay"></div>
+<div id="ui-overlay" aria-hidden="true"></div>
 
 <!-- HUD (health bar, minimap, quest log, etc.) -->
-<div id="hud"></div>
+<div id="hud" role="region" aria-label="Game HUD"></div>
 
 <!-- Black overlay for scene transitions -->
-<div id="fade-overlay"></div>
+<div id="fade-overlay" aria-hidden="true"></div>
 
 <!-- ── Main Menu ─────────────────────────────────────────── -->
-<div id="menu-screen">
-  <div id="menu-title">AETHORIA</div>
-  <div id="menu-subtitle">An AI-Powered 3D Open World RPG</div>
+<div id="menu-screen" role="dialog" aria-modal="true" aria-labelledby="menu-title">
+  <h1 id="menu-title">AETHORIA</h1>
+  <div id="menu-subtitle" aria-hidden="true">An AI-Powered 3D Open World RPG</div>
 
-  <div class="class-row" id="class-row">
-    <div class="class-box selected" data-class="WARRIOR">
+  <div class="class-row" id="class-row" role="radiogroup" aria-label="Choose your class">
+    <div class="class-box selected" data-class="WARRIOR"
+         role="radio" aria-checked="true" tabindex="0"
+         aria-label="Warrior: Unbreakable frontliner. HP +40, ATK +4, DEF +6, SPD -10">
       <div class="cname" style="color:#ff6633">Warrior</div>
-      <div class="cdesc">Unbreakable frontliner.</div>
-      <div class="cstats">HP +40 · ATK +4<br>DEF +6 · SPD −10</div>
+      <div class="cdesc" aria-hidden="true">Unbreakable frontliner.</div>
+      <div class="cstats" aria-hidden="true">HP +40 · ATK +4<br>DEF +6 · SPD −10</div>
     </div>
-    <div class="class-box" data-class="MAGE">
+    <div class="class-box" data-class="MAGE"
+         role="radio" aria-checked="false" tabindex="0"
+         aria-label="Mage: Master of arcane destruction. HP -10, ATK +8, DEF -2, SPD +5">
       <div class="cname" style="color:#8866ff">Mage</div>
-      <div class="cdesc">Master of arcane destruction.</div>
-      <div class="cstats">HP −10 · ATK +8<br>DEF −2 · SPD +5</div>
+      <div class="cdesc" aria-hidden="true">Master of arcane destruction.</div>
+      <div class="cstats" aria-hidden="true">HP −10 · ATK +8<br>DEF −2 · SPD +5</div>
     </div>
-    <div class="class-box" data-class="RANGER">
+    <div class="class-box" data-class="RANGER"
+         role="radio" aria-checked="false" tabindex="0"
+         aria-label="Ranger: Swift hunter and evader. HP +10, ATK +3, DEF +2, SPD +25">
       <div class="cname" style="color:#44cc88">Ranger</div>
-      <div class="cdesc">Swift hunter &amp; evader.</div>
-      <div class="cstats">HP +10 · ATK +3<br>DEF +2 · SPD +25</div>
+      <div class="cdesc" aria-hidden="true">Swift hunter &amp; evader.</div>
+      <div class="cstats" aria-hidden="true">HP +10 · ATK +3<br>DEF +2 · SPD +25</div>
     </div>
   </div>
 
   <div>
-    <button class="menu-btn" id="btn-start">⚔ BEGIN YOUR JOURNEY</button>
-    <button class="menu-btn secondary" id="btn-continue" disabled>↺ Continue Journey</button>
+    <button class="menu-btn" id="btn-start" aria-label="Begin your journey with selected class">⚔ BEGIN YOUR JOURNEY</button>
+    <button class="menu-btn secondary" id="btn-continue" disabled aria-label="Continue a saved journey">↺ Continue Journey</button>
   </div>
   <div>
-    <button class="menu-btn secondary" id="btn-api" style="margin-top:8px">⚙ API Settings</button>
+    <button class="menu-btn secondary" id="btn-api" style="margin-top:8px" aria-label="Open API settings">⚙ API Settings</button>
   </div>
 
-  <div id="menu-controls">
+  <div id="menu-controls" aria-label="Keyboard and touch controls reference">
     WASD / Arrow Keys — Move &nbsp;|&nbsp; Q/E — Rotate Camera &nbsp;|&nbsp;
     Scroll — Zoom &nbsp;|&nbsp; E — Interact &nbsp;|&nbsp; I — Inventory &nbsp;|&nbsp; M — Map
     <br>
-    <span style="color:#777;font-size:9px">📱 Touch: Left-drag — Move &nbsp;|&nbsp; Right-drag — Rotate Camera &nbsp;|&nbsp; Tap — Attack/Interact</span>
+    <span class="touch-hint">Touch: Left-drag — Move &nbsp;|&nbsp; Right-drag — Rotate Camera &nbsp;|&nbsp; Tap — Attack/Interact</span>
   </div>
 </div>
 
 <!-- ── API Key Modal ──────────────────────────────────────── -->
-<div id="api-modal">
+<div id="api-modal" role="dialog" aria-modal="true" aria-labelledby="api-modal-title">
   <div class="mbox">
-    <h2>Claude API Key</h2>
+    <h2 id="api-modal-title">Claude API Key</h2>
     <p>Aethoria uses Claude AI for NPC dialogue and quests. Enter your Anthropic API key, or skip for scripted responses.</p>
-    <input type="password" id="api-input" placeholder="sk-ant-api03-..." autocomplete="off">
+    <label for="api-input" class="sr-only">API Key</label>
+    <input type="password" id="api-input" placeholder="sk-ant-api03-..." autocomplete="off" aria-describedby="api-modal-title">
     <div class="row">
-      <button id="api-save">Enable AI</button>
-      <button class="skip" id="api-skip">Play without AI</button>
+      <button id="api-save" aria-label="Save API key and enable AI">Enable AI</button>
+      <button class="skip" id="api-skip" aria-label="Play without AI, use scripted responses">Play without AI</button>
     </div>
   </div>
 </div>
 
 <!-- ── NPC Dialogue Input ─────────────────────────────────── -->
-<div id="dlg-overlay">
+<div id="dlg-overlay" role="dialog" aria-modal="true" aria-label="NPC dialogue input">
   <div id="dlg-box">
-    <input type="text" id="dialogue-text" placeholder="Say something to the NPC..." maxlength="200">
-    <button id="dialogue-send">Send</button>
+    <label for="dialogue-text" class="sr-only">Message to NPC</label>
+    <input type="text" id="dialogue-text" placeholder="Say something to the NPC..." maxlength="200" aria-label="Message to NPC">
+    <button id="dialogue-send" aria-label="Send message to NPC">Send</button>
   </div>
 </div>
 
 <!-- ── Error Display ─────────────────────────────────────── -->
-<div id="err-box">
+<div id="err-box" role="alertdialog" aria-modal="true" aria-labelledby="err-title" aria-describedby="err-msg">
   <div id="err-inner">
-    <h2>Aethoria failed to load</h2>
+    <h2 id="err-title">Aethoria failed to load</h2>
     <pre id="err-msg">Unknown error</pre>
     <button onclick="localStorage.clear();location.reload(true)">Clear cache and retry</button>
   </div>
@@ -170,10 +197,10 @@ window.addEventListener("unhandledrejection",function(e){
   }
   document.getElementById("api-save").onclick = function(){
     var k = document.getElementById("api-input").value.trim();
-    if(k){ localStorage.setItem("aethoria_api_key", k); modal.classList.remove("show"); }
+    if(k){ localStorage.setItem("aethoria_api_key", k); modal.classList.remove("show"); document.getElementById("btn-api").focus(); }
   };
   document.getElementById("api-skip").onclick = function(){
-    localStorage.setItem("aethoria_no_ai","1"); modal.classList.remove("show");
+    localStorage.setItem("aethoria_no_ai","1"); modal.classList.remove("show"); document.getElementById("btn-api").focus();
   };
   document.getElementById("api-input").onkeydown = function(e){
     if(e.key === "Enter") document.getElementById("api-save").click();
@@ -182,14 +209,45 @@ window.addEventListener("unhandledrejection",function(e){
   /* ── API Settings button on menu ── */
   document.getElementById("btn-api").onclick = function(){
     modal.classList.add("show");
+    // Move focus into the modal on open
+    setTimeout(function(){ document.getElementById("api-input").focus(); }, 50);
   };
 
+  /* ── Focus trap for API modal ── */
+  modal.addEventListener("keydown", function(e){
+    if(!modal.classList.contains("show")) return;
+    var focusable = modal.querySelectorAll("input,button");
+    var first = focusable[0], last = focusable[focusable.length - 1];
+    if(e.key === "Tab"){
+      if(e.shiftKey){ if(document.activeElement === first){ e.preventDefault(); last.focus(); } }
+      else          { if(document.activeElement === last ){ e.preventDefault(); first.focus(); } }
+    } else if(e.key === "Escape"){
+      document.getElementById("api-skip").click();
+    }
+  });
+
   /* ── Class selector ── */
+  function selectClass(box) {
+    document.querySelectorAll(".class-box").forEach(function(b){
+      b.classList.remove("selected");
+      b.setAttribute("aria-checked", "false");
+    });
+    box.classList.add("selected");
+    box.setAttribute("aria-checked", "true");
+    window._selectedClass = box.dataset.class;
+  }
   document.querySelectorAll(".class-box").forEach(function(box){
-    box.onclick = function(){
-      document.querySelectorAll(".class-box").forEach(function(b){ b.classList.remove("selected"); });
-      box.classList.add("selected");
-      window._selectedClass = box.dataset.class;
+    box.onclick = function(){ selectClass(box); };
+    box.onkeydown = function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); selectClass(box); }
+      // Arrow key navigation within the radiogroup
+      var boxes = Array.from(document.querySelectorAll(".class-box"));
+      var idx   = boxes.indexOf(box);
+      if(e.key === "ArrowRight" || e.key === "ArrowDown"){
+        e.preventDefault(); selectClass(boxes[(idx + 1) % boxes.length]); boxes[(idx + 1) % boxes.length].focus();
+      } else if(e.key === "ArrowLeft" || e.key === "ArrowUp"){
+        e.preventDefault(); selectClass(boxes[(idx - 1 + boxes.length) % boxes.length]); boxes[(idx - 1 + boxes.length) % boxes.length].focus();
+      }
     };
   });
   window._selectedClass = "WARRIOR";

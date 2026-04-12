@@ -16,13 +16,15 @@
 import { THREE }      from '../engine/Renderer.js';
 import { Entity3D, PX } from './Entity3D.js';
 import { CONFIG }     from '../config.js';
-import { Keys, MouseButton } from '../engine/InputManager.js';
+import { Keys } from '../engine/InputManager.js';
 
 // ── Per-class colour palettes ─────────────────────────────────────────────
 const CLASS_COLORS = {
-  WARRIOR: { body: 0x3a5f8a, accent: 0x7aa0c0, skin: 0xffcc99 },
-  MAGE:    { body: 0x6a2fa0, accent: 0xffdd44, skin: 0xffcc99 },
-  RANGER:  { body: 0x2d6b2d, accent: 0x8b5e3c, skin: 0xffcc99 },
+  WARRIOR:     { body: 0x3a5f8a, accent: 0x7aa0c0, skin: 0xffcc99 },
+  MAGE:        { body: 0x6a2fa0, accent: 0xffdd44, skin: 0xffcc99 },
+  RANGER:      { body: 0x2d6b2d, accent: 0x8b5e3c, skin: 0xffcc99 },
+  NECROMANCER: { body: 0x1a0a2e, accent: 0x8844cc, skin: 0xddbbcc },
+  PALADIN:     { body: 0x8a7a2a, accent: 0xffee66, skin: 0xffcc99 },
 };
 const DEFAULT_COLORS = { body: 0x4a4a6a, accent: 0x8888aa, skin: 0xffcc99 };
 
@@ -236,7 +238,7 @@ export class Player3D extends Entity3D {
       }
     }
 
-    const sp = this.stats.speed;
+    const sp = this.stats.speed * (this._weatherSpeedMult ?? 1.0);
     const mv = this.input.getMovementVector(); // { x, y } normalised [-1,1]
 
     // Camera-relative axes (projected onto XZ plane)
@@ -247,8 +249,9 @@ export class Player3D extends Entity3D {
     camFwd.normalize();
     camRight.crossVectors(camFwd, new THREE.Vector3(0, 1, 0)).normalize();
 
-    // Right-click → click-to-move (raycast onto ground plane y=0)
-    if (this.input.isMousePressed(MouseButton.RIGHT)) {
+    // Right-click tap (no drag) → click-to-move (raycast onto ground plane y=0)
+    // Drag is handled by Camera.js for rotation, so only fire on clean tap.
+    if (this.input.rmbWasClick) {
       this._handleClickToMove();
     }
 
@@ -429,7 +432,9 @@ export class Player3D extends Entity3D {
 
     // Predator: bonus per status effect on target
     if (this._predatorRanks > 0) {
-      const statusCount = this._scene3d?._combatSys?.getActiveStatuses?.(enemy)?.length ?? 0;
+      const statusCount = this.scene3d?._combatSys?.getActiveStatuses?.(enemy)?.length
+        ?? enemy?._statusEffects?.size
+        ?? 0;
       dmg = Math.floor(dmg * (1 + statusCount * this._predatorRanks * 0.08));
     }
 
@@ -456,6 +461,12 @@ export class Player3D extends Entity3D {
 
   takeDamage(amount) {
     if (this.isDead) return 0;
+
+    // Divine Shield (Paladin ability) — complete immunity
+    if (this._divineShieldActive) {
+      this.eventBus.emit('damage', this.position.x, this.position.y, 'IMMUNE', '#ffffff');
+      return 0;
+    }
 
     // Dodge chance (Ranger: EVASION skill)
     if (this.dodgeChance > 0 && Math.random() < this.dodgeChance) {
@@ -485,7 +496,9 @@ export class Player3D extends Entity3D {
   // ── XP & levelling ────────────────────────────────────────────────────────
 
   gainXP(amount) {
-    this.stats.xp += amount;
+    // Apply weather XP multiplier (set by GameScene via weatherEffectsChanged)
+    const xpMult = this._weatherXPMult ?? 1.0;
+    this.stats.xp += Math.round(amount * xpMult);
     while (this.stats.xp >= this.stats.xpNeeded) {
       this.stats.xp      -= this.stats.xpNeeded;
       this.stats.xpNeeded = Math.floor(this.stats.xpNeeded * 1.45);
@@ -522,20 +535,108 @@ export class Player3D extends Entity3D {
   useItem(key) {
     const item = CONFIG.ITEMS[key];
     if (!item) return;
-    if (item.type === 'consumable' && item.heal) {
+
+    if (item.type === 'consumable') {
       if (!this.removeItem(key)) return;
-      this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + item.heal);
-      this.eventBus.emit(
-        'damage',
-        this.position.x, this.position.y,
-        `+${item.heal} HP`, '#44ff88',
-      );
+
+      // Standard heal
+      if (item.heal) {
+        this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + item.heal);
+        this.eventBus.emit('damage', this.position.x, this.position.y, `+${item.heal} HP`, '#44ff88');
+      }
+
+      // Mana restore
+      if (item.restoresMana && this.stats.mana !== undefined) {
+        this.stats.mana = Math.min(this.stats.maxMana ?? 100, (this.stats.mana ?? 0) + item.restoresMana);
+      }
+
+      // HP cost (void_brew style)
+      if (item.hpCost) {
+        this.stats.hp = Math.max(1, this.stats.hp - item.hpCost);
+        this.eventBus.emit('damage', this.position.x, this.position.y, `-${item.hpCost} HP`, '#ff4466');
+      }
+
+      // Temporary attack boost
+      if (item.atkBoost && item.duration) {
+        this.stats.attack += item.atkBoost;
+        this.eventBus.emit('damage', this.position.x, this.position.y, `+${item.atkBoost} ATK`, '#ffaa22');
+        setTimeout(() => {
+          if (!this.stats) return;
+          this.stats.attack = Math.max(1, this.stats.attack - item.atkBoost);
+          this.eventBus.emit('statsChanged', this.stats);
+        }, item.duration * 1000);
+      }
+
+      // Temporary defense boost
+      if (item.defBoost && item.duration) {
+        this.stats.defense += item.defBoost;
+        this.eventBus.emit('damage', this.position.x, this.position.y, `+${item.defBoost} DEF`, '#44aaff');
+        setTimeout(() => {
+          if (!this.stats) return;
+          this.stats.defense = Math.max(0, this.stats.defense - item.defBoost);
+          this.eventBus.emit('statsChanged', this.stats);
+        }, item.duration * 1000);
+      }
+
+      // Speed boost — snapshot original to avoid float drift on restore
+      if (item.speedBoost && item.duration) {
+        const origSpeed = this.stats.speed;
+        const boost = item.speedBoost * (1 / 16); // convert px units
+        this.stats.speed += boost;
+        this.eventBus.emit('damage', this.position.x, this.position.y, 'HASTE!', '#88ffcc');
+        setTimeout(() => {
+          if (!this.stats) return;
+          this.stats.speed = origSpeed; // restore exactly — no float drift
+          this.eventBus.emit('statsChanged', this.stats);
+        }, item.duration * 1000);
+      }
+
+      // Cure status effect
+      if (item.cures) {
+        this.eventBus.emit('cureStatus', { target: this, key: item.cures });
+        this.eventBus.emit('damage', this.position.x, this.position.y, 'CURED!', '#88ff88');
+      }
+
       this.eventBus.emit('statsChanged', this.stats);
+
     } else if (item.type === 'weapon') {
       this.equipment.weapon = this.equipment.weapon === key ? null : key;
       this.eventBus.emit('inventoryChanged', this.inventory);
+
     } else if (item.type === 'armor') {
       this.equipment.armor = this.equipment.armor === key ? null : key;
+      this.eventBus.emit('inventoryChanged', this.inventory);
+
+    } else if (item.type === 'accessory') {
+      // Equip/unequip accessory — initialise slot on first use
+      if (!this.equipment.accessory) this.equipment.accessory = null;
+      // Apply stat bonuses when equipping; remove them when unequipping
+      const prev = this.equipment.accessory;
+      if (prev === key) {
+        // Unequip: reverse bonuses
+        const prevDef = CONFIG.ITEMS[prev];
+        if (prevDef?.atk)  this.stats.attack  = Math.max(1, this.stats.attack  - prevDef.atk);
+        if (prevDef?.def)  this.stats.defense  = Math.max(0, this.stats.defense  - prevDef.def);
+        if (prevDef?.hp)  { this.stats.maxHp -= prevDef.hp; this.stats.hp = Math.min(this.stats.hp, this.stats.maxHp); }
+        if (prevDef?.spd)  this.stats.speed  -= prevDef.spd * (1 / 16);
+        this.equipment.accessory = null;
+      } else {
+        // Unequip previous if any
+        if (prev) {
+          const prevDef = CONFIG.ITEMS[prev];
+          if (prevDef?.atk) this.stats.attack  = Math.max(1, this.stats.attack  - prevDef.atk);
+          if (prevDef?.def) this.stats.defense  = Math.max(0, this.stats.defense  - prevDef.def);
+          if (prevDef?.hp) { this.stats.maxHp -= prevDef.hp; this.stats.hp = Math.min(this.stats.hp, this.stats.maxHp); }
+          if (prevDef?.spd) this.stats.speed  -= prevDef.spd * (1 / 16);
+        }
+        // Equip new
+        if (item.atk)  this.stats.attack   += item.atk;
+        if (item.def)  this.stats.defense   += item.def;
+        if (item.hp)  { this.stats.maxHp   += item.hp;  this.stats.hp = Math.min(this.stats.hp + item.hp, this.stats.maxHp); }
+        if (item.spd)  this.stats.speed    += item.spd * (1 / 16);
+        this.equipment.accessory = key;
+      }
+      this.eventBus.emit('statsChanged', this.stats);
       this.eventBus.emit('inventoryChanged', this.inventory);
     }
   }

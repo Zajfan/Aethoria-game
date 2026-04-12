@@ -21,7 +21,11 @@ const NPC_PALETTES = [
   { robe: 0x6b3a2a, hat: 0xff8c00, skin: 0xd4926a }, // Gareth
   { robe: 0x1d5c2a, hat: 0x66cc44, skin: 0xf5cba7 }, // Mira
   { robe: 0x2e2255, hat: 0xaaaaff, skin: 0xf5cba7 }, // Dorin
-  { robe: 0x1c2e5e, hat: 0x4488ff, skin: 0xd4926a }, // Capt. Vel
+  { robe: 0x1c2e5e, hat: 0x4488ff, skin: 0xd4926a }, // Capt. Vel  (4)
+  { robe: 0x3d1155, hat: 0x9944cc, skin: 0xe8d0f0 }, // Sister Vashe  (5)
+  { robe: 0x6b1a0a, hat: 0xdd4422, skin: 0xc87050 }, // Master Theron (6)
+  { robe: 0x221133, hat: 0x443366, skin: 0xd4c8e8 }, // Aldric        (7)
+  { robe: 0x7a6a00, hat: 0xffee88, skin: 0xf5e8c0 }, // Solara        (8)
 ];
 
 // ── Helper ────────────────────────────────────────────────────────────────
