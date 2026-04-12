@@ -193,12 +193,15 @@ export class WeatherSystem {
     let flashes = 0;
     const maxFlashes = 2 + Math.floor(Math.random() * 3);
     const flash = () => {
+      // Guard: canvas may be detached between scheduled flash callbacks
+      if (!this._canvas) return;
       if (flashes >= maxFlashes) {
         this._canvas.style.filter = '';
         return;
       }
       this._canvas.style.filter = 'brightness(2.5) contrast(1.2)';
       setTimeout(() => {
+        if (!this._canvas) return;
         this._canvas.style.filter = '';
         setTimeout(() => {
           flashes++;

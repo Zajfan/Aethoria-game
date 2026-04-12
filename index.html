@@ -237,16 +237,22 @@ window.addEventListener("unhandledrejection",function(e){
     window._selectedClass = box.dataset.class;
   }
   document.querySelectorAll(".class-box").forEach(function(box){
+    // onclick handles aria-checked sync; main.js addEventListener handles selectedClass
     box.onclick = function(){ selectClass(box); };
     box.onkeydown = function(e){
-      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); selectClass(box); }
-      // Arrow key navigation within the radiogroup
       var boxes = Array.from(document.querySelectorAll(".class-box"));
       var idx   = boxes.indexOf(box);
-      if(e.key === "ArrowRight" || e.key === "ArrowDown"){
-        e.preventDefault(); selectClass(boxes[(idx + 1) % boxes.length]); boxes[(idx + 1) % boxes.length].focus();
+      if(e.key === "Enter" || e.key === " "){
+        // Trigger a real click so main.js's addEventListener also fires
+        e.preventDefault(); box.click();
+      } else if(e.key === "ArrowRight" || e.key === "ArrowDown"){
+        e.preventDefault();
+        var next = boxes[(idx + 1) % boxes.length];
+        next.click(); next.focus();
       } else if(e.key === "ArrowLeft" || e.key === "ArrowUp"){
-        e.preventDefault(); selectClass(boxes[(idx - 1 + boxes.length) % boxes.length]); boxes[(idx - 1 + boxes.length) % boxes.length].focus();
+        e.preventDefault();
+        var prev = boxes[(idx - 1 + boxes.length) % boxes.length];
+        prev.click(); prev.focus();
       }
     };
   });

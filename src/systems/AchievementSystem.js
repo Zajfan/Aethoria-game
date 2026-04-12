@@ -254,11 +254,12 @@ export class AchievementSystem {
         this.track('kills');
         if (['VOID_KNIGHT','STONE_COLOSSUS','LICH_KING','FOREST_ANCIENT','VOID_HERALD'].includes(typeKey)) {
           this.track('bosses');
-          this._data.stats.uniqueBosses = (this._data.stats.uniqueBosses ?? 0);
-          const ub = this._data.stats._bossTypes ?? new Set();
-          ub.add(typeKey);
-          this._data.stats._bossTypes = ub;
-          this._data.stats.uniqueBosses = ub.size;
+          // Store boss types as a plain array so it survives JSON round-trips.
+          // Using a Set in-memory for fast dedup, but the persisted form is an array.
+          const arr = this._data.stats._bossTypesArr ?? [];
+          if (!arr.includes(typeKey)) arr.push(typeKey);
+          this._data.stats._bossTypesArr  = arr;
+          this._data.stats.uniqueBosses   = arr.length;
         }
       });
       eventBus.on('worldBossSlain', ()        => this.track('worldBosses'));
@@ -338,13 +339,10 @@ export class AchievementSystem {
 
   _save() {
     try {
-      // Can't JSON.stringify a Set — convert first
-      const saveable = { ...this._data, stats: { ...this._data.stats } };
-      delete saveable.stats._bossTypes;
-      localStorage.setItem(KEY, JSON.stringify(saveable));
+      localStorage.setItem(KEY, JSON.stringify(this._data));
     } catch (_) {}
   }
 
-  serialize()    { return { unlocked: this._data.unlocked, stats: { ...this._data.stats, _bossTypes: undefined } }; }
+  serialize()    { return { unlocked: this._data.unlocked, stats: { ...this._data.stats } }; }
   deserialize(d) { if (d) { this._data.unlocked = d.unlocked ?? []; this._data.stats = d.stats ?? {}; } }
 }
