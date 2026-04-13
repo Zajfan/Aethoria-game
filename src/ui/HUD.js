@@ -1171,7 +1171,136 @@ export class HUD {
       if (this._dialogueNPC) this._openTrade(this._dialogueNPC);
     };
 
+    // Chain quest bar — shows quest offer, active progress, and turn-in
+    this._dlgQuestBar = this._el('div', '', panel);
+    this._dlgQuestBar.id = 'dlg-quest-bar';
+    this._dlgQuestBar.style.cssText = `
+      display:none; margin:8px 0 0; padding:10px 12px;
+      background:rgba(212,175,55,0.08); border:1px solid rgba(212,175,55,0.25);
+      border-radius:5px; font-family:'Courier New',monospace; font-size:11px;
+    `;
+
+    this._dlgQuestTitle = this._el('div', '', this._dlgQuestBar);
+    this._dlgQuestTitle.style.cssText = 'color:#d4af37;font-weight:bold;margin-bottom:4px;';
+
+    this._dlgQuestDesc = this._el('div', '', this._dlgQuestBar);
+    this._dlgQuestDesc.style.cssText = 'color:#aaa;line-height:1.4;margin-bottom:8px;font-size:10px;';
+
+    this._dlgQuestProgress = this._el('div', '', this._dlgQuestBar);
+    this._dlgQuestProgress.style.cssText = 'color:#88cc88;font-size:10px;margin-bottom:8px;';
+
+    const qBtnRow = this._el('div', '', this._dlgQuestBar);
+    qBtnRow.style.cssText = 'display:flex;gap:8px;';
+
+    this._dlgAcceptBtn = this._el('button', '', qBtnRow);
+    this._dlgAcceptBtn.textContent = '📋 Accept Quest';
+    this._dlgAcceptBtn.style.cssText = `
+      background:#1a2a08;border:1px solid #6a9a28;color:#aade55;
+      padding:4px 12px;border-radius:3px;cursor:pointer;
+      font-family:'Courier New',monospace;font-size:10px;
+    `;
+    this._dlgAcceptBtn.onclick = () => this._acceptChainQuest();
+
+    this._dlgTurnInBtn = this._el('button', '', qBtnRow);
+    this._dlgTurnInBtn.textContent = '✅ Turn In';
+    this._dlgTurnInBtn.style.cssText = `
+      background:#0a2a1a;border:1px solid #28aa55;color:#55ee88;
+      padding:4px 12px;border-radius:3px;cursor:pointer;
+      font-family:'Courier New',monospace;font-size:10px;
+    `;
+    this._dlgTurnInBtn.onclick = () => this._turnInChainQuest();
+
     this._dlgPanel = panel;
+  }
+
+  _updateChainQuestUI(npcName) {
+    if (!this._questSystem || !this._dlgQuestBar) return;
+    const qs = this._questSystem;
+
+    // Priority: turn-in > active > offer
+    const active    = qs.getActiveChainQuest(npcName);
+    const available = qs.getAvailableChainQuest(npcName);
+    const chainDef  = qs.getChainDef(npcName);
+    const state     = qs._chainState?.(npcName);
+
+    if (!chainDef) { this._dlgQuestBar.style.display = 'none'; return; }
+
+    if (state?.chainDone) {
+      // All done — show completion badge
+      this._dlgQuestBar.style.display = 'block';
+      this._dlgQuestTitle.textContent  = '✨ ' + chainDef.rewardLabel + ' — Quest Chain Complete';
+      this._dlgQuestDesc.textContent   = chainDef.rewardDesc;
+      this._dlgQuestProgress.textContent = '';
+      this._dlgAcceptBtn.style.display = 'none';
+      this._dlgTurnInBtn.style.display = 'none';
+      return;
+    }
+
+    if (active) {
+      this._dlgQuestBar.style.display = 'block';
+      const tpl = chainDef.quests[state.step];
+      this._dlgQuestTitle.textContent = '📜 ' + active.title +
+        ` (${state.step + 1}/${chainDef.quests.length})`;
+      this._dlgQuestDesc.textContent  = tpl?.completeText && active.done
+        ? tpl.completeText : active.desc;
+      if (active.done) {
+        this._dlgQuestProgress.textContent = '✅ Quest complete — turn it in!';
+        this._dlgAcceptBtn.style.display   = 'none';
+        this._dlgTurnInBtn.style.display   = 'inline-block';
+      } else {
+        this._dlgQuestProgress.textContent =
+          `Progress: ${active.progress}/${active.needed} ${active.target}`;
+        this._dlgAcceptBtn.style.display   = 'none';
+        this._dlgTurnInBtn.style.display   = 'none';
+      }
+      return;
+    }
+
+    if (available) {
+      const stepNum = (state?.step ?? 0) + 1;
+      this._dlgQuestBar.style.display  = 'block';
+      this._dlgQuestTitle.textContent  =
+        `📋 Quest ${stepNum}/${chainDef.quests.length}: ${available.title}`;
+      this._dlgQuestDesc.textContent   = available.giveText;
+      this._dlgQuestProgress.textContent = `Reward: ${available.reward.xp} XP, ${available.reward.gold}g` +
+        (stepNum === chainDef.quests.length ? ` + ${chainDef.rewardLabel}` : '');
+      this._dlgAcceptBtn.style.display = 'inline-block';
+      this._dlgTurnInBtn.style.display = 'none';
+      return;
+    }
+
+    this._dlgQuestBar.style.display = 'none';
+  }
+
+  _acceptChainQuest() {
+    const npcName = this._dialogueNPC?.npcData?.name;
+    if (!npcName || !this._questSystem) return;
+    const q = this._questSystem.acceptChainQuest(npcName);
+    if (q) {
+      this.logMsg(`Quest accepted: ${q.title}`, '#d4af37');
+      this._updateChainQuestUI(npcName);
+    }
+  }
+
+  _turnInChainQuest() {
+    const npcName = this._dialogueNPC?.npcData?.name;
+    if (!npcName || !this._questSystem) return;
+    const success = this._questSystem.turnInChainQuest(npcName, this._player);
+    if (success) {
+      const chain = this._questSystem.getChainDef(npcName);
+      const state = this._questSystem._chainState(npcName);
+      if (state.chainDone && chain) {
+        // Show reward text in dialogue
+        this._dlgText.textContent = chain.chainEndText;
+        this.logMsg(`Chain reward: ${chain.rewardLabel}!`, '#ffd700');
+        this._announce(`${chain.rewardLabel} unlocked!`);
+      } else {
+        const nextTpl = chain?.quests[state.step];
+        if (nextTpl) this._dlgText.textContent = nextTpl.giveText;
+        this.logMsg('Quest complete!', '#88ff88');
+      }
+      this._updateChainQuestUI(npcName);
+    }
   }
 
   /**
@@ -1264,6 +1393,9 @@ export class HUD {
         setTimeout(() => this._showPrestigePanel(ps), 600);
       }
     }
+
+    // NPC chain quest bar
+    this._updateChainQuestUI(nd.name);
 
     this._dlgInput.value = '';
     this._dlgInput.focus();
@@ -1515,7 +1647,7 @@ export class HUD {
 
     // Tier labels + scroll body
     const body = document.createElement('div');
-    body.style.cssText = 'flex:1;overflow-y:auto;padding:16px 20px;';
+    body.style.cssText = 'flex:1;overflow:auto;padding:16px 20px;';
     overlay.appendChild(body);
     this._skillBody = body;
   }
@@ -1531,22 +1663,20 @@ export class HUD {
     if (!this._player || !this._skillBody) return;
     this._skillBody.innerHTML = '';
 
-    const p          = this._player;
-    const cls        = p.playerClass ?? 'WARRIOR';
-    const classSkills= CONFIG.CLASSES[cls]?.skills ?? [];
-    const sp         = p.stats?.skillPoints ?? 0;
-    const clsColors  = { WARRIOR:'#ff6633', MAGE:'#cc44ff', RANGER:'#44cc88' };
-    const clsColor   = clsColors[cls] ?? '#d4af37';
+    const p           = this._player;
+    const cls         = p.playerClass ?? 'WARRIOR';
+    const classSkills = CONFIG.CLASSES[cls]?.skills ?? [];
+    const sp          = p.stats?.skillPoints ?? 0;
+    const clsColors   = { WARRIOR:'#ff6633', MAGE:'#cc44ff', RANGER:'#44cc88' };
+    const clsColor    = clsColors[cls] ?? '#d4af37';
 
-    // Update header
-    if (this._skillTitle) this._skillTitle.textContent = `// ${cls} SKILL TREE`;
+    if (this._skillTitle)    this._skillTitle.textContent = `// ${cls} SKILL TREE`;
     if (this._skillPointsEl) {
       this._skillPointsEl.innerHTML =
         `<span style="color:#667;">Skill Points: </span>` +
         `<span style="color:#aaddff;font-weight:bold;">${sp}</span>`;
     }
 
-    // Helper: check if prereqs are met
     const prereqsMet = (key) => {
       const sk = CONFIG.SKILLS[key];
       if (!sk?.requires?.length) return true;
@@ -1558,47 +1688,59 @@ export class HUD {
 
     const canAfford = (key) => {
       const rank = (p.skills?.[key] ?? 0) + 1;
-      const cost = CONFIG.SKILL_POINT_COST?.[rank] ?? rank;
-      return sp >= cost;
+      return sp >= (CONFIG.SKILL_POINT_COST?.[rank] ?? rank);
     };
 
-    // Render skills by tier
+    // Group skills by tier
+    const byTier = { 1: [], 2: [], 3: [] };
+    classSkills.forEach(key => {
+      const sk = CONFIG.SKILLS[key];
+      if (sk) (byTier[sk.tier] ?? []).push(key);
+    });
+
+    // ── Layout constants ──────────────────────────────────────────────────────
+    const NODE_W  = 228;
+    const NODE_H  = 172;  // nominal card height (cards are absolute, SVG uses this)
+    const ROW_GAP = 56;   // vertical gap between tier rows
+    const ROW_H   = NODE_H + ROW_GAP;
+    const HGAP    = 14;
+
+    const maxCount    = Math.max(1, ...Object.values(byTier).map(a => a.length));
+    const containerW  = Math.max(640, maxCount * (NODE_W + HGAP) + 40);
+    const totalH      = 3 * ROW_H + 16;
+
+    // ── Tree container ────────────────────────────────────────────────────────
+    const container = document.createElement('div');
+    container.style.cssText = `
+      position:relative; width:${containerW}px; height:${totalH}px; margin:0 auto;
+    `;
+    this._skillBody.appendChild(container);
+
+    // Track each node's connection points for the SVG layer
+    const nodePos = {};  // key → { cx, top, bottom }
+
+    // ── Build cards ───────────────────────────────────────────────────────────
     for (const tier of [1, 2, 3]) {
-      const tierNames = { 1:'FOUNDATION', 2:'ADVANCED', 3:'MASTERY' };
-      const tierColors= { 1:'#667788', 2:'#8899aa', 3:clsColor };
+      const tierSkills = byTier[tier];
+      const count      = tierSkills.length;
+      const totalRowW  = count * NODE_W + (count - 1) * HGAP;
+      const rowStartX  = Math.round((containerW - totalRowW) / 2);
+      const rowTopY    = (tier - 1) * ROW_H;
 
-      // Tier separator
-      const sep = document.createElement('div');
-      sep.style.cssText = `
-        display:flex; align-items:center; gap:12px; margin:${tier===1?'0':'24px'} 0 14px;
+      // Tier label (centred above the row)
+      const tierNames  = { 1:'TIER I — FOUNDATION', 2:'TIER II — ADVANCED', 3:'TIER III — MASTERY' };
+      const tierColors = { 1:'#445566', 2:'#667788', 3:clsColor };
+      const lbl = document.createElement('div');
+      lbl.style.cssText = `
+        position:absolute; left:0; width:100%;
+        top:${rowTopY - 22}px; text-align:center;
+        font-size:9px; letter-spacing:3px; color:${tierColors[tier]};
+        pointer-events:none;
       `;
-      const line1 = document.createElement('div');
-      line1.style.cssText = 'flex:1;height:1px;background:#223;';
-      const tierLabel = document.createElement('div');
-      tierLabel.style.cssText = `font-size:9px;color:${tierColors[tier]};letter-spacing:3px;white-space:nowrap;`;
-      tierLabel.textContent = `TIER ${tier} — ${tierNames[tier]}`;
-      const line2 = document.createElement('div');
-      line2.style.cssText = 'flex:1;height:1px;background:#223;';
-      sep.appendChild(line1); sep.appendChild(tierLabel); sep.appendChild(line2);
-      this._skillBody.appendChild(sep);
+      lbl.textContent = tierNames[tier];
+      container.appendChild(lbl);
 
-      // Skills grid for this tier
-      const grid = document.createElement('div');
-      grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;';
-      this._skillBody.appendChild(grid);
-
-      const tierSkills = classSkills
-        .filter(key => CONFIG.SKILLS[key]?.tier === tier);
-
-      if (!tierSkills.length) {
-        const none = document.createElement('div');
-        none.style.cssText = 'color:#334;font-size:10px;padding:8px 0;';
-        none.textContent = '— locked —';
-        grid.appendChild(none);
-        continue;
-      }
-
-      tierSkills.forEach(key => {
+      tierSkills.forEach((key, idx) => {
         const sk      = CONFIG.SKILLS[key];
         if (!sk) return;
         const curRank = p.skills?.[key] ?? 0;
@@ -1606,37 +1748,39 @@ export class HUD {
         const met     = prereqsMet(key);
         const afford  = canAfford(key);
         const nextCost= CONFIG.SKILL_POINT_COST?.[curRank + 1] ?? (curRank + 1);
+        const locked  = !met;
 
-        // Card
+        const leftX = rowStartX + idx * (NODE_W + HGAP);
+        const topY  = rowTopY;
+
+        nodePos[key] = { cx: leftX + NODE_W / 2, top: topY, bottom: topY + NODE_H };
+
+        // ── Card ──────────────────────────────────────────────────────────────
         const card = document.createElement('div');
-        const locked = !met;
         card.style.cssText = `
-          background:${locked ? 'rgba(10,10,20,0.5)' : 'rgba(14,14,28,0.9)'};
-          border:1px solid ${maxed ? clsColor : met ? '#334' : '#1a1a2a'};
+          position:absolute; left:${leftX}px; top:${topY}px;
+          width:${NODE_W}px; box-sizing:border-box;
+          background:${locked ? 'rgba(10,10,20,0.55)' : 'rgba(14,14,28,0.92)'};
+          border:1px solid ${maxed ? clsColor : met ? '#334455' : '#1a1a2a'};
           border-radius:6px; padding:12px 14px;
-          opacity:${locked ? '0.5' : '1'};
-          transition:border-color 0.2s;
-          position:relative; overflow:hidden;
+          opacity:${locked ? '0.52' : '1'};
+          ${maxed ? `box-shadow:0 0 14px ${clsColor}44;` : ''}
+          transition:border-color 0.2s, box-shadow 0.2s;
         `;
 
-        // Maxed shimmer
-        if (maxed) {
-          card.style.boxShadow = `0 0 12px ${clsColor}44`;
-        }
-
-        // Icon + name row
+        // Icon + name
         const nameRow = document.createElement('div');
         nameRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
         nameRow.innerHTML = `
-          <span style="font-size:18px;">${sk.icon ?? '?'}</span>
-          <span style="color:${maxed ? clsColor : met ? '#ccc' : '#556'};font-size:12px;font-weight:bold;">${sk.name}</span>
-          ${maxed ? `<span style="font-size:9px;color:${clsColor};margin-left:auto;">MAX</span>` : ''}
+          <span style="font-size:18px;line-height:1;">${sk.icon ?? '?'}</span>
+          <span style="color:${maxed ? clsColor : met ? '#cccccc' : '#445566'};font-size:12px;font-weight:bold;">${sk.name}</span>
+          ${maxed ? `<span style="font-size:9px;color:${clsColor};margin-left:auto;letter-spacing:1px;">MAX</span>` : ''}
         `;
         card.appendChild(nameRow);
 
         // Description
         const desc = document.createElement('div');
-        desc.style.cssText = 'font-size:10px;color:#889;line-height:1.5;margin-bottom:8px;';
+        desc.style.cssText = 'font-size:10px;color:#778899;line-height:1.5;margin-bottom:8px;';
         desc.textContent = sk.desc;
         card.appendChild(desc);
 
@@ -1645,39 +1789,28 @@ export class HUD {
         pipsRow.style.cssText = 'display:flex;gap:4px;margin-bottom:8px;align-items:center;';
         for (let r = 0; r < sk.maxRank; r++) {
           const pip = document.createElement('div');
-          const filled = r < curRank;
           pip.style.cssText = `
-            width:${Math.min(24, Math.floor(160/sk.maxRank))}px; height:6px;
-            border-radius:2px; flex:1; max-width:28px;
-            background:${filled ? clsColor : '#223'};
-            border:1px solid ${filled ? clsColor : '#334'};
+            flex:1; max-width:28px; height:6px; border-radius:2px;
+            background:${r < curRank ? clsColor : '#1e2233'};
+            border:1px solid ${r < curRank ? clsColor : '#2a3044'};
             transition:background 0.2s;
           `;
           pipsRow.appendChild(pip);
         }
         const rankText = document.createElement('span');
-        rankText.style.cssText = 'font-size:9px;color:#556;margin-left:6px;';
+        rankText.style.cssText = 'font-size:9px;color:#445;margin-left:6px;white-space:nowrap;';
         rankText.textContent = `${curRank}/${sk.maxRank}`;
         pipsRow.appendChild(rankText);
         card.appendChild(pipsRow);
 
-        // Prerequisites display
+        // Prerequisites
         if (sk.requires?.length) {
           const reqDiv = document.createElement('div');
-          reqDiv.style.cssText = 'font-size:9px;color:#445;margin-bottom:7px;';
-          reqDiv.textContent = 'Requires: ' + sk.requires.map(r => {
+          reqDiv.style.cssText = 'font-size:9px;color:#3a4a5a;margin-bottom:7px;';
+          reqDiv.innerHTML = 'Req: ' + sk.requires.map(r => {
             const [rk, rr] = r.split(':');
-            const have = p.skills?.[rk] ?? 0;
-            const need = parseInt(rr ?? 1);
-            const done = have >= need;
-            return `<span style="color:${done ? '#44aa44' : '#aa4444'}">${CONFIG.SKILLS[rk]?.name ?? rk} ${rr ? 'Rank '+rr : ''}</span>`;
-          }).join(', ');
-          reqDiv.innerHTML = 'Requires: ' + sk.requires.map(r => {
-            const [rk, rr] = r.split(':');
-            const have = p.skills?.[rk] ?? 0;
-            const need = parseInt(rr ?? 1);
-            const done = have >= need;
-            return `<span style="color:${done?'#44cc44':'#cc4444'}">${CONFIG.SKILLS[rk]?.name??rk}${rr?' Rk'+rr:''}</span>`;
+            const done = (p.skills?.[rk] ?? 0) >= parseInt(rr ?? 1);
+            return `<span style="color:${done ? '#44bb44' : '#bb4444'}">${CONFIG.SKILLS[rk]?.name ?? rk}${rr ? ' Rk' + rr : ''}</span>`;
           }).join(' · ');
           card.appendChild(reqDiv);
         }
@@ -1685,38 +1818,85 @@ export class HUD {
         // Learn button
         if (!maxed) {
           const btn = document.createElement('button');
-          const canLearn = met && afford && !maxed;
+          const canLearn = met && afford;
           btn.style.cssText = `
-            width:100%; padding:6px; border-radius:4px; cursor:${canLearn?'pointer':'not-allowed'};
+            width:100%; padding:6px; border-radius:4px; cursor:${canLearn ? 'pointer' : 'not-allowed'};
             font-family:'Courier New',monospace; font-size:10px; letter-spacing:1px;
-            background:${canLearn ? clsColor+'22' : 'transparent'};
-            border:1px solid ${canLearn ? clsColor : '#334'};
-            color:${canLearn ? clsColor : '#445'};
+            background:${canLearn ? clsColor + '22' : 'transparent'};
+            border:1px solid ${canLearn ? clsColor : '#2a3044'};
+            color:${canLearn ? clsColor : '#3a4a5a'};
             transition:all 0.15s;
           `;
-          if (!met) btn.textContent = '🔒 Locked';
-          else if (!afford) btn.textContent = `⚠ Need ${nextCost} SP (have ${sp})`;
-          else btn.textContent = `▲ Rank ${curRank+1}  [${nextCost} SP]`;
-
+          btn.textContent = !met
+            ? '🔒 Locked'
+            : !afford
+              ? `⚠ Need ${nextCost} SP (have ${sp})`
+              : `▲ Rank ${curRank + 1}  [${nextCost} SP]`;
           btn.onclick = () => {
             if (!canLearn) return;
             if (p.learnSkill(key)) {
               this._renderSkills();
-              this.logMsg(`✓ ${sk.name} → Rank ${(p.skills?.[key]??0)}`, clsColor);
+              this.logMsg(`✓ ${sk.name} → Rank ${p.skills?.[key] ?? 0}`, clsColor);
             }
           };
           card.appendChild(btn);
         }
 
-        grid.appendChild(card);
+        container.appendChild(card);
       });
     }
+
+    // ── SVG connector lines — inserted behind all cards ───────────────────────
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.style.cssText = `
+      position:absolute; top:0; left:0;
+      width:${containerW}px; height:${totalH}px; pointer-events:none; overflow:visible;
+    `;
+    svg.setAttribute('viewBox', `0 0 ${containerW} ${totalH}`);
+
+    classSkills.forEach(childKey => {
+      const sk = CONFIG.SKILLS[childKey];
+      if (!sk?.requires?.length) return;
+      const child = nodePos[childKey];
+      if (!child) return;
+      const met = prereqsMet(childKey);
+
+      sk.requires.forEach(req => {
+        const [rk] = req.split(':');
+        const parent = nodePos[rk];
+        if (!parent) return;
+
+        const x1  = parent.cx;
+        const y1  = parent.bottom - 4;   // leave a small gap from card edge
+        const x2  = child.cx;
+        const y2  = child.top + 4;
+        const midY = (y1 + y2) / 2;
+
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.setAttribute('d', `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`);
+        path.setAttribute('stroke', met ? clsColor + 'aa' : '#1e2a3a');
+        path.setAttribute('stroke-width', met ? '2' : '1.5');
+        path.setAttribute('fill', 'none');
+        if (!met) path.setAttribute('stroke-dasharray', '5,4');
+        svg.appendChild(path);
+
+        // Arrow head at child end
+        const arrow = document.createElementNS(SVG_NS, 'polygon');
+        const dx = 0, dy = 4;
+        arrow.setAttribute('points', `${x2},${y2} ${x2 - 4},${y2 - dy} ${x2 + 4},${y2 - dy}`);
+        arrow.setAttribute('fill', met ? clsColor + 'aa' : '#1e2a3a');
+        svg.appendChild(arrow);
+      });
+    });
+
+    container.insertBefore(svg, container.firstChild);
 
     // Unspent SP warning
     if (sp > 0) {
       const warn = document.createElement('div');
       warn.style.cssText = 'text-align:center;padding:16px;color:#aaddff;font-size:11px;margin-top:8px;';
-      warn.textContent = `You have ${sp} unspent skill point${sp!==1?'s':''}!`;
+      warn.textContent = `You have ${sp} unspent skill point${sp !== 1 ? 's' : ''}!`;
       this._skillBody.appendChild(warn);
     }
   }
@@ -3292,6 +3472,15 @@ export class HUD {
     reg('inventoryChanged', () => { if (this.invOpen) this._renderInv(this._player); });
     reg('levelUp',          lv => { this.logMsg('Level Up! Now level ' + lv, '#ffd700'); this._announce('Level up! You are now level ' + lv); });
     reg('questAdded',       () => this.refreshQuests());
+    reg('chainQuestReady',  ({ giver }) => {
+      this.logMsg(`Return to ${giver} to turn in your quest!`, '#d4af37');
+      this._announce(`Quest ready: speak to ${giver}`);
+    });
+    reg('chainRewardGranted', ({ rewardLabel, rewardDesc, endText }) => {
+      this.logMsg(`Chain reward: ${rewardLabel}`, '#ffd700');
+      this._announce(rewardLabel + ' — ' + rewardDesc);
+      if (endText) setTimeout(() => this.logMsg(endText, '#aaddff'), 2000);
+    });
 
     this._updateStats(this._player?.stats);
     this.refreshQuests();

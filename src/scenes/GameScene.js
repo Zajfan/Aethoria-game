@@ -580,6 +580,9 @@ export class GameScene {
       this.player.equipment   = { ...(savedPlayerData.equipment || {}) };
       this.player.skills      = { ...(savedPlayerData.skills    || {}) };
       this.player.playerClass = savedPlayerData.playerClass || null;
+      // Restore permanent NPC chain rewards and re-apply their effects
+      this.player.chainRewards = { ...(savedPlayerData.chainRewards || {}) };
+      Object.keys(this.player.chainRewards).forEach(key => this._applyChainReward(key, true));
     }
     if (!this.player.playerClass) {
       this.player.applyClass(localStorage.getItem('aethoria_class') || 'WARRIOR');
@@ -963,6 +966,15 @@ export class GameScene {
       this._doSave();
     });
     bus.on('questProgress', () => this.hud?.refreshQuests?.());
+
+    // NPC chain quest rewards — apply permanent gameplay effects
+    bus.on('chainRewardGranted', ({ rewardKey }) => {
+      this._applyChainReward(rewardKey);
+      this._doSave();
+    });
+
+    // Chain quest ready to turn in — refresh quest log
+    bus.on('chainQuestReady', () => this.hud?.refreshQuests?.());
 
     bus.on('weatherChanged', w => {
       // WeatherSystem handles its own hintMsg via hudLog event
@@ -1666,6 +1678,48 @@ export class GameScene {
     };
   }
 
+  /**
+   * Apply the permanent gameplay effect for a completed NPC chain reward.
+   * @param {string}  rewardKey   Key from CONFIG.NPC_CHAINS (e.g. 'VOID_RESISTANCE')
+   * @param {boolean} [silent]    True when restoring from save — skip announce
+   */
+  _applyChainReward(rewardKey, silent = false) {
+    if (!this.player) return;
+    if (!this.player.chainRewards) this.player.chainRewards = {};
+    this.player.chainRewards[rewardKey] = true;
+
+    switch (rewardKey) {
+      case 'VOID_RESISTANCE':
+        // 15% damage reduction vs void/wraith enemies (checked in Enemy3D deal-damage path)
+        this.player._voidResist = 0.15;
+        break;
+
+      case 'MASTER_CRAFTING':
+        // Unlocks advanced forge tier; checked by TradeSystem / EnchantSystem
+        if (this.enchantSystem) this.enchantSystem._masterCrafting = true;
+        break;
+
+      case 'HERB_MASTERY':
+        // +30% potion healing — applied when player uses a potion (Player3D._usePotion)
+        this.player._herbMasteryBonus = 0.30;
+        break;
+
+      case 'GATE_FRAGMENT':
+        // +10% gold from all drops (checked at enemy death gold roll)
+        this.player._goldDropBonus = (this.player._goldDropBonus ?? 0) + 0.10;
+        break;
+
+      case 'VEL_BLESSING':
+        // +15% attack damage vs void enemies (checked in CombatSystem.resolveHit)
+        this.player._voidAttackBonus = 0.15;
+        break;
+    }
+
+    if (!silent) {
+      this.eventBus.emit('statsChanged', this.player.stats);
+    }
+  }
+
   async _doSave() {
     try {
       await this.saveSystem?.save({
@@ -1686,6 +1740,7 @@ export class GameScene {
         abilities:    this.abilitySystem?.serialize()   ?? {},
         prestige:     this.prestigeSystem?.serialize()  ?? {},
         poi:          this.poiSystem?.serialize()       ?? {},
+        chainRewards: { ...(this.player.chainRewards   || {}) },
       });
     } catch (err) {
       console.error('[GameScene] Auto-save failed:', err);

@@ -20,6 +20,9 @@ export class QuestSystem {
     this.active = [];
     this.done   = [];
     this._lastType = null; // prevent back-to-back same type
+
+    // NPC chain state: { 'Elder Lyra': { step: 0, activeId: null, chainDone: false } }
+    this._chains = {};
   }
 
   // ── Quest generation ──────────────────────────────────────────────────────
@@ -102,6 +105,128 @@ export class QuestSystem {
     return quest;
   }
 
+  // ── NPC chain quest API ───────────────────────────────────────────────────
+
+  /**
+   * Returns the chain definition for an NPC, or null if none.
+   */
+  getChainDef(npcName) {
+    return CONFIG.NPC_CHAINS?.[npcName] ?? null;
+  }
+
+  /**
+   * Returns the chain state object for an NPC (creates if missing).
+   */
+  _chainState(npcName) {
+    if (!this._chains[npcName]) {
+      this._chains[npcName] = { step: 0, activeId: null, chainDone: false };
+    }
+    return this._chains[npcName];
+  }
+
+  /**
+   * Returns the next quest template the NPC can offer, or null.
+   * null means: chain is finished OR player already has it active.
+   */
+  getAvailableChainQuest(npcName) {
+    const chain = this.getChainDef(npcName);
+    if (!chain) return null;
+    const state = this._chainState(npcName);
+    if (state.chainDone) return null;
+    if (state.activeId !== null) return null;  // already active
+    const tpl = chain.quests[state.step];
+    return tpl ?? null;
+  }
+
+  /**
+   * Returns the active chain quest for this NPC if the player has accepted it, or null.
+   */
+  getActiveChainQuest(npcName) {
+    const state = this._chainState(npcName);
+    if (state.activeId === null) return null;
+    return this.active.find(q => q.id === state.activeId) ?? null;
+  }
+
+  /**
+   * Accept the current chain quest for this NPC.
+   * Returns the created quest object.
+   */
+  acceptChainQuest(npcName) {
+    const tpl   = this.getAvailableChainQuest(npcName);
+    if (!tpl) return null;
+    const state = this._chainState(npcName);
+
+    const quest = {
+      id:         tpl.id,
+      type:       tpl.type,
+      title:      tpl.title,
+      desc:       tpl.giveText,
+      giver:      npcName,
+      target:     tpl.target,
+      needed:     tpl.needed,
+      progress:   0,
+      done:       false,
+      isChain:    true,
+      waypointX:  tpl.waypointX,
+      waypointZ:  tpl.waypointZ,
+      reward:     { ...tpl.reward },
+    };
+
+    state.activeId = tpl.id;
+    this.active.push(quest);
+    this.scene.events.emit('questAdded', quest);
+    return quest;
+  }
+
+  /**
+   * Turn in the active chain quest for this NPC.
+   * Advances the chain, emits questComplete, grants reward + chain reward if finished.
+   */
+  turnInChainQuest(npcName, player) {
+    const quest = this.getActiveChainQuest(npcName);
+    if (!quest || !quest.done) return false;
+
+    const chain = this.getChainDef(npcName);
+    const state = this._chainState(npcName);
+
+    // Remove from active, add to done
+    this.active  = this.active.filter(q => q.id !== quest.id);
+    this.done.push(quest);
+    state.activeId = null;
+    state.step++;
+
+    this.scene.events.emit('questComplete', quest);
+
+    // Grant XP + gold (with GATE_FRAGMENT bonus if active)
+    if (player) {
+      player.gainXP?.(quest.reward.xp);
+      if (quest.reward.gold) {
+        const goldMult = 1 + (player._goldDropBonus ?? 0);
+        player.stats.gold = (player.stats.gold ?? 0) + Math.round(quest.reward.gold * goldMult);
+        player.eventBus?.emit('statsChanged', player.stats);
+      }
+    }
+
+    // Check if chain is now complete
+    if (state.step >= chain.quests.length) {
+      state.chainDone = true;
+      // Grant unique chain reward
+      if (player) {
+        if (!player.chainRewards) player.chainRewards = {};
+        player.chainRewards[chain.rewardKey] = true;
+        this.scene.events.emit('chainRewardGranted', {
+          npcName,
+          rewardKey:   chain.rewardKey,
+          rewardLabel: chain.rewardLabel,
+          rewardDesc:  chain.rewardDesc,
+          endText:     chain.chainEndText,
+        });
+      }
+    }
+
+    return true;
+  }
+
   // ── Waypoint estimation ───────────────────────────────────────────────────
 
   _estimateWaypoint(type, fill, worldCtx) {
@@ -172,7 +297,16 @@ export class QuestSystem {
       if (type === 'COLLECT' && q.target !== target) return;
       q.progress = Math.min(q.needed, q.progress + 1);
       this.scene.events.emit('questProgress', q);
-      if (q.progress >= q.needed) this._complete(q);
+      if (q.progress >= q.needed) {
+        if (q.isChain) {
+          // Chain quests: mark done but require manual turn-in at the NPC
+          q.done = true;
+          this.scene.events.emit('questProgress', q); // refresh UI
+          this.scene.events.emit('chainQuestReady', { questId: q.id, giver: q.giver });
+        } else {
+          this._complete(q);
+        }
+      }
     });
   }
 
@@ -187,7 +321,8 @@ export class QuestSystem {
     if (p) {
       p.gainXP(q.reward.xp);
       if (q.reward.gold > 0) {
-        p.stats.gold = (p.stats.gold ?? 0) + q.reward.gold;
+        const goldMult = 1 + (p._goldDropBonus ?? 0); // GATE_FRAGMENT chain reward
+        p.stats.gold = (p.stats.gold ?? 0) + Math.round(q.reward.gold * goldMult);
         p.eventBus?.emit('statsChanged', p.stats);
       }
     }
@@ -195,12 +330,15 @@ export class QuestSystem {
 
   // ── Serialization ─────────────────────────────────────────────────────────
 
-  serialize()    { return { active: this.active, done: this.done.slice(-20), nextId: _nextId }; }
+  serialize() {
+    return { active: this.active, done: this.done.slice(-20), nextId: _nextId, chains: this._chains };
+  }
   deserialize(d) {
     if (!d) return;
-    this.active = d.active  ?? [];
-    this.done   = d.done    ?? [];
-    _nextId     = d.nextId  ?? 1;
+    this.active   = d.active  ?? [];
+    this.done     = d.done    ?? [];
+    _nextId       = d.nextId  ?? 1;
+    this._chains  = d.chains  ?? {};
   }
 
   getActive()  { return this.active; }

@@ -446,6 +446,12 @@ export class Player3D extends Entity3D {
       this.eventBus.emit('damage', this.position.x, this.position.y, '☠ DEATH MARK', '#ff4444');
     }
 
+    // VEL_BLESSING chain reward — +15% attack damage vs void/wraith enemies
+    if (this._voidAttackBonus) {
+      const VOID_TYPES = new Set(['wraith', 'specter', 'cultist', 'voidwalker']);
+      if (VOID_TYPES.has(enemy.typeKey)) dmg = Math.ceil(dmg * (1 + this._voidAttackBonus));
+    }
+
     // Arcane Surge XP boost (handled in gainXP)
     enemy.takeDamage(dmg, this);
     this.attackCooldown = this.attackCooldownBase;
@@ -459,7 +465,7 @@ export class Player3D extends Entity3D {
 
   // ── Damage / death ────────────────────────────────────────────────────────
 
-  takeDamage(amount) {
+  takeDamage(amount, sourceTypeKey = null) {
     if (this.isDead) return 0;
 
     // Divine Shield (Paladin ability) — complete immunity
@@ -478,9 +484,15 @@ export class Player3D extends Entity3D {
     const eqDef      = this.equipment.armor
       ? (CONFIG.ITEMS[this.equipment.armor]?.def || 0)
       : 0;
+
+    // VOID_RESISTANCE chain reward — 15% damage reduction from wraith/void-type enemies
+    const VOID_TYPES = new Set(['wraith', 'specter', 'cultist', 'voidwalker']);
+    const voidResistMult = (this._voidResist && sourceTypeKey && VOID_TYPES.has(sourceTypeKey))
+      ? (1 - this._voidResist) : 1;
+
     const actual  = Math.max(
       1,
-      Math.floor(amount * shieldMult) - Math.floor((this.stats.defense + eqDef) / 2),
+      Math.floor(amount * shieldMult * voidResistMult) - Math.floor((this.stats.defense + eqDef) / 2),
     );
     this.stats.hp = Math.max(0, this.stats.hp - actual);
     this.eventBus.emit('damage', this.position.x, this.position.y, actual, '#ff6666');
@@ -539,10 +551,12 @@ export class Player3D extends Entity3D {
     if (item.type === 'consumable') {
       if (!this.removeItem(key)) return;
 
-      // Standard heal
+      // Standard heal (HERB_MASTERY chain reward adds +30%)
       if (item.heal) {
-        this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + item.heal);
-        this.eventBus.emit('damage', this.position.x, this.position.y, `+${item.heal} HP`, '#44ff88');
+        const healMult = 1 + (this._herbMasteryBonus ?? 0);
+        const healed   = Math.round(item.heal * healMult);
+        this.stats.hp  = Math.min(this.stats.maxHp, this.stats.hp + healed);
+        this.eventBus.emit('damage', this.position.x, this.position.y, `+${healed} HP`, '#44ff88');
       }
 
       // Mana restore

@@ -758,7 +758,7 @@ export class Enemy3D extends Entity3D {
           if (dp > SHOOT_R + 1.5) { this.state = S.CHASE; break; }
           if (this.atkCD === 0 && player) {
             const dmg = Math.max(1, this.stats.atk + _randInt(-1, 2));
-            player.takeDamage(dmg);
+            player.takeDamage(dmg, this.typeKey);
             this.atkCD = 2200; // slower reload
             this.eventBus.emit('damage', this.position.x, this.position.y, dmg, '#ddddaa');
             // Arrow particle
@@ -771,7 +771,7 @@ export class Enemy3D extends Entity3D {
           if (dp > this.ATK_R + 0.75) { this.state = S.CHASE; break; }
           if (this.atkCD === 0 && player) {
             const dmg = Math.max(1, this.stats.atk + _randInt(-2, 2));
-            player.takeDamage(dmg);
+            player.takeDamage(dmg, this.typeKey);
             this.atkCD = this._isPoisonous ? 900 : this._isBerserker ? 800 : 1300;
             this.eventBus.emit('damage', this.position.x, this.position.y, dmg, '#ffcc00');
             if (this._isPoisonous)  this.eventBus.emit('enemyPoisonHit',   { target: player });

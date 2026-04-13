@@ -71,12 +71,12 @@ async function startGame(savedPlayerData) {
 }
 
 // ── Enter dungeon ─────────────────────────────────────────────────────────────
-async function enterDungeon(savedPlayer) {
+async function enterDungeon(savedPlayer, dungeonKey = null) {
   await fadeTo(1, 500);
   if (activeScene) { activeScene.dispose(); activeScene = null; }
 
   const dScene = new DungeonScene3D(renderer, camCtrl, inputManager, eventBus);
-  await dScene.create(savedPlayer);
+  await dScene.create(savedPlayer, dungeonKey);
   activeScene = dScene;
 
   if (!running) { running = true; loop(); }
@@ -91,7 +91,7 @@ async function exitDungeon(savedPlayer) {
 }
 
 // ── EventBus wiring ───────────────────────────────────────────────────────────
-eventBus.on('enterDungeon', ({ savedPlayer }) => enterDungeon(savedPlayer));
+eventBus.on('enterDungeon', ({ savedPlayer, dungeonKey }) => enterDungeon(savedPlayer, dungeonKey));
 eventBus.on('exitDungeon',  ({ savedPlayer }) => exitDungeon(savedPlayer));
 
 // ── Menu ──────────────────────────────────────────────────────────────────────

@@ -157,14 +157,14 @@ function buildDungeonMesh(scene3d, data, W, H, theme = null) {
 
 // ── Room lights ───────────────────────────────────────────────────────────────
 
-function addRoomLights(scene3d, rooms) {
+function addRoomLights(scene3d, rooms, theme = null) {
   const lights = [];
-  const ROOM_COLORS = [0x8844ff, 0x4488ff, 0x44bbff, 0xff4488, 0xffaa22];
+  const ROOM_COLORS = theme?.roomLightColors ?? [0x8844ff, 0x4488ff, 0x44bbff, 0xff4488, 0xffaa22];
   rooms.forEach((room, i) => {
     const col   = ROOM_COLORS[i % ROOM_COLORS.length];
-    const light = new THREE.PointLight(col, 1.4, 14);
-    light.position.set(room.cx + 0.5, WALL_H * 0.6, room.cy + 0.5);
-    light.castShadow = false; // performance: only if few lights
+    const light = new THREE.PointLight(col, 1.5, 15);
+    light.position.set(room.cx + 0.5, WALL_H * 0.65, room.cy + 0.5);
+    light.castShadow = false; // performance: skip per-light shadows
     scene3d.add(light);
     lights.push(light);
   });
@@ -236,24 +236,30 @@ export class DungeonScene3D {
 
   /**
    * @param {object|null} savedPlayerData  Player stats to restore on entry
+   * @param {string|null} dungeonKey       Force a specific DUNGEON_THEMES key (optional)
    */
-  async create(savedPlayerData = null) {
+  async create(savedPlayerData = null, dungeonKey = null) {
     // Restore floor from save or start at 1
     this._floor = savedPlayerData?._dungeonFloor ?? 1;
 
-    // v0.6 — Pick a dungeon theme
-    const themeKeys = Object.keys(CONFIG.DUNGEON_THEMES);
-    const themeKey  = themeKeys[Math.floor(Math.random() * themeKeys.length)];
-    this._theme     = CONFIG.DUNGEON_THEMES[themeKey];
-    this._themeKey  = themeKey;
+    // Pick dungeon theme — use forced key if provided, else random
+    const themeKeys  = Object.keys(CONFIG.DUNGEON_THEMES);
+    const resolvedKey = (dungeonKey && CONFIG.DUNGEON_THEMES[dungeonKey])
+      ? dungeonKey
+      : themeKeys[Math.floor(Math.random() * themeKeys.length)];
+    this._theme    = CONFIG.DUNGEON_THEMES[resolvedKey];
+    this._themeKey = resolvedKey;
 
     // Three.js scene — theme-coloured atmosphere
     this.scene3d = new THREE.Scene();
     this.scene3d.background = new THREE.Color(this._theme.bgColor ?? 0x080810);
     this.scene3d.fog         = new THREE.FogExp2(this._theme.bgColor ?? 0x080810, this._theme.fogDensity ?? 0.045);
 
-    // Very dim ambient
-    const ambient = new THREE.AmbientLight(0x0a0a18, 0.5);
+    // Themed ambient light
+    const ambient = new THREE.AmbientLight(
+      this._theme.ambientColor     ?? 0x0a0a18,
+      this._theme.ambientIntensity ?? 0.5,
+    );
     this.scene3d.add(ambient);
     this._lights.push(ambient);
 
@@ -265,9 +271,12 @@ export class DungeonScene3D {
     // Build geometry
     this._meshes = buildDungeonMesh(this.scene3d, data, DW, DH, this._theme);
 
-    // Room point lights
-    const roomLights = addRoomLights(this.scene3d, rooms);
+    // Themed room point lights
+    const roomLights = addRoomLights(this.scene3d, rooms, this._theme);
     this._lights.push(...roomLights);
+
+    // Theme-specific decorative geometry
+    this._buildThemeDecor(rooms, data);
 
     // Spawn player at entrance (first room or near top-left floor)
     const spawnTile = findFloorTile(data, DW, DH, 5, 5);
@@ -320,12 +329,17 @@ export class DungeonScene3D {
     // Click handler
     this.renderer.canvas.addEventListener('click', this._onCanvasClick);
 
-    // Show dungeon entry message
+    // Show dungeon entry message with theme narration
     setTimeout(() => {
-      const themeName = this._theme?.name ?? 'Unknown Dungeon';
-      const floorStr  = this._floor > 1 ? ` — Floor ${this._floor}` : '';
-      this.hud?.logMsg(`⚔ ${themeName}${floorStr}`, '#cc88ff');
-      if (this._floor > 1) this.hud?.logMsg(`⚠ Deeper floors — stronger enemies`, '#ff8844');
+      const themeName   = this._theme?.name   ?? 'Unknown Dungeon';
+      const themeIntro  = this._theme?.intro  ?? null;
+      const accentHex   = '#' + (this._theme?.accentColor ?? 0xcc88ff).toString(16).padStart(6, '0');
+      const floorStr    = this._floor > 1 ? ` — Floor ${this._floor}` : '';
+      this.hud?.logMsg(`⚔ ${themeName}${floorStr}`, accentHex);
+      if (themeIntro) {
+        setTimeout(() => this.hud?.logMsg(`"${themeIntro}"`, '#778899'), 900);
+      }
+      if (this._floor > 1) this.hud?.logMsg('⚠ Deeper floors — stronger enemies', '#ff8844');
       this.eventBus.emit('questProgress', { type: 'DUNGEON' });
     }, 400);
   }
@@ -613,7 +627,7 @@ export class DungeonScene3D {
     this._stairMesh.position.set(px, 0.15, pz);
     this.scene3d.add(this._stairMesh);
 
-    const light = new THREE.PointLight(0x8844ff, 1.2, 5);
+    const light = new THREE.PointLight(this._theme?.accentColor ?? 0x8844ff, 1.2, 5);
     light.position.set(px, 1.5, pz);
     this.scene3d.add(light);
     this._lights.push(light);
@@ -664,6 +678,141 @@ export class DungeonScene3D {
     this._overlay().appendChild(this._exitLabelEl);
 
     this._exitPos = new THREE.Vector3(px, 0, pz);
+  }
+
+  // ── Theme decorative geometry ─────────────────────────────────────────────
+
+  _buildThemeDecor(rooms, data) {
+    const theme = this._theme;
+    if (!theme?.decor) return;
+
+    const decor  = theme.decor;
+    const accent = theme.accentColor ?? 0xffffff;
+
+    // Helper: add a mesh to scene and track for disposal
+    const add = (mesh) => {
+      this.scene3d.add(mesh);
+      this._decorMeshes = this._decorMeshes ?? [];
+      this._decorMeshes.push(mesh);
+    };
+
+    // Pick a few rooms (skip first = spawn, skip last = boss room)
+    const candRooms = rooms.slice(1, -1);
+
+    if (decor === 'BONES') {
+      // Forgotten Crypt: scattered bone piles and skull markers
+      const boneMat = new THREE.MeshLambertMaterial({ color: 0xccbb99 });
+      const skullMat= new THREE.MeshLambertMaterial({ color: 0xddddcc, emissive: 0x221100 });
+      candRooms.forEach(room => {
+        if (Math.random() > 0.65) return;
+        for (let i = 0; i < 4; i++) {
+          const rx = room.x1 + 0.5 + Math.random() * (room.x2 - room.x1);
+          const rz = room.y1 + 0.5 + Math.random() * (room.y2 - room.y1);
+          // Bone slab
+          const bone = new THREE.Mesh(
+            new THREE.BoxGeometry(0.3 + Math.random() * 0.3, 0.06, 0.08 + Math.random() * 0.1),
+            boneMat,
+          );
+          bone.position.set(rx, FLOOR_H, rz);
+          bone.rotation.y = Math.random() * Math.PI;
+          add(bone);
+        }
+        // Skull
+        const skull = new THREE.Mesh(new THREE.SphereGeometry(0.14, 6, 5), skullMat);
+        skull.position.set(room.cx + 0.5, FLOOR_H + 0.13, room.cy + 0.5);
+        add(skull);
+      });
+    }
+
+    else if (decor === 'MUSHROOMS') {
+      // Corrupted Forest: glowing mushroom clusters
+      const capMat  = new THREE.MeshLambertMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.25 });
+      const stemMat = new THREE.MeshLambertMaterial({ color: 0x334433 });
+      candRooms.forEach(room => {
+        const count = 2 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < count; i++) {
+          const rx = room.x1 + 0.5 + Math.random() * (room.x2 - room.x1);
+          const rz = room.y1 + 0.5 + Math.random() * (room.y2 - room.y1);
+          const h  = 0.3 + Math.random() * 0.4;
+          const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, h, 6), stemMat);
+          stem.position.set(rx, FLOOR_H + h / 2, rz);
+          add(stem);
+          const cap = new THREE.Mesh(new THREE.SphereGeometry(0.18 + Math.random() * 0.1, 7, 5), capMat);
+          cap.position.set(rx, FLOOR_H + h + 0.1, rz);
+          cap.scale.y = 0.5;
+          add(cap);
+        }
+      });
+    }
+
+    else if (decor === 'EMBERS') {
+      // Ashveil Depths: lava cracks (glowing floor strips) and soot pillars
+      const emberMat = new THREE.MeshLambertMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.55 });
+      candRooms.forEach(room => {
+        if (Math.random() > 0.6) return;
+        // Lava crack strip
+        const crackW = 0.08 + Math.random() * 0.12;
+        const crackL = 1 + Math.random() * (room.x2 - room.x1 - 1);
+        const crack = new THREE.Mesh(new THREE.BoxGeometry(crackL, 0.02, crackW), emberMat);
+        crack.position.set(room.cx + 0.5, FLOOR_H + 0.01, room.cy + 0.5);
+        crack.rotation.y = Math.random() * Math.PI;
+        add(crack);
+        // Glow light above crack
+        const glow = new THREE.PointLight(accent, 0.6, 3.5);
+        glow.position.set(room.cx + 0.5, FLOOR_H + 0.4, room.cy + 0.5);
+        this.scene3d.add(glow);
+        (this._decorMeshes ??= []).push(glow);
+      });
+    }
+
+    else if (decor === 'CRYSTALS') {
+      // Void Rift: pulsing void crystal clusters
+      const xtalMat = new THREE.MeshLambertMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.4 });
+      candRooms.forEach(room => {
+        if (Math.random() > 0.55) return;
+        const count = 2 + Math.floor(Math.random() * 4);
+        for (let i = 0; i < count; i++) {
+          const rx = room.x1 + 0.5 + Math.random() * (room.x2 - room.x1);
+          const rz = room.y1 + 0.5 + Math.random() * (room.y2 - room.y1);
+          const h  = 0.4 + Math.random() * 0.7;
+          const xtal = new THREE.Mesh(new THREE.ConeGeometry(0.08 + Math.random() * 0.06, h, 5), xtalMat);
+          xtal.position.set(rx, FLOOR_H + h / 2, rz);
+          xtal.rotation.y = Math.random() * Math.PI;
+          xtal.rotation.z = (Math.random() - 0.5) * 0.4;
+          add(xtal);
+        }
+        // Crystal glow light
+        const glow = new THREE.PointLight(accent, 0.8, 4.5);
+        glow.position.set(room.cx + 0.5, FLOOR_H + 0.8, room.cy + 0.5);
+        this.scene3d.add(glow);
+        (this._decorMeshes ??= []).push(glow);
+      });
+    }
+
+    else if (decor === 'PILLARS') {
+      // Sunken Vaults: crumbling stone pillars and algae patches
+      const pillarMat = new THREE.MeshLambertMaterial({ color: 0x2a3a3a });
+      const algaeMat  = new THREE.MeshLambertMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.1 });
+      candRooms.forEach(room => {
+        if (Math.random() > 0.6) return;
+        // Crumbling pillar pair
+        const offsets = [[-0.8, -0.8], [0.8, 0.8]];
+        offsets.forEach(([ox, oz]) => {
+          if (Math.random() > 0.5) return;
+          const pillar = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.15, 0.18, WALL_H * (0.5 + Math.random() * 0.5), 8),
+            pillarMat,
+          );
+          pillar.position.set(room.cx + 0.5 + ox, FLOOR_H + pillar.geometry.parameters.height / 2, room.cy + 0.5 + oz);
+          add(pillar);
+        });
+        // Algae patch
+        const algae = new THREE.Mesh(new THREE.CircleGeometry(0.5 + Math.random() * 0.4, 8), algaeMat);
+        algae.rotation.x = -Math.PI / 2;
+        algae.position.set(room.cx + 0.5, FLOOR_H + 0.01, room.cy + 0.5);
+        add(algae);
+      });
+    }
   }
 
   // ── Event wiring ─────────────────────────────────────────────────────────
@@ -1059,6 +1208,16 @@ export class DungeonScene3D {
       l.dispose?.();
     });
     this._lights = [];
+
+    // Dispose theme decorative geometry
+    this._decorMeshes?.forEach(obj => {
+      this.scene3d.remove(obj);
+      if (obj.isLight) { obj.dispose?.(); return; }
+      obj.geometry?.dispose();
+      if (Array.isArray(obj.material)) obj.material.forEach(m => m?.dispose());
+      else obj.material?.dispose();
+    });
+    this._decorMeshes = [];
 
     this._lootMeshes.forEach(l => {
       this.scene3d.remove(l.mesh);
