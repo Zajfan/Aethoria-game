@@ -40,6 +40,7 @@ import { PointsOfInterest }   from '../systems/PointsOfInterest.js';
 import { randomScroll }       from '../systems/LoreDatabase.js';
 import { GatheringSystem }    from '../systems/GatheringSystem.js';
 import { SlayerSystem }       from '../systems/SlayerSystem.js';
+import { TownBuilder }        from '../systems/TownBuilder.js';
 
 // Map dimensions — 512×512 gives a true open world (4× the area of v0.7's 256×256)
 const MAP_W = 512;
@@ -733,6 +734,10 @@ export class GameScene {
     // 8. Spawn NPCs + town guards
     this._spawnNPCs(gen);
     this._spawnTownGuards(cx, cz);
+
+    // 8b. Build Hearthmoor town structures (buildings, market, fountain, etc.)
+    this.townBuilder = new TownBuilder();
+    this.townBuilder.build(this.scene3d, cx, cz);
 
     // 9. Dungeon portal (80 tiles east, 20 tiles north of center — outside safe zone)
     this._buildDungeonPortal(cx, cz);
@@ -2150,6 +2155,9 @@ export class GameScene {
       });
     });
     this._guardMeshes = [];
+
+    this.townBuilder?.dispose(this.scene3d);
+    this.townBuilder = null;
 
     if (this._portalMesh) {
       this.scene3d.remove(this._portalMesh);
