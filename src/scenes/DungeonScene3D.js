@@ -682,7 +682,14 @@ export class DungeonScene3D {
       if (nearby) this._tryOpenChest(nearby);
     };
     window.addEventListener('keydown', this._chestKeyHandler);
-    const bus = this.eventBus;
+
+    // Tracking proxy — all subscriptions are recorded so dispose() can
+    // unsubscribe them and prevent listener accumulation across dungeon runs.
+    const _subs = [];
+    this._busSubs = _subs;
+    const bus = {
+      on: (ev, cb) => { _subs.push([ev, cb]); this.eventBus.on(ev, cb); },
+    };
 
     // v0.5 — chest opened particle burst
     bus.on('chestOpened', ({ x, z }) => {
@@ -1074,5 +1081,10 @@ export class DungeonScene3D {
       this._exitLight.dispose();
     }
     this._exitLabelEl?.parentNode?.removeChild(this._exitLabelEl);
+
+    // Unsubscribe all EventBus listeners so the disposed dungeon scene
+    // doesn't continue handling events after a new scene is created.
+    this._busSubs?.forEach(([ev, cb]) => this.eventBus.off(ev, cb));
+    this._busSubs = [];
   }
 }

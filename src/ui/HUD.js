@@ -3281,11 +3281,17 @@ export class HUD {
     this.questSystem  = gameScene.questSystem || this.questSystem;
     this.tradeSystem  = gameScene.tradeSystem || this.tradeSystem;
 
-    const bus = this.eventBus;
-    bus.on('statsChanged',     s  => this._updateStats(s));
-    bus.on('inventoryChanged', () => { if (this.invOpen) this._renderInv(this._player); });
-    bus.on('levelUp',          lv => { this.logMsg('Level Up! Now level ' + lv, '#ffd700'); this._announce('Level up! You are now level ' + lv); });
-    bus.on('questAdded',       () => this.refreshQuests());
+    // Unsubscribe any previous bindGame() listeners before re-binding
+    // (guards against calling bindGame() more than once per HUD lifetime).
+    this._bindSubs?.forEach(([ev, cb]) => this.eventBus.off(ev, cb));
+    const _subs = [];
+    this._bindSubs = _subs;
+    const reg = (ev, cb) => { this.eventBus.on(ev, cb); _subs.push([ev, cb]); };
+
+    reg('statsChanged',     s  => this._updateStats(s));
+    reg('inventoryChanged', () => { if (this.invOpen) this._renderInv(this._player); });
+    reg('levelUp',          lv => { this.logMsg('Level Up! Now level ' + lv, '#ffd700'); this._announce('Level up! You are now level ' + lv); });
+    reg('questAdded',       () => this.refreshQuests());
 
     this._updateStats(this._player?.stats);
     this.refreshQuests();
@@ -3331,6 +3337,10 @@ export class HUD {
   // ── Cleanup ───────────────────────────────────────────────────────────────────
 
   dispose() {
+    // Unsubscribe EventBus listeners registered via bindGame()
+    this._bindSubs?.forEach(([ev, cb]) => this.eventBus.off(ev, cb));
+    this._bindSubs = [];
+
     clearInterval(this._mmInterval);
     clearTimeout(this._actBannerTimer);
     clearTimeout(this._evBannerTimer);

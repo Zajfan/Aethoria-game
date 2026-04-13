@@ -149,7 +149,10 @@ async function init() {
     const ss  = new SaveSystem();
     await ss.init();
     savedGame = await ss.load();
-  } catch (_) { savedGame = null; }
+  } catch (err) {
+    console.error('[Aethoria] Failed to load save data:', err);
+    savedGame = null;
+  }
 
   // Show/hide Continue button
   if (continueBtn) continueBtn.style.display = savedGame ? 'block' : 'none';

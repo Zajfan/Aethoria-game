@@ -51,6 +51,7 @@ class SceneProxy {
   constructor(eventBus) {
     this._bus    = eventBus;
     this._timers = [];
+    this._subs   = []; // track eventBus subscriptions for cleanup
 
     this.player      = null;
     this.enemies     = [];
@@ -60,8 +61,16 @@ class SceneProxy {
     // Mirrors Phaser's scene.events API
     this.events = {
       emit: (ev, ...args) => eventBus.emit(ev, ...args),
-      on:   (ev, cb)      => { eventBus.on(ev, cb);  return this.events; },
-      off:  (ev, cb)      => { eventBus.off(ev, cb); return this.events; },
+      on:   (ev, cb)      => {
+        eventBus.on(ev, cb);
+        this._subs.push([ev, cb]);
+        return this.events;
+      },
+      off:  (ev, cb)      => {
+        eventBus.off(ev, cb);
+        this._subs = this._subs.filter(([e, c]) => e !== ev || c !== cb);
+        return this.events;
+      },
     };
 
     // Mirrors Phaser's scene.time API
@@ -82,6 +91,9 @@ class SceneProxy {
   dispose() {
     this._timers.forEach(h => h.remove());
     this._timers = [];
+    // Unsubscribe all event listeners registered via scene.events.on()
+    this._subs.forEach(([ev, cb]) => this._bus.off(ev, cb));
+    this._subs = [];
   }
 }
 
@@ -688,10 +700,11 @@ export class GameScene {
     this.slayerSystem = new SlayerSystem(this._sceneProxy);
     this._sceneProxy.slayerSystem = this.slayerSystem;
 
-    // Wire slayer kill tracking into event bus
-    this.eventBus.on('enemyKilled', ({ typeKey }) => {
-      this.slayerSystem.onKill(typeKey);
-    });
+    // Wire slayer kill tracking into event bus (tracked for cleanup in dispose)
+    const _slayerCb = ({ typeKey }) => this.slayerSystem.onKill(typeKey);
+    this.eventBus.on('enemyKilled', _slayerCb);
+    if (!this._busSubs) this._busSubs = [];
+    this._busSubs.push(['enemyKilled', _slayerCb]);
 
     // Restore saved state
     if (savedPlayerData?.quests)       this.questSystem.deserialize(savedPlayerData.quests);
@@ -890,7 +903,14 @@ export class GameScene {
   // ── Event wiring ────────────────────────────────────────────────────────────
 
   _setupEvents() {
-    const bus = this.eventBus;
+    // Tracking proxy — every bus.on() registered here is recorded so
+    // dispose() can call bus.off() for each one, preventing listener leaks
+    // across scene transitions.
+    const _subs = [];
+    this._busSubs = _subs;
+    const bus = {
+      on: (ev, cb) => { _subs.push([ev, cb]); this.eventBus.on(ev, cb); },
+    };
 
     bus.on('spawnLoot', data => {
       this._spawnLoot(data);
@@ -1654,8 +1674,8 @@ export class GameScene {
         equipment:    { ...this.player.equipment },
         skills:       { ...(this.player.skills || {}) },
         playerClass:  this.player.playerClass,
-        quests:       this.questSystem?.serialize(),
-        story:        this.storySystem?.serialize(),
+        quests:       this.questSystem?.serialize()    ?? [],
+        story:        this.storySystem?.serialize()    ?? {},
         shards:       this.storySystem?.shardFlags || {},
         achievements: this.achievements?.serialize() || {},
         factions:     this.factionSystem?.serialize()  ?? {},
@@ -1667,7 +1687,10 @@ export class GameScene {
         prestige:     this.prestigeSystem?.serialize()  ?? {},
         poi:          this.poiSystem?.serialize()       ?? {},
       });
-    } catch (_) {}
+    } catch (err) {
+      console.error('[GameScene] Auto-save failed:', err);
+      this.hud?.logMsg('Auto-save failed.', '#ff6666');
+    }
   }
 
   // ── Main update ──────────────────────────────────────────────────────────────
@@ -1985,5 +2008,10 @@ export class GameScene {
     this.world3d?.dispose();
 
     clearInterval(this._saveInterval);
+
+    // Unsubscribe all EventBus listeners registered during _setupEvents()
+    // and slayer-kill wiring, so disposed scene doesn't ghost-fire on new ones.
+    this._busSubs?.forEach(([ev, cb]) => this.eventBus.off(ev, cb));
+    this._busSubs = [];
   }
 }

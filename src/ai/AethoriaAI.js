@@ -125,6 +125,36 @@ async function _rateLimit() {
   _lastCallTime = Date.now();
 }
 
+// ── Shared fetch helper ───────────────────────────────────────────────────────
+
+/**
+ * Post a request to the Anthropic API with a hard 10-second timeout.
+ * Throws if the network fails, times out, or the server returns a non-2xx status.
+ * @param {string} key     API key
+ * @param {object} body    Request body (will be JSON-stringified)
+ * @returns {Promise<object>} Parsed JSON response body
+ */
+async function _fetchAI(key, body) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:  'POST',
+      headers: {
+        'Content-Type':      'application/json',
+        'x-api-key':         key,
+        'anthropic-version': '2023-06-01',
+      },
+      body:    JSON.stringify(body),
+      signal:  controller.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ── World context builder ─────────────────────────────────────────────────────
 
 function _buildWorldContext(worldCtx) {
@@ -201,27 +231,12 @@ export class AethoriaAI {
     try {
       await _rateLimit();
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:  'POST',
-        headers: {
-          'Content-Type':      'application/json',
-          'x-api-key':         key,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model:      CONFIG.CLAUDE_MODEL,
-          max_tokens: 200,
-          system:     fullSystem,
-          messages:   history,
-        }),
+      const data  = await _fetchAI(key, {
+        model:      CONFIG.CLAUDE_MODEL,
+        max_tokens: 200,
+        system:     fullSystem,
+        messages:   history,
       });
-
-      if (!res.ok) {
-        console.warn('[AethoriaAI] API error:', res.status);
-        return this._fallback(npcName);
-      }
-
-      const data  = await res.json();
       const reply = data.content?.[0]?.text?.trim();
       if (!reply) return this._fallback(npcName);
 
@@ -233,7 +248,7 @@ export class AethoriaAI {
 
       return reply;
     } catch (e) {
-      console.warn('[AethoriaAI] Fetch failed:', e);
+      console.warn('[AethoriaAI] chat failed:', e);
       return this._fallback(npcName);
     }
   }
@@ -265,23 +280,12 @@ Rules: No generic fantasy clichés. Reference the world state if possible. Dark,
     try {
       await _rateLimit();
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:  'POST',
-        headers: {
-          'Content-Type':      'application/json',
-          'x-api-key':         key,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model:      CONFIG.CLAUDE_MODEL,
-          max_tokens: 80,
-          system,
-          messages: [{ role: 'user', content: questBase.desc }],
-        }),
+      const data  = await _fetchAI(key, {
+        model:      CONFIG.CLAUDE_MODEL,
+        max_tokens: 80,
+        system,
+        messages: [{ role: 'user', content: questBase.desc }],
       });
-
-      if (!res.ok) return questBase.desc;
-      const data  = await res.json();
       const reply = data.content?.[0]?.text?.trim();
       return reply || questBase.desc;
     } catch {
@@ -320,23 +324,12 @@ Output ONLY the greeting line. Stay in character. Make it feel earned — not ge
     try {
       await _rateLimit();
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:  'POST',
-        headers: {
-          'Content-Type':      'application/json',
-          'x-api-key':         key,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model:      CONFIG.CLAUDE_MODEL,
-          max_tokens: 80,
-          system,
-          messages: [{ role: 'user', content: 'Hello' }],
-        }),
+      const data = await _fetchAI(key, {
+        model:      CONFIG.CLAUDE_MODEL,
+        max_tokens: 80,
+        system,
+        messages: [{ role: 'user', content: 'Hello' }],
       });
-
-      if (!res.ok) return null;
-      const data = await res.json();
       return data.content?.[0]?.text?.trim() || null;
     } catch {
       return null;
@@ -356,22 +349,12 @@ Output ONLY the greeting line. Stay in character. Make it feel earned — not ge
 
     try {
       await _rateLimit();
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:  'POST',
-        headers: {
-          'Content-Type':      'application/json',
-          'x-api-key':         key,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model:      CONFIG.CLAUDE_MODEL,
-          max_tokens: 60,
-          system,
-          messages: [{ role: 'user', content: event.name }],
-        }),
+      const data = await _fetchAI(key, {
+        model:      CONFIG.CLAUDE_MODEL,
+        max_tokens: 60,
+        system,
+        messages: [{ role: 'user', content: event.name }],
       });
-      if (!res.ok) return event.desc;
-      const data = await res.json();
       return data.content?.[0]?.text?.trim() || event.desc;
     } catch {
       return event.desc;

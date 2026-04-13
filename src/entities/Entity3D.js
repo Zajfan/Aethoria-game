@@ -214,6 +214,10 @@ export class Entity3D {
 
   /** Dispose all GPU resources and remove the DOM label. */
   dispose() {
+    // Mark as dead so any player attackTarget reference to this entity
+    // is treated as an invalid target and ignored immediately.
+    this.isDead = true;
+
     if (this._scene) this.removeFromScene(this._scene);
 
     this.group.traverse(obj => {
