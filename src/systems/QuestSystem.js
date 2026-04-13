@@ -230,43 +230,43 @@ export class QuestSystem {
   // ── Waypoint estimation ───────────────────────────────────────────────────
 
   _estimateWaypoint(type, fill, worldCtx) {
-    const cx = 128, cz = 128;  // map centre = Hearthmoor
+    const cx = 256, cz = 256;  // map centre = Hearthmoor (512×512 map)
     const act = worldCtx?.act ?? 0;
 
     if (type === 'KILL') {
-      // Point toward known enemy zones — all outside the expanded safe zone (r=40)
+      // Point toward known enemy zones — scaled for 512×512 map
       const zones = {
-        goblin:  { x: cx + 55,  z: cz + 20  },
-        wolf:    { x: cx - 60,  z: cz - 45  },
-        skeleton:{ x: cx + 75,  z: cz - 20  },
-        troll:   { x: cx - 70,  z: cz + 55  },
-        bandit:  { x: cx - 65,  z: cz - 60  },
-        spider:  { x: cx + 60,  z: cz + 65  },
-        wraith:  { x: cx + 80,  z: cz + 75  },
-        golem:   { x: cx + 95,  z: cz - 80  },
-        drake:   { x: cx + 98,  z: cz - 85  },
+        goblin:  { x: cx + 110, z: cz + 40  },
+        wolf:    { x: cx - 120, z: cz - 90  },
+        skeleton:{ x: cx + 150, z: cz - 40  },
+        troll:   { x: cx - 140, z: cz + 110 },
+        bandit:  { x: cx - 130, z: cz - 120 },
+        spider:  { x: cx + 120, z: cz + 130 },
+        wraith:  { x: cx + 160, z: cz + 150 },
+        golem:   { x: cx + 190, z: cz - 160 },
+        drake:   { x: cx + 196, z: cz - 170 },
       };
       const enemyKey = (fill.enemy ?? '').toLowerCase();
-      return zones[enemyKey] ?? { x: cx + 55 + Math.random()*30, z: cz + 50 + Math.random()*30 };
+      return zones[enemyKey] ?? { x: cx + 110 + Math.random()*60, z: cz + 100 + Math.random()*60 };
     }
 
     if (type === 'COLLECT') {
-      // Items found in various regions — outside safe zone
+      // Items found in various regions — scaled for 512×512 map
       const itemZones = {
-        hide:    { x: cx - 60, z: cz - 45 },
-        fang:    { x: cx - 58, z: cz - 42 },
-        bones:   { x: cx + 75, z: cz - 20 },
-        gem:     { x: cx - 75, z: cz + 65 },
-        crystal: { x: cx + 88, z: cz - 70 },
-        herb:    { x: cx + 45, z: cz + 55 },
-        dragonscale: { x: cx + 98, z: cz - 82 },
+        hide:    { x: cx - 120, z: cz - 90  },
+        fang:    { x: cx - 116, z: cz - 84  },
+        bones:   { x: cx + 150, z: cz - 40  },
+        gem:     { x: cx - 150, z: cz + 130 },
+        crystal: { x: cx + 176, z: cz - 140 },
+        herb:    { x: cx + 90,  z: cz + 110 },
+        dragonscale: { x: cx + 196, z: cz - 164 },
       };
-      return itemZones[fill.item] ?? { x: cx + 50, z: cz - 50 };
+      return itemZones[fill.item] ?? { x: cx + 100, z: cz - 100 };
     }
 
     if (type === 'EXPLORE') {
-      if (act >= 3) return { x: cx + 80, z: cz - 20 }; // dungeon portal (updated location)
-      return { x: cx + 50, z: cz - 15 };
+      if (act >= 3) return { x: cx + 80, z: cz - 20 }; // dungeon portal
+      return { x: cx + 100, z: cz - 30 };
     }
 
     if (type === 'TALK') {

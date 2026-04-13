@@ -1,7 +1,7 @@
 /**
  * PointsOfInterest.js — Aethoria v0.6
  *
- * Scatters interactive exploration content across the 256×256 world:
+ * Scatters interactive exploration content across the 512×512 world:
  *
  *  RUIN        — collapsed stone structure, has a loot chest inside
  *  SHRINE      — ancient altar, grants a buff when interacted with
@@ -257,39 +257,45 @@ export class PointsOfInterest {
 
     // POI placement blueprint — (type, tx, tz) offsets from centre
     const blueprint = [
-      // Near town (within 30 tiles)
-      { type:'HEALING_WELL',   ox:-15, oz:-18 },
-      { type:'SHRINE',          ox: 22, oz: 10 },
-      { type:'STANDING_STONE',  ox:-20, oz: 15 },
-      { type:'RUIN',            ox: 28, oz:-20 },
-      { type:'GRAVE',           ox:-10, oz: 28 },
-      // Elandor plains (30-80 tiles NW)
-      { type:'RUIN',            ox:-38, oz:-35 },
-      { type:'SHRINE',          ox:-55, oz:-20 },
-      { type:'MERCHANT_CART',   ox:-42, oz:-48 },
-      { type:'CRYSTAL_NODE',    ox:-60, oz:-55 },
-      { type:'STANDING_STONE',  ox:-25, oz:-60 },
-      { type:'RUIN',            ox:-70, oz:-30 },
-      { type:'GRAVE',           ox:-45, oz:-65 },
-      // Whispering marshes (30-70 tiles SE)
-      { type:'CRYSTAL_NODE',    ox: 40, oz: 45 },
-      { type:'SHRINE',          ox: 55, oz: 38 },
-      { type:'RUIN',            ox: 38, oz: 60 },
-      { type:'STANDING_STONE',  ox: 65, oz: 55 },
-      { type:'HEALING_WELL',    ox: 48, oz: 70 },
-      { type:'GRAVE',           ox: 72, oz: 42 },
+      // Near town (within 60 tiles)
+      { type:'HEALING_WELL',   ox:-30, oz:-36 },
+      { type:'SHRINE',          ox: 44, oz: 20 },
+      { type:'STANDING_STONE',  ox:-40, oz: 30 },
+      { type:'RUIN',            ox: 56, oz:-40 },
+      { type:'GRAVE',           ox:-20, oz: 56 },
+      // Elandor plains (60-160 tiles NW)
+      { type:'RUIN',            ox:-76, oz:-70 },
+      { type:'SHRINE',          ox:-110,oz:-40 },
+      { type:'MERCHANT_CART',   ox:-84, oz:-96 },
+      { type:'CRYSTAL_NODE',    ox:-120,oz:-110 },
+      { type:'STANDING_STONE',  ox:-50, oz:-120 },
+      { type:'RUIN',            ox:-140,oz:-60 },
+      { type:'GRAVE',           ox:-90, oz:-130 },
+      { type:'HEALING_WELL',    ox:-140,oz:-90 },
+      { type:'SHRINE',          ox:-100,oz:-155 },
+      // Whispering marshes (60-160 tiles SE)
+      { type:'CRYSTAL_NODE',    ox: 80, oz: 90  },
+      { type:'SHRINE',          ox: 110,oz: 76  },
+      { type:'RUIN',            ox: 76, oz: 120 },
+      { type:'STANDING_STONE',  ox: 130,oz: 110 },
+      { type:'HEALING_WELL',    ox: 96, oz: 140 },
+      { type:'GRAVE',           ox: 144,oz: 84  },
+      { type:'MERCHANT_CART',   ox: 115,oz: 155 },
+      { type:'CRYSTAL_NODE',    ox: 160,oz: 120 },
       // Ashveil peaks (far NE)
-      { type:'RUIN',            ox: 60, oz:-45 },
-      { type:'CRYSTAL_NODE',    ox: 72, oz:-60 },
-      { type:'SHRINE',          ox: 80, oz:-38 },
-      { type:'STANDING_STONE',  ox: 55, oz:-70 },
-      { type:'GRAVE',           ox: 88, oz:-52 },
+      { type:'RUIN',            ox: 120,oz:-90  },
+      { type:'CRYSTAL_NODE',    ox: 144,oz:-120 },
+      { type:'SHRINE',          ox: 160,oz:-76  },
+      { type:'STANDING_STONE',  ox: 110,oz:-140 },
+      { type:'GRAVE',           ox: 176,oz:-104 },
+      { type:'MERCHANT_CART',   ox: 130,oz:-160 },
       // Shattered coast (far SW)
-      { type:'RUIN',            ox:-48, oz: 55 },
-      { type:'SHRINE',          ox:-62, oz: 65 },
-      { type:'MERCHANT_CART',   ox:-55, oz: 72 },
-      { type:'CRYSTAL_NODE',    ox:-70, oz: 60 },
-      { type:'STANDING_STONE',  ox:-38, oz: 78 },
+      { type:'RUIN',            ox:-96, oz: 110 },
+      { type:'SHRINE',          ox:-124,oz: 130 },
+      { type:'MERCHANT_CART',   ox:-110,oz: 144 },
+      { type:'CRYSTAL_NODE',    ox:-140,oz: 120 },
+      { type:'STANDING_STONE',  ox:-76, oz: 156 },
+      { type:'GRAVE',           ox:-155,oz: 145 },
     ];
 
     const FLAT_TILES = new Set([
@@ -501,9 +507,9 @@ export class PointsOfInterest {
     if (!this._player) return 'HEARTHMOOR';
     const tx = Math.floor(this._player.position.x);
     const tz = Math.floor(this._player.position.z);
-    const cx = 128, cz = 128;
+    const cx = 256, cz = 256;
     const dx = tx - cx, dz = tz - cz;
-    if (Math.hypot(dx, dz) < 22) return 'HEARTHMOOR';
+    if (Math.hypot(dx, dz) < 44) return 'HEARTHMOOR';
     if (dx < 0 && dz < 0) return 'ELANDOR';
     if (dx > 0 && dz > 0) return 'WHISPERING';
     if (dx > 0 && dz < 0) return 'ASHVEIL';

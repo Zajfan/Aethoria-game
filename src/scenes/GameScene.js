@@ -41,9 +41,9 @@ import { randomScroll }       from '../systems/LoreDatabase.js';
 import { GatheringSystem }    from '../systems/GatheringSystem.js';
 import { SlayerSystem }       from '../systems/SlayerSystem.js';
 
-// Map dimensions (override config for 3D world)
-const MAP_W = 256;
-const MAP_H = 256;
+// Map dimensions — 512×512 gives a true open world (4× the area of v0.7's 256×256)
+const MAP_W = 512;
+const MAP_H = 512;
 
 // Town safe-zone radius — enemies that enter this distance from the map centre
 // are immediately repelled / killed by the town guards.
@@ -727,8 +727,8 @@ export class GameScene {
       this.shardSystem.restoreState(ids);
     }
 
-    // 7. Spawn 60 enemies
-    this._spawnEnemies(gen, 60);
+    // 7. Spawn 150 enemies across the 512×512 map
+    this._spawnEnemies(gen, 150);
 
     // 8. Spawn NPCs + town guards
     this._spawnNPCs(gen);

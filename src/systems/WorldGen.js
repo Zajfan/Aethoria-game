@@ -45,19 +45,30 @@ export class WorldGen {
     const cx = Math.floor(W / 2);
     const cy = Math.floor(H / 2);
 
-    // Town clearing — 5× bigger radius (was 13, now 34)
+    // Town clearing — 5× bigger radius
     this._carveTown(data, elevMap, cx, cy, 34);
 
-    // Paths — extend to match larger town and explore more of the map
-    this._path(data, cx, cy, cx+65,  cy,     T.PATH);
-    this._path(data, cx, cy, cx-58,  cy+25,  T.PATH);
-    this._path(data, cx, cy, cx+22,  cy+70,  T.PATH);
-    this._path(data, cx, cy, cx,     cy-62,  T.PATH);
-    this._path(data, cx, cy, cx+40,  cy-50,  T.PATH);
-    this._path(data, cx, cy, cx-45,  cy-35,  T.PATH);
+    // Paths — long radial roads reaching all four quadrants of 512×512 map
+    this._path(data, cx, cy, cx+130, cy,      T.PATH);   // East road
+    this._path(data, cx, cy, cx-116, cy+50,   T.PATH);   // SW road
+    this._path(data, cx, cy, cx+44,  cy+140,  T.PATH);   // SE road
+    this._path(data, cx, cy, cx,     cy-124,  T.PATH);   // North road
+    this._path(data, cx, cy, cx+80,  cy-100,  T.PATH);   // NE road
+    this._path(data, cx, cy, cx-90,  cy-70,   T.PATH);   // NW road
+    this._path(data, cx, cy, cx-100, cy+110,  T.PATH);   // Far SW road
+    this._path(data, cx, cy, cx+115, cy+85,   T.PATH);   // Far SE road
 
-    // Dungeon entrance (pushed further out to stay outside town)
-    this._carveDungeon(data, elevMap, cx+80, cy-20, 10);
+    // Main dungeon entrance — Ashveil direction
+    this._carveDungeon(data, elevMap, cx+80,  cy-20,  10);
+
+    // Secondary settlements — small carved clearings far from town
+    this._carveTown(data, elevMap, cx-90,  cy-70,  10);  // Elandor outpost (NW)
+    this._carveTown(data, elevMap, cx+90,  cy+90,  10);  // Marsh camp (SE)
+    this._carveTown(data, elevMap, cx+110, cy-80,  8);   // Ashveil forge (NE)
+
+    // Extra dungeon ruins scattered across the map
+    this._carveDungeon(data, elevMap, cx-100, cy+110, 8); // Shattered crypt (SW)
+    this._carveDungeon(data, elevMap, cx+100, cy+70,  8); // Marsh tomb (SE)
 
     return { data, elevMap };
   }
@@ -113,7 +124,7 @@ export class WorldGen {
     const spawns = [];
     let tries = 0;
     // Keep enemies well outside the expanded town (safe zone radius = 40)
-    while (spawns.length < count && tries < count * 20) {
+    while (spawns.length < count && tries < count * 30) {
       const x = Math.floor(Math.random() * (d[0].length - 8)) + 4;
       const y = Math.floor(Math.random() * (d.length    - 8)) + 4;
       const dist = Math.sqrt((x-cx)**2 + (y-cy)**2);
@@ -135,8 +146,8 @@ export class WorldGen {
   }
 
   getSaltmereSpawns(W, H) {
-    const sx = Math.floor(W * 0.28);
-    const sz = Math.floor(H * 0.78);
+    const sx = Math.floor(W * 0.28);  // ~143 on 512×512
+    const sz = Math.floor(H * 0.78);  // ~399 on 512×512
     return [
       { x: sx-3, y: sz-3 },   // NPC idx 5 — Sister Vashe
       { x: sx+3, y: sz-2 },   // NPC idx 6 — Master Theron

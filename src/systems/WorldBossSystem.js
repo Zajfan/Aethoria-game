@@ -168,8 +168,8 @@ export class WorldBossSystem {
 
     const tx = cx + (def.spawnOffset?.ox ?? 0);
     const tz = cz + (def.spawnOffset?.oz ?? 0);
-    const wx = Math.max(4, Math.min(252, tx)) + 0.5;
-    const wz = Math.max(4, Math.min(252, tz)) + 0.5;
+    const wx = Math.max(4, Math.min(508, tx)) + 0.5;
+    const wz = Math.max(4, Math.min(508, tz)) + 0.5;
 
     // 30s warning then spawn
     this._showBanner(def, 30);
@@ -248,7 +248,7 @@ export class WorldBossSystem {
   // ── Triggers ─────────────────────────────────────────────────────────────
 
   _onWorldEvent(ev) {
-    const cx = 128, cz = 128;
+    const cx = 256, cz = 256;
     for (const [id, def] of Object.entries(WORLD_BOSS_DEFS)) {
       if (def.trigger === ev.id && !this._killed.has(id)) {
         const playerLevel = this._playerLevel ?? 1;
@@ -260,7 +260,7 @@ export class WorldBossSystem {
   }
 
   _onRegion(region) {
-    const cx = 128, cz = 128;
+    const cx = 256, cz = 256;
     for (const [id, def] of Object.entries(WORLD_BOSS_DEFS)) {
       if (def.trigger === 'region' && def.triggerRegion === region.id && !this._killed.has(id)) {
         this.spawnBoss(id, cx, cz);
@@ -270,7 +270,7 @@ export class WorldBossSystem {
   }
 
   _checkKillThreshold() {
-    const cx = 128, cz = 128;
+    const cx = 256, cz = 256;
     for (const [id, def] of Object.entries(WORLD_BOSS_DEFS)) {
       if (def.trigger === 'kills' && !this._killed.has(id)) {
         const playerLevel = this._playerLevel ?? 1;
