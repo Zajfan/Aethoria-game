@@ -20,6 +20,7 @@
  */
 
 import { AIMemory } from './AIMemory.js';
+import { CONFIG }   from '../config.js';
 
 // ── Region definitions ────────────────────────────────────────────────────────
 
@@ -142,8 +143,9 @@ export class RegionSystem {
     if (this._checkTimer > 0) return;
     this._checkTimer = this._checkInterval;
 
-    const tx     = Math.floor(playerPos.x);
-    const tz     = Math.floor(playerPos.z);
+    const TS     = CONFIG.WORLD_3D.TILE_SIZE;
+    const tx     = Math.floor(playerPos.x / TS);
+    const tz     = Math.floor(playerPos.z / TS);
     const region = this.getRegionAt(tx, tz);
 
     if (!this._current || this._current.id !== region.id) {

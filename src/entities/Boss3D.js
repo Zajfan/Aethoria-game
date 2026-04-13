@@ -67,10 +67,11 @@ export class Boss3D extends Enemy3D {
     this._slamTimer = 0;   // ms wind-up counter
     this._pulseTime = 0;   // seconds accumulated for light pulsing
 
-    // Larger detection / leash radii
-    this.DETECT = 20;
-    this.LEASH  = 35;
-    this.ATK_R  =  3.5;
+    // Larger detection / leash radii (world units, scaled with TS)
+    const _TS   = CONFIG.WORLD_3D.TILE_SIZE;
+    this.DETECT = 20 * _TS;
+    this.LEASH  = 35 * _TS;
+    this.ATK_R  =  3.5 * _TS;
 
     // Rebuild model with boss-specific mesh (clears the enemy fallback)
     while (this.group.children.length) {
@@ -78,8 +79,8 @@ export class Boss3D extends Enemy3D {
     }
     this._buildBossModel(typeKey);
 
-    // Ambient aura PointLight
-    this._auraLight = new THREE.PointLight(d.color, 1.8, 9);
+    // Ambient aura PointLight (distance scaled with tile size)
+    this._auraLight = new THREE.PointLight(d.color, 1.8, 9 * CONFIG.WORLD_3D.TILE_SIZE);
     this._auraLight.position.set(0, 1.0, 0);
     this.group.add(this._auraLight);
 
@@ -140,11 +141,11 @@ export class Boss3D extends Enemy3D {
     this.group.add(visor);
     this._visorMesh = visor;
 
-    this._eyeLight = new THREE.PointLight(0xff00ff, 2.5, 3.5);
+    this._eyeLight = new THREE.PointLight(0xff00ff, 2.5, 3.5 * CONFIG.WORLD_3D.TILE_SIZE);
     this._eyeLight.position.set(0, 1.87, 0.45);
     this.group.add(this._eyeLight);
 
-    this.group.scale.setScalar(1.3);
+    this.group.scale.setScalar(1.3 * CONFIG.WORLD_3D.TILE_SIZE);
   }
 
   _buildStoneColossus() {
@@ -182,7 +183,7 @@ export class Boss3D extends Enemy3D {
     fistR.castShadow = true;
     this.group.add(fistR);
 
-    this.group.scale.setScalar(1.6);
+    this.group.scale.setScalar(1.6 * CONFIG.WORLD_3D.TILE_SIZE);
   }
 
   // ── Boss-specific update ──────────────────────────────────────────────────

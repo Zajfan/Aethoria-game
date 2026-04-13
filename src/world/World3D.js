@@ -28,6 +28,7 @@ import { THREE } from '../engine/Renderer.js';
 import { CONFIG } from '../config.js';
 
 const T          = CONFIG.TILES;
+const TS         = CONFIG.WORLD_3D.TILE_SIZE;   // Three.js units per tile (= 4)
 const CHUNK_SIZE = 16;
 const VIEW_DIST  = 4;
 
@@ -196,17 +197,17 @@ export class World3D {
     if (x < 0 || z < 0 || x >= this._mapW || z >= this._mapH) return 0;
     const tileId = this._mapData[z]?.[x] ?? 0;
     const elev   = this._elevMap?.[z]?.[x] ?? 0.42;
-    return computeTopY(tileId, elev);
+    return computeTopY(tileId, elev) * TS;
   }
 
   /** Alias for getHeightAt — used by GameScene, Player3D, Enemy3D. */
   getGroundY(tx, tz) { return this.getHeightAt(tx, tz); }
 
   /** World-space coords version. */
-  getGroundYWorld(wx, wz) { return this.getHeightAt(Math.floor(wx), Math.floor(wz)); }
+  getGroundYWorld(wx, wz) { return this.getHeightAt(Math.floor(wx / TS), Math.floor(wz / TS)); }
 
-  worldToTile(wx, wz) { return { x: Math.floor(wx), z: Math.floor(wz) }; }
-  tileToWorld(tx, tz) { return { x: tx + 0.5, z: tz + 0.5 }; }
+  worldToTile(wx, wz) { return { x: Math.floor(wx / TS), z: Math.floor(wz / TS) }; }
+  tileToWorld(tx, tz) { return { x: tx * TS + TS / 2, z: tz * TS + TS / 2 }; }
 
   isBlocked(tx, tz) {
     if (tx < 0 || tz < 0 || tx >= this._mapW || tz >= this._mapH) return true;
@@ -224,9 +225,9 @@ export class World3D {
     const angle  = t * Math.PI * 2 - Math.PI / 2;
     if (this._sunLight) {
       this._sunLight.position.set(
-        Math.cos(angle) * 120,
-        Math.max(5, Math.sin(angle) * 120),
-        60,
+        Math.cos(angle) * 480,
+        Math.max(20, Math.sin(angle) * 480),
+        240,
       );
       // Warm daytime, cool dawn/dusk
       const dusk = 1 - Math.abs(day - 0.3) / 0.3;
@@ -286,9 +287,9 @@ export class World3D {
     shadow.mapSize.height = 2048;
     shadow.bias           = -0.001;
     const sc = shadow.camera;
-    sc.near = 1; sc.far = 600;
-    sc.left = -140; sc.right = 140;
-    sc.top  =  140; sc.bottom = -140;
+    sc.near = 1; sc.far = 2400;
+    sc.left = -560; sc.right = 560;
+    sc.top  =  560; sc.bottom = -560;
 
     this._scene.add(this._sunLight);
   }
@@ -387,8 +388,8 @@ export class World3D {
       mesh.castShadow = mesh.receiveShadow = true;
       const d = new THREE.Object3D();
       tiles.forEach((t, i) => {
-        d.position.set(t.tx + 0.5, 0.9, t.tz + 0.5);
-        d.scale.setScalar(1);
+        d.position.set(t.tx * TS + TS / 2, 0.9 * TS, t.tz * TS + TS / 2);
+        d.scale.setScalar(TS);
         d.rotation.set(0, 0, 0);
         d.updateMatrix();
         mesh.setMatrixAt(i, d.matrix);
@@ -409,11 +410,11 @@ export class World3D {
       const { tx, tz } = tiles[i];
       const elev = this._elevMap?.[tz]?.[tx] ?? 0.42;
       const topY = computeTopY(tileId, elev);
-      // Centre of pillar is topY - half-depth so the top surface is at topY
-      const centerY = topY - PILLAR_DEPTH / 2;
+      // Centre of pillar is topY - half-depth so the top surface is at topY (scaled to world space)
+      const centerY = (topY - PILLAR_DEPTH / 2) * TS;
 
-      dummy.position.set(tx + 0.5, centerY, tz + 0.5);
-      dummy.scale.setScalar(1);
+      dummy.position.set(tx * TS + TS / 2, centerY, tz * TS + TS / 2);
+      dummy.scale.set(TS, TS, TS);
       dummy.rotation.set(0, 0, 0);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
@@ -433,9 +434,9 @@ export class World3D {
       const wd = new THREE.Object3D();
       for (let i = 0; i < tiles.length; i++) {
         const { tx, tz } = tiles[i];
-        wd.position.set(tx + 0.5, (def.fixedY ?? -0.10) + 0.002, tz + 0.5);
+        wd.position.set(tx * TS + TS / 2, ((def.fixedY ?? -0.10) + 0.002) * TS, tz * TS + TS / 2);
         wd.rotation.x = -Math.PI / 2;
-        wd.scale.setScalar(1);
+        wd.scale.setScalar(TS);
         wd.updateMatrix();
         wm.setMatrixAt(i, wd.matrix);
       }
@@ -470,29 +471,31 @@ export class World3D {
       // Scale variation — trees range from small saplings to large conifers
       const s  = 0.65 + Math.random() * 0.70;   // 0.65 → 1.35
       // Slight random offset within the tile so forest doesn't look grid-aligned
-      const ox = (Math.random() - 0.5) * 0.45;
-      const oz = (Math.random() - 0.5) * 0.45;
+      const ox = (Math.random() - 0.5) * 0.45 * TS;
+      const oz = (Math.random() - 0.5) * 0.45 * TS;
       const rot = Math.random() * Math.PI * 2;
+      const wx = tx * TS + TS / 2;
+      const wz = tz * TS + TS / 2;
 
       // Trunk  — bottom at groundY, extends 2.8*s upward, cylinder centred at midpoint
-      dummy.position.set(tx + 0.5 + ox, groundY + 1.4 * s, tz + 0.5 + oz);
-      dummy.scale.setScalar(s);
+      dummy.position.set(wx + ox, groundY + 1.4 * s * TS, wz + oz);
+      dummy.scale.setScalar(s * TS);
       dummy.rotation.set(0, rot, 0);
       dummy.updateMatrix();
       trunkMesh.setMatrixAt(i, dummy.matrix);
 
       // Low canopy — base sits at top of trunk bottom third (~groundY + 1.2*s)
-      dummy.position.set(tx + 0.5 + ox, groundY + 2.0 * s, tz + 0.5 + oz);
+      dummy.position.set(wx + ox, groundY + 2.0 * s * TS, wz + oz);
       dummy.updateMatrix();
       lowMesh.setMatrixAt(i, dummy.matrix);
 
       // Mid canopy — overlaps low canopy, shifted up 1.4*s
-      dummy.position.set(tx + 0.5 + ox, groundY + 3.4 * s, tz + 0.5 + oz);
+      dummy.position.set(wx + ox, groundY + 3.4 * s * TS, wz + oz);
       dummy.updateMatrix();
       midMesh.setMatrixAt(i, dummy.matrix);
 
       // Top canopy — pointed tip
-      dummy.position.set(tx + 0.5 + ox, groundY + 4.6 * s, tz + 0.5 + oz);
+      dummy.position.set(wx + ox, groundY + 4.6 * s * TS, wz + oz);
       dummy.updateMatrix();
       topMesh.setMatrixAt(i, dummy.matrix);
     }
@@ -513,10 +516,10 @@ export class World3D {
       const elev    = this._elevMap?.[tz]?.[tx] ?? 0.42;
       const groundY = computeTopY(T.STONE, elev);
       const s  = 0.55 + Math.random() * 0.85;
-      const ox = (Math.random() - 0.5) * 0.5;
-      const oz = (Math.random() - 0.5) * 0.5;
-      d.position.set(tx + 0.5 + ox, groundY + 0.38 * s, tz + 0.5 + oz);
-      d.scale.setScalar(s);
+      const ox = (Math.random() - 0.5) * 0.5 * TS;
+      const oz = (Math.random() - 0.5) * 0.5 * TS;
+      d.position.set(tx * TS + TS / 2 + ox, groundY + 0.38 * s * TS, tz * TS + TS / 2 + oz);
+      d.scale.setScalar(s * TS);
       d.rotation.set(
         Math.random() * Math.PI,
         Math.random() * Math.PI,

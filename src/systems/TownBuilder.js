@@ -9,7 +9,8 @@
  * No tile data is modified — purely visual 3D layer on top of the world.
  */
 
-import { THREE } from '../engine/Renderer.js';
+import { THREE }   from '../engine/Renderer.js';
+import { CONFIG }  from '../config.js';
 
 // ── Material helpers ──────────────────────────────────────────────────────────
 
@@ -482,13 +483,20 @@ export class TownBuilder {
    * @param {number} cz  World-space centre Z (= MAP_H / 2)
    */
   build(scene3d, cx, cz) {
+    const TS = CONFIG.WORLD_3D.TILE_SIZE;  // 4 world units per tile
     const place = (group, ox, oz, ry = 0) => {
-      group.position.set(cx + ox + 0.5, 0, cz + oz + 0.5);
+      // cx/cz are tile coords; scale to world space and spread offsets by TS
+      group.position.set(cx * TS + TS / 2 + ox * TS, 0, cz * TS + TS / 2 + oz * TS);
+      group.scale.setScalar(TS);  // buildings grow with the world
       group.rotation.y = ry;
       group.traverse(child => {
         if (child.isMesh) {
           child.castShadow    = true;
           child.receiveShadow = true;
+        }
+        // PointLight.distance is in world space — multiply by TS so light radius scales
+        if (child.isLight && child.isPointLight && child.distance > 0) {
+          child.distance *= TS;
         }
       });
       scene3d.add(group);
@@ -566,13 +574,13 @@ export class TownBuilder {
     place(buildGateTower(),  -8, 25);
     place(buildGateTower(),   8, 25);
     // Gate arch connecting towers
-    const archH = mkBox(10.0, 0.8, 1.0, MATS.stone);
-    archH.position.set(cx + 0.5, 7.2, cz + 25.5);
+    const archH = mkBox(10.0 * TS, 0.8 * TS, 1.0 * TS, MATS.stone);
+    archH.position.set(cx * TS + TS / 2, 7.2 * TS, cz * TS + TS / 2 + 25 * TS);
     scene3d.add(archH);
     this._meshes.push(archH);
     // Gate portcullis (decorative)
-    const portcullis = mkBox(5.5, 5.5, 0.15, MATS.ironDark);
-    portcullis.position.set(cx + 0.5, 3.5, cz + 25.5);
+    const portcullis = mkBox(5.5 * TS, 5.5 * TS, 0.15 * TS, MATS.ironDark);
+    portcullis.position.set(cx * TS + TS / 2, 3.5 * TS, cz * TS + TS / 2 + 25 * TS);
     scene3d.add(portcullis);
     this._meshes.push(portcullis);
 

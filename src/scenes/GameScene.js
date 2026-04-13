@@ -46,9 +46,12 @@ import { TownBuilder }        from '../systems/TownBuilder.js';
 const MAP_W = 512;
 const MAP_H = 512;
 
-// Town safe-zone radius — enemies that enter this distance from the map centre
-// are immediately repelled / killed by the town guards.
-const TOWN_SAFE_R = 40;
+// World scale — must match CONFIG.WORLD_3D.TILE_SIZE (= 4)
+// Evaluated after module-level imports so CONFIG is available.
+const TS = CONFIG.WORLD_3D.TILE_SIZE;   // Three.js units per tile
+
+// Town safe-zone radius in WORLD units (tile radius × TS)
+const TOWN_SAFE_R = 40 * TS;
 
 // ── Phaser-compat proxy (used by legacy systems that call scene.events / scene.time) ─
 
@@ -141,9 +144,9 @@ class DayNight3D {
     this._scene3d.background = skyCol;
 
     // Fog density
-    let density = 0.008 + (1 - day) * 0.006;
-    if (this.weather === 'FOG')   density = 0.038;
-    if (this.weather === 'STORM') density = 0.025;
+    let density = (0.008 + (1 - day) * 0.006) / TS;
+    if (this.weather === 'FOG')   density = 0.038 / TS;
+    if (this.weather === 'STORM') density = 0.025 / TS;
     if (this._scene3d.fog) {
       this._scene3d.fog.density = density;
       this._scene3d.fog.color.copy(skyCol);
@@ -243,7 +246,7 @@ class WorldEvents3D {
     const player = this._proxy.player;
     switch (ev.effect) {
       case 'darken':
-        if (this._scene3d.fog) this._scene3d.fog.density = start ? 0.045 : 0.015;
+        if (this._scene3d.fog) this._scene3d.fog.density = start ? 0.045 / TS : 0.015 / TS;
         break;
 
       case 'hp_drain':
@@ -357,14 +360,15 @@ class ShardSystem3D {
       const mesh = new THREE.Mesh(geo, mat);
       // v0.5: sit shards on terrain surface
       const shardGroundY = this._world3d?.getHeightAt(tx, tz) ?? 0;
-      mesh.position.set(tx + 0.5, shardGroundY + 0.8, tz + 0.5);
+      const shardTS = CONFIG.WORLD_3D.TILE_SIZE;
+      mesh.position.set(tx * shardTS + shardTS / 2, shardGroundY + 0.8 * shardTS, tz * shardTS + shardTS / 2);
       mesh.userData.groundY = shardGroundY;
       mesh.castShadow = true;
       mesh.userData.isShard  = true;
       mesh.userData.shardId  = pos.id;
       this._scene3d.add(mesh);
 
-      const light = new THREE.PointLight(color, 1.2, 5);
+      const light = new THREE.PointLight(color, 1.2, 5 * shardTS);
       light.position.copy(mesh.position);
       this._scene3d.add(light);
 
@@ -393,7 +397,7 @@ class ShardSystem3D {
   /** @param {number} delta seconds  @param {number} t total elapsed seconds */
   update(delta, t) {
     this._shards.forEach(sh => {
-      sh.mesh.position.y = (sh.mesh.userData.groundY ?? 0) + 0.8 + Math.sin(t * 1.5 + sh.floatPhase) * 0.22;
+      sh.mesh.position.y = (sh.mesh.userData.groundY ?? 0) + 0.8 * CONFIG.WORLD_3D.TILE_SIZE + Math.sin(t * 1.5 + sh.floatPhase) * 0.22 * CONFIG.WORLD_3D.TILE_SIZE;
       sh.mesh.rotation.y += delta * 1.4;
       sh.light.intensity  = 1.0 + Math.sin(t * 3.0 + sh.floatPhase) * 0.4;
       sh.light.position.copy(sh.mesh.position);
@@ -415,7 +419,7 @@ class ShardSystem3D {
   tryCollect(player, shardId) {
     const sh = this._shards.find(s => s.id === shardId);
     if (!sh) return;
-    if (player.position.distanceTo(sh.mesh.position) > 3.5) {
+    if (player.position.distanceTo(sh.mesh.position) > 3.5 * CONFIG.WORLD_3D.TILE_SIZE) {
       this._bus.emit('damage', sh.mesh.position.x, 0, 'Get closer!', '#ffaa44');
       return;
     }
@@ -495,9 +499,9 @@ export class GameScene {
     this._saveTimer  = 30;
     this._stepTimer  = 0;
 
-    // Combat zoom
-    this._baseZoom   = 20;
-    this._targetZoom = 20;
+    // Combat zoom (scaled with TS — default 80 at TS=4)
+    this._baseZoom   = 80;
+    this._targetZoom = 80;
     this._combatTimer = 0;
 
     // Systems (initialised in create)
@@ -549,7 +553,7 @@ export class GameScene {
     // 1. Three.js scene
     this.scene3d = new THREE.Scene();
     this.scene3d.background = new THREE.Color(0x0a0a1a);
-    this.scene3d.fog         = new THREE.FogExp2(0x0a0a1a, 0.015);
+    this.scene3d.fog         = new THREE.FogExp2(0x0a0a1a, 0.015 / TS);
 
     // 2. Generate map (256×256)
     const gen = new WorldGen();
@@ -575,7 +579,7 @@ export class GameScene {
       this.camera.threeCamera, this.input, this.eventBus,
     );
     const startGroundY = this.world3d.getGroundY(cx, cz);
-    this.player.position.set(cx + 0.5, startGroundY, cz + 0.5);
+    this.player.position.set(cx * TS + TS / 2, startGroundY, cz * TS + TS / 2);
     this.player.group.position.copy(this.player.position);
     this.camera.snapTo(this.player.position);
     this._sceneProxy.player = this.player;
@@ -619,8 +623,8 @@ export class GameScene {
     // Torch light — warm point-light that follows the player.
     // Provides local illumination so nights are navigable without making
     // daytime look unnatural.  Intensity is adjusted each frame in update().
-    this._torchLight = new THREE.PointLight(0xffcc77, 1.8, 14);
-    this._torchLight.position.set(cx + 0.5, 1.5, cz + 0.5);
+    this._torchLight = new THREE.PointLight(0xffcc77, 1.8, 14 * TS);
+    this._torchLight.position.set(cx * TS + TS / 2, 1.5, cz * TS + TS / 2);
     this.scene3d.add(this._torchLight);
 
     // 6. Systems
@@ -697,7 +701,7 @@ export class GameScene {
     // v0.4 — Particle effects engine
     this.particles = new ParticleSystem3D(this.scene3d, this.camera.threeCamera);
     this.particles.attachToEventBus(this.eventBus, this.player);
-    this.particles.seedFireflies(cx, cz, 35);
+    this.particles.seedFireflies(cx * TS + TS / 2, cz * TS + TS / 2, 35);
 
     // v0.4 — Animation system
     this.animSystem = new AnimationSystem(this.scene3d);
@@ -782,7 +786,7 @@ export class GameScene {
     const spawns = gen.getEnemySpawns(this.mapData, count);  // mapData is already the plain array  // getEnemySpawns accepts {tiles} or raw array
     spawns.forEach((sp, i) => {
       const e = new Enemy3D(
-        this.scene3d, sp.x + 0.5, sp.y + 0.5,
+        this.scene3d, sp.x * TS + TS / 2, sp.y * TS + TS / 2,
         types[i % types.length], this.eventBus, this.world3d,
       );
       e.setCamera(this.camera.threeCamera);
@@ -799,7 +803,7 @@ export class GameScene {
     const hmPos = gen.getNPCSpawns(cx, cy);
     hmPos.forEach((p, i) => {
       if (i >= 5) return;
-      const npc = new NPC3D(this.scene3d, p.x + 0.5, p.y + 0.5, i, this.eventBus);
+      const npc = new NPC3D(this.scene3d, p.x * TS + TS / 2, p.y * TS + TS / 2, i, this.eventBus);
       npc.setCamera(this.camera.threeCamera);
       this.npcs.push(npc);
     });
@@ -809,7 +813,7 @@ export class GameScene {
     smPos.forEach((p, i) => {
       const idx = 5 + i;
       if (idx >= CONFIG.NPCS_DATA.length) return;
-      const npc = new NPC3D(this.scene3d, p.x + 0.5, p.y + 0.5, idx, this.eventBus);
+      const npc = new NPC3D(this.scene3d, p.x * TS + TS / 2, p.y * TS + TS / 2, idx, this.eventBus);
       npc.setCamera(this.camera.threeCamera);
       this.npcs.push(npc);
     });
@@ -822,7 +826,7 @@ export class GameScene {
    */
   _spawnTownGuards(cx, cz) {
     this._guardMeshes = [];
-    const R = TOWN_SAFE_R - 4;   // guards stand just inside the safe zone edge
+    const R = TOWN_SAFE_R - 4 * TS;   // guards stand just inside the safe zone edge (world units)
     const COUNT = 8;
 
     const guardMat  = new THREE.MeshLambertMaterial({ color: 0x4488cc });
@@ -832,8 +836,8 @@ export class GameScene {
 
     for (let i = 0; i < COUNT; i++) {
       const angle = (i / COUNT) * Math.PI * 2;
-      const gx    = cx + Math.cos(angle) * R + 0.5;
-      const gz    = cz + Math.sin(angle) * R + 0.5;
+      const gx    = cx * TS + TS / 2 + Math.cos(angle) * R;
+      const gz    = cz * TS + TS / 2 + Math.sin(angle) * R;
 
       const group = new THREE.Group();
 
@@ -885,13 +889,13 @@ export class GameScene {
       for (const pos of positions) {
         for (const node of skillDef.nodes) {
           // Slightly randomise each node position so they don't stack
-          const offsetX = (Math.random() - 0.5) * 4;
-          const offsetZ = (Math.random() - 0.5) * 4;
+          const offsetX = (Math.random() - 0.5) * 4 * TS;
+          const offsetZ = (Math.random() - 0.5) * 4 * TS;
           instances.push({
             id:     `node_${id++}`,
             nodeId: node.id,
-            x:      pos.x + offsetX,
-            z:      pos.z + offsetZ,
+            x:      pos.x * TS + TS / 2 + offsetX,
+            z:      pos.z * TS + TS / 2 + offsetZ,
           });
         }
       }
@@ -901,8 +905,8 @@ export class GameScene {
   }
 
   _buildDungeonPortal(cx, cz) {
-    const px = (cx + 80) + 0.5;
-    const pz = (cz - 20) + 0.5;
+    const px = (cx + 80) * TS + TS / 2;
+    const pz = (cz - 20) * TS + TS / 2;
 
     // Torus geometry
     const geo = new THREE.TorusGeometry(1.2, 0.15, 8, 32);
@@ -911,13 +915,13 @@ export class GameScene {
       emissive: new THREE.Color(0x330066),
     });
     this._portalMesh = new THREE.Mesh(geo, mat);
-    this._portalMesh.position.set(px, 1.2, pz);
+    this._portalMesh.position.set(px, 1.2 * TS, pz);
     this._portalMesh.rotation.x = Math.PI / 2;
     this.scene3d.add(this._portalMesh);
 
     // Portal glow light
-    this._portalLight = new THREE.PointLight(0x8800ff, 2.2, 9);
-    this._portalLight.position.set(px, 1.5, pz);
+    this._portalLight = new THREE.PointLight(0x8800ff, 2.2, 9 * TS);
+    this._portalLight.position.set(px, 1.5 * TS, pz);
     this.scene3d.add(this._portalLight);
 
     // DOM label
@@ -940,8 +944,8 @@ export class GameScene {
 
   _buildSaltmereDungeonPortal(sx, sz) {
     // Place portal 6 tiles north of Saltmere centre
-    const px = sx + 0.5;
-    const pz = (sz - 6) + 0.5;
+    const px = sx * TS + TS / 2;
+    const pz = (sz - 6) * TS + TS / 2;
 
     const geo = new THREE.TorusGeometry(1.2, 0.15, 8, 32);
     const mat = new THREE.MeshLambertMaterial({
@@ -949,12 +953,12 @@ export class GameScene {
       emissive: new THREE.Color(0x003333),
     });
     this._saltmerePortalMesh = new THREE.Mesh(geo, mat);
-    this._saltmerePortalMesh.position.set(px, 1.2, pz);
+    this._saltmerePortalMesh.position.set(px, 1.2 * TS, pz);
     this._saltmerePortalMesh.rotation.x = Math.PI / 2;
     this.scene3d.add(this._saltmerePortalMesh);
 
-    this._saltmerePortalLight = new THREE.PointLight(0x008888, 2.0, 9);
-    this._saltmerePortalLight.position.set(px, 1.5, pz);
+    this._saltmerePortalLight = new THREE.PointLight(0x008888, 2.0, 9 * TS);
+    this._saltmerePortalLight.position.set(px, 1.5 * TS, pz);
     this.scene3d.add(this._saltmerePortalLight);
 
     this._saltmerePortalLabelEl = document.createElement('div');
@@ -1086,7 +1090,7 @@ export class GameScene {
         p.attackTarget    = null;
         // Restore HP to 40% so player can't immediately die again
         p.stats.hp = Math.max(1, Math.floor(p.stats.maxHp * 0.40));
-        p.position.set(cx + 0.5, 0, cz + 0.5);
+        p.position.set(cx * TS + TS / 2, 0, cz * TS + TS / 2);
         p.group.position.copy(p.position);
         this.camera.snapTo(p.position);
         bus.emit('statsChanged', p.stats);
@@ -1576,7 +1580,7 @@ export class GameScene {
     // Loot?
     const lootHit = this._lootMeshes.find(l => l.mesh === hitMesh);
     if (lootHit) {
-      if (this.player.position.distanceTo(lootHit.mesh.position) <= 70) {
+      if (this.player.position.distanceTo(lootHit.mesh.position) <= 70 * TS) {
         this._pickupLoot(lootHit);
       }
       return;
@@ -1646,7 +1650,7 @@ export class GameScene {
 
   _updatePortalLabel() {
     if (!this._portalLabelEl || !this._portalPos) return;
-    const wp = new THREE.Vector3(this._portalPos.x, 3.0, this._portalPos.z);
+    const wp = new THREE.Vector3(this._portalPos.x, 3.0 * TS, this._portalPos.z);
     wp.project(this.camera.threeCamera);
     if (wp.z > 1) { this._portalLabelEl.style.display = 'none'; return; }
     this._portalLabelEl.style.display = 'block';
@@ -1656,7 +1660,7 @@ export class GameScene {
 
   _checkPortalCollision() {
     if (this._portalUsed || !this._portalPos) return;
-    if (this.player.position.distanceTo(this._portalPos) < 2) this._enterDungeon();
+    if (this.player.position.distanceTo(this._portalPos) < 2 * TS) this._enterDungeon();
   }
 
   _updateSaltmerePortal(delta) {
@@ -1670,7 +1674,7 @@ export class GameScene {
 
     // Project label
     if (this._saltmerePortalLabelEl && this._saltmerePortalPos) {
-      const wp = new THREE.Vector3(this._saltmerePortalPos.x, 3.0, this._saltmerePortalPos.z);
+      const wp = new THREE.Vector3(this._saltmerePortalPos.x, 3.0 * TS, this._saltmerePortalPos.z);
       wp.project(this.camera.threeCamera);
       if (wp.z > 1) {
         this._saltmerePortalLabelEl.style.display = 'none';
@@ -1683,7 +1687,7 @@ export class GameScene {
 
     // Collision — enter Sunken Vaults dungeon
     if (!this._saltmerePortalUsed && this._saltmerePortalPos &&
-        this.player.position.distanceTo(this._saltmerePortalPos) < 2) {
+        this.player.position.distanceTo(this._saltmerePortalPos) < 2 * TS) {
       this._enterSaltmereDungeon();
     }
   }
@@ -1871,11 +1875,11 @@ export class GameScene {
 
     // Combat zoom (lerp camera distance)
     const nearEnemy = this.enemies.some(
-      e => !e.isDead && e.position.distanceTo(this.player.position) < 8,
+      e => !e.isDead && e.position.distanceTo(this.player.position) < 8 * TS,
     );
     if (nearEnemy) {
       this._combatTimer = 2.2;
-      this._targetZoom  = 14;
+      this._targetZoom  = 56;   // combat zoom-in (80 × 0.7)
     } else if (this._combatTimer > 0) {
       this._combatTimer -= delta;
       if (this._combatTimer <= 0) this._targetZoom = this._baseZoom;
@@ -1889,8 +1893,8 @@ export class GameScene {
     this.world3d.updateVisibleChunks(tp.x, tp.z);
 
     // Enemies — update AI, track kills, enforce safe zone
-    const townCX = MAP_W / 2;
-    const townCZ = MAP_H / 2;
+    const townCX = (MAP_W / 2) * TS + TS / 2;   // world-space centre X
+    const townCZ = (MAP_H / 2) * TS + TS / 2;   // world-space centre Z
     this.enemies.forEach(e => {
       if (!e._cameraSet) {
         e.setCamera(this.camera.threeCamera);
@@ -1962,7 +1966,7 @@ export class GameScene {
           const tier  = Math.min(4, Math.floor(playerLv / 5));
           const pool  = tier <= 1 ? allTypes.slice(0,4) : tier <= 2 ? allTypes.slice(0,8) : allTypes;
           const type  = pool[Math.floor(Math.random() * pool.length)];
-          const e     = new Enemy3D(this.scene3d, sp.x + 0.5, sp.y + 0.5, type, this.eventBus, this.world3d);
+          const e     = new Enemy3D(this.scene3d, sp.x * TS + TS / 2, sp.y * TS + TS / 2, type, this.eventBus, this.world3d);
           e.setCamera(this.camera.threeCamera);
           const scaleMult = 1 + (playerLv - 1) * 0.08;
           e.stats.hp = Math.round(e.stats.hp * scaleMult);
@@ -1975,9 +1979,8 @@ export class GameScene {
 
     // v0.5 — Terrain height tracking — player smoothly follows terrain
     if (this.player && this.world3d) {
-      const tx = Math.floor(this.player.position.x);
-      const tz = Math.floor(this.player.position.z);
-      const targetY = this.world3d.getHeightAt(tx, tz);
+      const tp = this.world3d.worldToTile(this.player.position.x, this.player.position.z);
+      const targetY = this.world3d.getHeightAt(tp.x, tp.z);
       this.player.position.y += (targetY - this.player.position.y) * Math.min(1, delta * 12);
       this.player.group.position.copy(this.player.position);
     }

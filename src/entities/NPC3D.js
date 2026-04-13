@@ -59,11 +59,11 @@ export class NPC3D extends Entity3D {
     this.eventBus = eventBus;
     this.history  = [];
 
-    // Interaction range in world units (~72 original pixels)
-    this._interactRange = 72 / 16;
+    // Interaction range in world units (~72 original pixels, scaled by tile size)
+    this._interactRange = 72 / 16 * CONFIG.WORLD_3D.TILE_SIZE;
 
     // Solid collision radius — prevents the player from walking through the NPC
-    this.collisionRadius = 0.55;
+    this.collisionRadius = 0.55 * CONFIG.WORLD_3D.TILE_SIZE;
 
     this.position.set(x, 0, z);
 
@@ -77,6 +77,8 @@ export class NPC3D extends Entity3D {
       this._buildMerchantStand();
     }
 
+    // Scale NPC to match world tile size
+    this.group.scale.setScalar(CONFIG.WORLD_3D.TILE_SIZE);
     this.addToScene(scene3d);
   }
 

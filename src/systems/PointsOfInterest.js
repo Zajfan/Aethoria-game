@@ -20,6 +20,12 @@ import { THREE } from '../engine/Renderer.js';
 import { CONFIG } from '../config.js';
 import { LORE   } from './LoreDatabase.js';
 
+// World scale constant — tiles are TS world units wide
+const TS = CONFIG.WORLD_3D.TILE_SIZE;   // = 4
+
+// Helper: tile coord → world centre of that tile
+function tw(t) { return t * TS + TS / 2; }
+
 // ── POI type definitions ──────────────────────────────────────────────────────
 
 export const POI_TYPES = {
@@ -28,7 +34,7 @@ export const POI_TYPES = {
     icon:       '🏚',
     color:      '#aa9977',
     interactMsg:'E to search the ruin',
-    range:      2.5,
+    range:      2.5 * TS,
     respawn:    false,
   },
   SHRINE: {
@@ -36,7 +42,7 @@ export const POI_TYPES = {
     icon:       '✦',
     color:      '#ffdd44',
     interactMsg:'E to pray at the shrine',
-    range:      2.0,
+    range:      2.0 * TS,
     respawn:    true,
     respawnSec: 300,
   },
@@ -45,7 +51,7 @@ export const POI_TYPES = {
     icon:       '†',
     color:      '#888888',
     interactMsg:'E to pay respects',
-    range:      2.0,
+    range:      2.0 * TS,
     respawn:    false,
   },
   CRYSTAL_NODE: {
@@ -53,7 +59,7 @@ export const POI_TYPES = {
     icon:       '◈',
     color:      '#cc44ff',
     interactMsg:'E to harvest crystals',
-    range:      1.8,
+    range:      1.8 * TS,
     respawn:    true,
     respawnSec: 180,
   },
@@ -62,7 +68,7 @@ export const POI_TYPES = {
     icon:       '▲',
     color:      '#4488ff',
     interactMsg:'E to read the inscription',
-    range:      2.0,
+    range:      2.0 * TS,
     respawn:    false,
   },
   HEALING_WELL: {
@@ -70,7 +76,7 @@ export const POI_TYPES = {
     icon:       '◎',
     color:      '#44ccaa',
     interactMsg:'E to drink from the well',
-    range:      2.0,
+    range:      2.0 * TS,
     respawn:    true,
     respawnSec: 120,
   },
@@ -79,7 +85,7 @@ export const POI_TYPES = {
     icon:       '🛒',
     color:      '#ffaa44',
     interactMsg:'E to trade',
-    range:      3.0,
+    range:      3.0 * TS,
     respawn:    false,
   },
 };
@@ -347,7 +353,8 @@ export class PointsOfInterest {
       default: mesh = buildRuinMesh();
     }
 
-    mesh.position.set(tx + 0.5, 0, tz + 0.5);
+    mesh.position.set(tw(tx), 0, tw(tz));
+    mesh.scale.setScalar(TS);
     this._scene.add(mesh);
 
     // DOM label
@@ -399,7 +406,7 @@ export class PointsOfInterest {
     for (const poi of this._pois) {
       if (poi.used && !poi.def.respawn) continue;
       if (poi.cooldown > 0) continue;
-      const dist = Math.hypot(px - (poi.tx + 0.5), pz - (poi.tz + 0.5));
+      const dist = Math.hypot(px - tw(poi.tx), pz - tw(poi.tz));
       if (dist < poi.def.range) return poi;
     }
     return null;
@@ -434,11 +441,11 @@ export class PointsOfInterest {
     const loot = ['gold', Math.random() > 0.5 ? 'gem' : 'crystal', Math.random() > 0.6 ? 'scroll' : 'potion'];
     loot.forEach(itemKey => {
       this._bus.emit('spawnLoot', {
-        x: poi.tx + 0.5 + (Math.random()-0.5)*1.5, y: 0.3,
-        z: poi.tz + 0.5 + (Math.random()-0.5)*1.5, itemKey,
+        x: tw(poi.tx) + (Math.random()-0.5)*1.5, y: 0.3,
+        z: tw(poi.tz) + (Math.random()-0.5)*1.5, itemKey,
       });
     });
-    this._bus.emit('chestOpened', { x: poi.tx + 0.5, z: poi.tz + 0.5 });
+    this._bus.emit('chestOpened', { x: tw(poi.tx), z: tw(poi.tz) });
     this._bus.emit('hudLog', { msg: '📦 You searched the ruin and found something.', color:'#aa9977' });
   }
 
@@ -456,7 +463,7 @@ export class PointsOfInterest {
     poi.used = true;
     poi.labelEl.style.display = 'none';
     const scroll = LORE.scrolls[Math.floor(Math.random() * LORE.scrolls.length)];
-    this._bus.emit('spawnLoot', { x: poi.tx + 0.5, y: 0.3, z: poi.tz + 0.5, itemKey:'scroll' });
+    this._bus.emit('spawnLoot', { x: tw(poi.tx), y: 0.3, z: tw(poi.tz), itemKey:'scroll' });
     this._bus.emit('scrollPickedUp', { scroll });
     this._bus.emit('hudLog', { msg: "† You found something left at the grave.", color:'#888888' });
   }
@@ -466,8 +473,8 @@ export class PointsOfInterest {
     const qty = 1 + Math.floor(Math.random() * 3);
     for (let i = 0; i < qty; i++) {
       this._bus.emit('spawnLoot', {
-        x: poi.tx + 0.5 + (Math.random()-0.5)*1.0, y: 0.3,
-        z: poi.tz + 0.5 + (Math.random()-0.5)*1.0, itemKey:'crystal',
+        x: tw(poi.tx) + (Math.random()-0.5)*1.0, y: 0.3,
+        z: tw(poi.tz) + (Math.random()-0.5)*1.0, itemKey:'crystal',
       });
     }
     this._bus.emit('hudLog', { msg: `◈ Harvested ${qty} Void Crystal${qty>1?'s':''}.`, color:'#cc44ff' });
@@ -490,7 +497,7 @@ export class PointsOfInterest {
     this._player.stats.hp = Math.min(this._player.stats.maxHp, (this._player.stats.hp ?? 0) + heal);
     this._player.eventBus?.emit('statsChanged', this._player.stats);
     this._bus.emit('hudLog', { msg: `◎ The ancient water restores +${heal} HP.`, color:'#44ccaa' });
-    this._bus.emit('healBurst', { x: poi.tx + 0.5, z: poi.tz + 0.5 });
+    this._bus.emit('healBurst', { x: tw(poi.tx), z: tw(poi.tz) });
   }
 
   _interactMerchant(poi) {
@@ -505,9 +512,9 @@ export class PointsOfInterest {
   _getCurrentRegion() {
     // Rough region detection for standing stone codex unlock
     if (!this._player) return 'HEARTHMOOR';
-    const tx = Math.floor(this._player.position.x);
-    const tz = Math.floor(this._player.position.z);
-    const cx = 256, cz = 256;
+    const tx = Math.floor(this._player.position.x / TS);
+    const tz = Math.floor(this._player.position.z / TS);
+    const cx = Math.floor(CONFIG.MAP_WIDTH / 2), cz = Math.floor(CONFIG.MAP_HEIGHT / 2);
     const dx = tx - cx, dz = tz - cz;
     if (Math.hypot(dx, dz) < 44) return 'HEARTHMOOR';
     if (dx < 0 && dz < 0) return 'ELANDOR';
@@ -542,12 +549,12 @@ export class PointsOfInterest {
       }
 
       // Label projection
-      const dist = Math.hypot(px - (poi.tx + 0.5), pz - (poi.tz + 0.5));
-      const show = dist < 6.0 && (!poi.used || poi.def.respawn) && poi.cooldown === 0;
+      const dist = Math.hypot(px - (tw(poi.tx)), pz - (tw(poi.tz)));
+      const show = dist < 6.0 * TS && (!poi.used || poi.def.respawn) && poi.cooldown === 0;
       poi.labelEl.style.display = show ? 'block' : 'none';
       if (!show) continue;
 
-      projVec.set(poi.tx + 0.5, 1.5, poi.tz + 0.5);
+      projVec.set(tw(poi.tx), 1.5 * TS, tw(poi.tz));
       projVec.project(cam);
       if (projVec.z > 1) { poi.labelEl.style.display = 'none'; continue; }
 

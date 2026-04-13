@@ -57,7 +57,7 @@ export class Enemy3D extends Entity3D {
       maxHp: d.hp,
       atk:   d.atk,
       def:   d.def,
-      spd:   d.spd * PX,
+      spd:   d.spd * PX * CONFIG.WORLD_3D.TILE_SIZE,
     };
 
     this.isDead = false;
@@ -69,12 +69,14 @@ export class Enemy3D extends Entity3D {
     this.spawnPos = new THREE.Vector3(x, 0, z);
     this.position.set(x, 0, z);
 
-    // Detection ranges in world units (1 unit ≈ 16 original pixels)
-    this.DETECT = 130 * PX;
-    this.ATK_R  =  42 * PX;
-    this.LEASH  = 210 * PX;
+    // Detection ranges in world units (scaled with tile size)
+    const TS = CONFIG.WORLD_3D.TILE_SIZE;
+    this.DETECT = 130 * PX * TS;
+    this.ATK_R  =  42 * PX * TS;
+    this.LEASH  = 210 * PX * TS;
 
     this._buildModel(typeKey);
+    // Note: scale is set inside _buildModel (base enemies) or the Boss3D override
     this.addToScene(scene3d);
   }
 
@@ -123,6 +125,8 @@ export class Enemy3D extends Entity3D {
       case 'NECROMANCER_ADEPT':this._buildNecromancerAdept();break;
       default:                 this._buildGoblin();
     }
+    // Scale all regular enemy groups to match world tile size (Boss3D overrides this)
+    this.group.scale.setScalar(CONFIG.WORLD_3D.TILE_SIZE);
   }
 
   _buildGoblin() {
@@ -789,10 +793,11 @@ export class Enemy3D extends Entity3D {
     }
 
     this.position.addScaledVector(this.velocity, delta);
-    // v0.5 — snap Y to terrain heightmap
+    // v0.5 — snap Y to terrain heightmap (convert world coords → tile coords)
     if (this.world?.getGroundY) {
+      const TS = CONFIG.WORLD_3D.TILE_SIZE;
       this.position.y = this.world.getGroundY(
-        Math.floor(this.position.x), Math.floor(this.position.z)
+        Math.floor(this.position.x / TS), Math.floor(this.position.z / TS)
       );
     } else {
       this.position.y = 0;
@@ -862,10 +867,10 @@ export class Enemy3D extends Entity3D {
     this.pTimer   = 0;
     this._guardWarned = false;
 
-    // Offset respawn from spawn point by ±6 tiles so enemies don't pop up
-    // exactly where they were killed
-    const ox = (Math.random() - 0.5) * 12;
-    const oz = (Math.random() - 0.5) * 12;
+    // Offset respawn from spawn point by ±6 tiles in world units
+    const _ts = CONFIG.WORLD_3D.TILE_SIZE;
+    const ox = (Math.random() - 0.5) * 12 * _ts;
+    const oz = (Math.random() - 0.5) * 12 * _ts;
     this.position.set(this.spawnPos.x + ox, 0, this.spawnPos.z + oz);
     this.group.position.copy(this.position);
 

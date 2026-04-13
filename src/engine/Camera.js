@@ -21,9 +21,9 @@ import { THREE, getRenderer } from './Renderer.js';
 // ---------------------------------------------------------------------------
 // Tuning constants
 // ---------------------------------------------------------------------------
-const DEFAULT_ZOOM      = 20;     // initial distance from target
-const MIN_ZOOM          = 8;      // closest the camera can get
-const MAX_ZOOM          = 30;     // furthest the camera can get
+const DEFAULT_ZOOM      = 80;     // initial distance from target (scaled for TS=4 world)
+const MIN_ZOOM          = 32;     // closest the camera can get
+const MAX_ZOOM          = 180;    // furthest the camera can get
 const ZOOM_SPEED        = 0.015;  // wheel units → zoom units
 const PITCH_DEGREES     = 52;     // fixed vertical angle (degrees)
 const LERP_FACTOR       = 0.06;   // camera smoothing (0 = no movement, 1 = instant)
@@ -45,7 +45,7 @@ class Camera {
       50,                        // vertical FOV (degrees) — narrower = less distortion
       renderer.aspect,
       0.1,                       // near clip
-      500,                       // far clip — enough for large open worlds
+      2000,                      // far clip — 2048-unit world at TS=4
     );
 
     // ---- Orbit state -------------------------------------------------------

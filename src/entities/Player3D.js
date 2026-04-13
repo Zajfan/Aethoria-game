@@ -83,7 +83,7 @@ export class Player3D extends Entity3D {
       attack:   CONFIG.PLAYER.BASE_ATTACK,
       defense:  CONFIG.PLAYER.BASE_DEFENSE,
       // Convert px/s → world-units/s  (1 world unit = 16 original px)
-      speed:    CONFIG.PLAYER.SPEED * PX,
+      speed:    CONFIG.PLAYER.SPEED * PX * CONFIG.WORLD_3D.TILE_SIZE,
       gold:     0,
     };
 
@@ -92,7 +92,7 @@ export class Player3D extends Entity3D {
 
     this.attackCooldown     = 0;                               // ms remaining
     this.attackCooldownBase = CONFIG.PLAYER.ATTACK_COOLDOWN;   // ms
-    this.attackRange        = CONFIG.PLAYER.ATTACK_RANGE * PX; // world units
+    this.attackRange        = CONFIG.PLAYER.ATTACK_RANGE * PX * CONFIG.WORLD_3D.TILE_SIZE; // world units
     this.attackTarget       = null;
 
     this.playerClass = null;
@@ -113,11 +113,13 @@ export class Player3D extends Entity3D {
     // Cached tile size in world units — the 3D world maps 1 tile to exactly 1 world unit.
     this._tileSize = CONFIG.WORLD_3D.TILE_SIZE;
 
-    // Collision radius for character-vs-NPC push-away (half torso width ≈ 0.30)
-    this._collisionRadius = 0.30;
+    // Collision radius in world units (half torso width scaled by tile size)
+    this._collisionRadius = 0.30 * CONFIG.WORLD_3D.TILE_SIZE;
 
     // ── Build ──────────────────────────────────────────────────────────────
     this._buildModel();
+    // Scale the whole character group to match world tile size (TS=4 → 4× bigger)
+    this.group.scale.setScalar(this._tileSize);
     this.addToScene(scene3d);
   }
 
@@ -168,7 +170,7 @@ export class Player3D extends Entity3D {
     this.stats.hp       = this.stats.maxHp;
     this.stats.attack  += cls.bonuses.attack;
     this.stats.defense += cls.bonuses.defense;
-    this.stats.speed   += cls.bonuses.speed * PX;
+    this.stats.speed   += cls.bonuses.speed * PX * this._tileSize;
     this._buildModel(); // re-colour
     this.eventBus.emit('statsChanged', this.stats);
   }
@@ -231,7 +233,7 @@ export class Player3D extends Entity3D {
     if (this.skills?.FIREBALL && this.fireballCD === 0 &&
         this.attackTarget && !this.attackTarget.isDead) {
       const rank    = this.skills.FIREBALL;
-      const fbRange = FIREBALL_RANGE_PX * PX;
+      const fbRange = FIREBALL_RANGE_PX * PX * this._tileSize;
       if (this.distanceTo(this.attackTarget) <= fbRange) {
         const dmg = Math.max(1, Math.floor(
           this.stats.attack * (FIREBALL_BASE_DMG_MULT + rank * FIREBALL_DMG_PER_RANK),
@@ -321,10 +323,11 @@ export class Player3D extends Entity3D {
       this.group.rotation.y = Math.atan2(this.velocity.x, this.velocity.z);
     }
 
-    // v0.5 — snap Y to terrain heightmap
+    // v0.5 — snap Y to terrain heightmap (divide by tile size to get tile coords)
     if (this.world?.getGroundY) {
-      const tx = Math.floor(this.position.x);
-      const tz = Math.floor(this.position.z);
+      const TILE = this._tileSize;
+      const tx = Math.floor(this.position.x / TILE);
+      const tz = Math.floor(this.position.z / TILE);
       const groundY = this.world.getGroundY(tx, tz);
       this.position.y = groundY;
     }
