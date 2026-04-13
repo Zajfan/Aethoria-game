@@ -41,6 +41,8 @@ import { randomScroll }       from '../systems/LoreDatabase.js';
 import { GatheringSystem }    from '../systems/GatheringSystem.js';
 import { SlayerSystem }       from '../systems/SlayerSystem.js';
 import { TownBuilder }        from '../systems/TownBuilder.js';
+import { CoopClient }        from '../systems/CoopClient.js';
+import { RemotePlayer3D }    from '../entities/RemotePlayer3D.js';
 
 // Map dimensions — 512×512 gives a true open world (4× the area of v0.7's 256×256)
 const MAP_W = 512;
@@ -529,6 +531,8 @@ export class GameScene {
     this.prestigeSystem     = null;  // v0.7
     this.dailyChallengeSystem = null; // v0.7
     this.gamepadManager     = null;  // v0.7
+    this.coop           = null;      // v0.9 — co-op networking
+    this.remotePlayers  = new Map(); // v0.9 — peerId → RemotePlayer3D
     this._sceneProxy    = null;
 
     /** @type {import('../ui/HUD.js').HUD|null} */
@@ -776,6 +780,9 @@ export class GameScene {
         this.hud?.logMsg('^ Back from the dungeon.', '#aaaaff');
       }, 600);
     }
+
+    // 14. v0.9 — Co-op: wire client, connect if menu set a pending intent
+    this._initCoop();
   }
 
   // ── Entity spawning ─────────────────────────────────────────────────────────
@@ -2110,11 +2117,236 @@ export class GameScene {
     // HUD per-frame refresh
     this.hud?.update(this);
 
+    // v0.9 — Co-op: send local state, tick remote player avatars
+    this._updateCoop(delta);
+
     // Render
     this.renderer.render(this.scene3d, this.camera.threeCamera);
 
     // Flush input per-frame state
     this.input.update();
+  }
+
+  // ── Co-op ─────────────────────────────────────────────────────────────────────
+
+  /**
+   * Initialise CoopClient, wire EventBus listeners for all co-op events,
+   * and connect if the menu set a pending _coopIntent before the game started.
+   */
+  _initCoop() {
+    this.coop = new CoopClient(this.eventBus);
+
+    if (!this._busSubs) this._busSubs = [];
+
+    // ── Incoming peer events ───────────────────────────────────────────────
+
+    const onPeerState = ({ from, state }) => this._upsertRemotePlayer(from, state);
+
+    const onPeerLeft = ({ playerId }) => {
+      const rp = this.remotePlayers.get(playerId);
+      const name = rp?._playerName ?? 'A companion';
+      this._removeRemotePlayer(playerId);
+      this.hud?.logMsg(`${name} left the session.`, '#aaaaff');
+    };
+
+    const onPeerEvent = ({ from, eventType, payload }) =>
+      this._handlePeerGameEvent(from, eventType, payload);
+
+    const onHosted = ({ code }) => {
+      this.hud?.logMsg(`Co-op session open — share code: ${code}`, '#44ffaa');
+    };
+
+    const onJoined = ({ roster }) => {
+      this.hud?.logMsg(`Joined co-op! Players: ${roster.map(r => r.name).join(', ')}`, '#44ffaa');
+      // Close the modal if it is still visible
+      const modal = document.getElementById('coop-modal');
+      if (modal) modal.style.display = 'none';
+    };
+
+    const onRoster = (roster) => {
+      this.hud?.logMsg(`Party: ${roster.map(r => r.name).join(', ')}`, '#88ccff');
+    };
+
+    const onDisconnected = () => {
+      this.hud?.logMsg('Co-op disconnected.', '#ff8844');
+    };
+
+    const onCoopError = (msg) => {
+      this.hud?.logMsg(`Co-op: ${msg}`, '#ff4444');
+      const statusEl = document.getElementById('coop-status');
+      if (statusEl) statusEl.textContent = msg;
+    };
+
+    this.eventBus.on('coop:hosted',      onHosted);
+    this.eventBus.on('coop:joined',      onJoined);
+    this.eventBus.on('coop:roster',      onRoster);
+    this.eventBus.on('coop:peerState',   onPeerState);
+    this.eventBus.on('coop:peerLeft',    onPeerLeft);
+    this.eventBus.on('coop:peerEvent',   onPeerEvent);
+    this.eventBus.on('coop:disconnected', onDisconnected);
+    this.eventBus.on('coop:error',       onCoopError);
+
+    this._busSubs.push(
+      ['coop:hosted',       onHosted],
+      ['coop:joined',       onJoined],
+      ['coop:roster',       onRoster],
+      ['coop:peerState',    onPeerState],
+      ['coop:peerLeft',     onPeerLeft],
+      ['coop:peerEvent',    onPeerEvent],
+      ['coop:disconnected', onDisconnected],
+      ['coop:error',        onCoopError],
+    );
+
+    // ── Outgoing: broadcast local game events to peers ─────────────────────
+
+    const onLevelUp = (level) => {
+      this.coop?.sendEvent('levelUp', { level });
+    };
+    const onPlayerDead = () => {
+      this.coop?.sendEvent('death', {});
+    };
+
+    this.eventBus.on('levelUp',    onLevelUp);
+    this.eventBus.on('playerDead', onPlayerDead);
+    this._busSubs.push(['levelUp', onLevelUp], ['playerDead', onPlayerDead]);
+
+    // ── Expose connection callback for the menu modal ─────────────────────
+
+    window._gameCoopConnect = (intent) => {
+      const name = this.player?.stats?.name ?? 'Adventurer';
+      const statusEl = document.getElementById('coop-status');
+
+      if (intent.mode === 'host') {
+        this.coop.host(intent.serverUrl, name)
+          .catch(err => { if (statusEl) statusEl.textContent = `Failed: ${err.message}`; });
+      } else {
+        this.coop.join(intent.serverUrl, name, intent.code)
+          .catch(err => { if (statusEl) statusEl.textContent = `Failed: ${err.message}`; });
+      }
+    };
+
+    // If the player clicked Host/Join before the game was fully started,
+    // the menu stored a pending intent — handle it now.
+    if (window._coopIntent) {
+      window._gameCoopConnect(window._coopIntent);
+      window._coopIntent = null;
+    }
+  }
+
+  /**
+   * Called every frame from update().
+   * Sends the local player's state to all peers (throttled inside CoopClient).
+   * Also calls update() on every remote player avatar.
+   * @param {number} delta
+   */
+  _updateCoop(delta) {
+    if (!this.coop?.isConnected || !this.player) return;
+
+    // Send local state (CoopClient throttles internally to 20 Hz)
+    this.coop.sendState({
+      x:     this.player.position.x,
+      y:     this.player.position.y,
+      z:     this.player.position.z,
+      ry:    this.player.group.rotation.y,
+      hp:    this.player.stats.hp,
+      maxHp: this.player.stats.maxHp,
+      anim:  Math.hypot(this.player.velocity.x, this.player.velocity.z) > 0.5 ? 'walk' : 'idle',
+      cls:   this.player.playerClass,
+      name:  this.player.stats.name ?? 'Hero',
+      level: this.player.stats.level,
+    });
+
+    // Update remote player avatars
+    this.remotePlayers.forEach(rp => rp.update(delta));
+  }
+
+  /**
+   * Create or update the RemotePlayer3D avatar for a peer.
+   * @param {string} peerId
+   * @param {object} state
+   */
+  _upsertRemotePlayer(peerId, state) {
+    let rp = this.remotePlayers.get(peerId);
+    if (!rp) {
+      rp = new RemotePlayer3D(
+        this.scene3d,
+        this.camera.threeCamera,
+        state.cls  ?? 'WARRIOR',
+        state.name ?? 'Adventurer',
+      );
+      // Teleport directly to first known position (no interpolation on spawn)
+      if (state.x !== undefined) {
+        rp.position.set(state.x, state.y ?? 0, state.z);
+        rp._targetPos.copy(rp.position);
+        rp.group.position.copy(rp.position);
+      }
+      this.remotePlayers.set(peerId, rp);
+      this.hud?.logMsg(`${state.name ?? 'Adventurer'} entered the world!`, '#44ffaa');
+    }
+    rp.applyState(state);
+  }
+
+  /**
+   * Dispose the RemotePlayer3D avatar for a peer who disconnected.
+   * @param {string} peerId
+   */
+  _removeRemotePlayer(peerId) {
+    const rp = this.remotePlayers.get(peerId);
+    if (!rp) return;
+    rp.dispose();
+    this.remotePlayers.delete(peerId);
+  }
+
+  /**
+   * Handle a game-logic event from a peer (attack, death, level-up, chat).
+   * @param {string} from       Sender's playerId
+   * @param {string} eventType
+   * @param {object} payload
+   */
+  _handlePeerGameEvent(from, eventType, payload) {
+    const rp = this.remotePlayers.get(from);
+
+    switch (eventType) {
+      case 'damage':
+        // Show a floating number at the peer's current position
+        if (payload && rp) {
+          this.eventBus.emit('damage',
+            rp.position.x, rp.position.y, payload.dmg ?? '?', '#44ccff');
+        }
+        break;
+
+      case 'death':
+        rp?.setDead();
+        this.hud?.logMsg(`${rp?._playerName ?? 'Companion'} has fallen!`, '#ff6666');
+        break;
+
+      case 'respawn':
+        rp?.setAlive(payload);
+        this.hud?.logMsg(`${rp?._playerName ?? 'Companion'} has respawned.`, '#88ff88');
+        break;
+
+      case 'levelUp':
+        this.hud?.logMsg(
+          `${rp?._playerName ?? 'Companion'} reached level ${payload?.level ?? '?'}!`,
+          '#ffdd44',
+        );
+        // Brief emissive flash on their avatar
+        if (rp) {
+          rp.group.traverse(obj => {
+            if (!obj.isMesh || !obj.material?.emissive) return;
+            obj.material.emissive.setHex(0xffff00);
+            setTimeout(() => { if (obj.material?.emissive) obj.material.emissive.setHex(0x000000); }, 300);
+          });
+        }
+        break;
+
+      case 'chatMsg':
+        if (payload?.text) {
+          const name = rp?._playerName ?? 'Companion';
+          this.hud?.logMsg(`[Co-op] ${name}: ${payload.text}`, '#88ffcc');
+        }
+        break;
+    }
   }
 
   // ── Cleanup ───────────────────────────────────────────────────────────────────
@@ -2201,6 +2433,13 @@ export class GameScene {
     this.world3d?.dispose();
 
     clearInterval(this._saveInterval);
+
+    // v0.9 — Co-op: dispose remote avatars and close WebSocket
+    this.remotePlayers.forEach(rp => rp.dispose());
+    this.remotePlayers.clear();
+    this.coop?.disconnect();
+    this.coop = null;
+    window._gameCoopConnect = null;
 
     // Unsubscribe all EventBus listeners registered during _setupEvents()
     // and slayer-kill wiring, so disposed scene doesn't ghost-fire on new ones.
