@@ -793,7 +793,7 @@ export const CONFIG = {
 
   WEATHER_TYPES: ['CLEAR','CLEAR','CLEAR','RAIN','FOG','STORM'],
 
-  DAY_CYCLE_SECONDS: 240,
+  DAY_CYCLE_SECONDS: 1200,
 
   // Fixed seed so all players always see the same world terrain.
   RARITY: {
