@@ -8,10 +8,13 @@
  *   renderer.render(scene, camera);
  */
 
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
+// Resolved from node_modules/three by Vite (npm run dev / npm run build).
+// In the legacy browser-only workflow (python3 http.server) an import-map
+// can redirect this bare specifier to the CDN — see index.html.
+import * as THREE from 'three';
 
 // Re-export THREE so every other module can import it from here,
-// keeping the CDN URL in exactly ONE place.
+// keeping the import source in exactly ONE place.
 export { THREE };
 
 // ---------------------------------------------------------------------------

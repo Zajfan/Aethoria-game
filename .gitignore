@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+release/
+
+# Capacitor native projects (generated; track capacitor.config.json but not the native code)
+android/
+ios/
+
+# Electron builder cache
+.electron-builder-cache/
+
+# Vite cache
+.vite/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Backup archive (sits next to repo root)
+*.tar.gz

@@ -1,0 +1,48 @@
+{
+  "appId": "com.nohands.aethoria",
+  "appName": "Aethoria",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https",
+    "allowNavigation": [
+      "*.anthropic.com",
+      "localhost:3000"
+    ]
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2500,
+      "launchAutoHide": true,
+      "backgroundColor": "#0a0a0f",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "iosSpinnerStyle": "small",
+      "spinnerColor": "#d4af37"
+    },
+    "StatusBar": {
+      "style": "Dark",
+      "backgroundColor": "#0a0a0f",
+      "overlaysWebView": false
+    },
+    "Keyboard": {
+      "resize": "body",
+      "style": "dark",
+      "resizeOnFullScreen": true
+    }
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false,
+    "loggingBehavior": "none",
+    "minWebViewVersion": 80
+  },
+  "ios": {
+    "contentInset": "always",
+    "allowsLinkPreview": false,
+    "scrollEnabled": false
+  }
+}

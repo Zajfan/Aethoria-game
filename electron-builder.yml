@@ -1,0 +1,95 @@
+appId: com.nohands.aethoria
+productName: Aethoria
+copyright: Copyright © 2026 The No-hands Company
+
+# Directories
+directories:
+  buildResources: build-resources
+  output: release
+
+# Files to include in the packaged app
+files:
+  - electron/**
+  - package.json
+  - "!node_modules"
+  - "!src"
+  - "!public"
+  - "!scripts"
+  - "!lore"
+  - "!quests"
+  - "!assets"
+
+# The Vite-built game lives here; packaged as an extraResource
+# so main.js can locate it via process.resourcesPath
+extraResources:
+  - from: dist
+    to: dist
+    filter:
+      - "**/*"
+
+# ── Windows ────────────────────────────────────────────────────────────────────
+win:
+  icon: build-resources/icon.ico
+  target:
+    - target: nsis        # Full installer (recommended for end users)
+      arch: [x64, ia32, arm64]
+    - target: portable    # Single .exe, no install required
+      arch: [x64]
+  publisherName: "The No-hands Company"
+  requestedExecutionLevel: asInvoker
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  menuCategory: Games
+  shortcutName: Aethoria
+
+# ── Linux ──────────────────────────────────────────────────────────────────────
+linux:
+  icon: build-resources/icons/
+  category: Game
+  target:
+    - target: AppImage    # Universal, runs on any Linux
+      arch: [x64, arm64]
+    - target: deb         # Debian/Ubuntu
+      arch: [x64, arm64]
+    - target: rpm         # Fedora/RHEL
+      arch: [x64, arm64]
+    - target: snap        # Snap Store
+      arch: [x64]
+  maintainer: "The No-hands Company"
+  description: "Aethoria — Solo & Co-op Open World RPG"
+
+# ── macOS ──────────────────────────────────────────────────────────────────────
+mac:
+  icon: build-resources/icon.icns
+  category: public.app-category.games
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build-resources/entitlements.mac.plist
+  entitlementsInherit: build-resources/entitlements.mac.plist
+  target:
+    - target: dmg
+      arch: [x64, arm64]   # arm64 = Apple Silicon native
+    - target: zip
+      arch: [x64, arm64]
+
+dmg:
+  title: "Aethoria ${version}"
+  icon: build-resources/icon.icns
+  contents:
+    - x: 380
+      y: 280
+      type: link
+      path: /Applications
+    - x: 130
+      y: 280
+      type: file
+
+# ── Auto-update (optional — configure a publish provider when ready) ───────────
+# publish:
+#   provider: github
+#   owner: Zajfan
+#   repo: Aethoria-game

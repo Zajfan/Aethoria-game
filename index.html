@@ -4,8 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0a0a0f">
+  <meta name="description" content="Aethoria — a solo and online co-op open world RPG">
+  <meta name="application-name" content="Aethoria">
+  <!-- Xbox / Microsoft Edge: tile colour for PWA pinning -->
+  <meta name="msapplication-TileColor" content="#0a0a0f">
+  <meta name="msapplication-TileImage" content="icons/icon-144.png">
   <title>Aethoria</title>
   <link rel="manifest" href="manifest.json">
+  <!-- Apple touch icon for iOS PWA install -->
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <!--
+    Import-map: maps the bare specifier "three" to the CDN build.
+    Used ONLY when the game is served directly (python3 http.server) without
+    Vite. When Vite is running it injects its own module resolution and this
+    map is ignored.
+  -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js"
+    }
+  }
+  </script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{background:#0a0a0f;overflow:hidden;width:100vw;height:100vh;font-family:"Courier New",monospace}
@@ -98,7 +118,7 @@
 <!-- ── Main Menu ─────────────────────────────────────────── -->
 <div id="menu-screen" role="dialog" aria-modal="true" aria-labelledby="menu-title">
   <h1 id="menu-title">AETHORIA</h1>
-  <div id="menu-subtitle" aria-hidden="true">An AI-Powered 3D Open World RPG</div>
+  <div id="menu-subtitle" aria-hidden="true">Solo &amp; Co-op Open World RPG</div>
 
   <div class="class-row" id="class-row" role="radiogroup" aria-label="Choose your class">
     <div class="class-box selected" data-class="WARRIOR"
@@ -128,8 +148,13 @@
     <button class="menu-btn" id="btn-start" aria-label="Begin your journey with selected class">⚔ BEGIN YOUR JOURNEY</button>
     <button class="menu-btn secondary" id="btn-continue" disabled aria-label="Continue a saved journey">↺ Continue Journey</button>
   </div>
+  <div style="margin-top:10px;border-top:1px solid #333;padding-top:10px;text-align:center">
+    <div style="font-size:11px;color:#666;letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px">Online Co-op</div>
+    <button class="menu-btn secondary" id="btn-host" aria-label="Host a co-op session">⚔ Host Game</button>
+    <button class="menu-btn secondary" id="btn-join" aria-label="Join a co-op session">⚑ Join Game</button>
+  </div>
   <div>
-    <button class="menu-btn secondary" id="btn-api" style="margin-top:8px" aria-label="Open API settings">⚙ API Settings</button>
+    <button class="menu-btn secondary" id="btn-api" style="margin-top:8px" aria-label="Open API settings">⚙ AI Settings</button>
   </div>
 
   <div id="menu-controls" aria-label="Keyboard and touch controls reference">
@@ -163,6 +188,34 @@
   </div>
 </div>
 
+<!-- ── Co-op Modal ────────────────────────────────────────── -->
+<div id="coop-modal" role="dialog" aria-modal="true" aria-labelledby="coop-modal-title" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:2000;align-items:center;justify-content:center">
+  <div class="mbox" style="max-width:420px">
+    <h2 id="coop-modal-title" style="margin-bottom:4px">Online Co-op</h2>
+    <p id="coop-modal-desc" style="font-size:12px;color:#888;margin-bottom:18px;line-height:1.6">
+      Host a game to get a session code, or enter a friend's code to join.<br>
+      Requires a running Aethoria co-op server (see <code style="color:#aaa">README.md</code>).
+    </p>
+    <label for="coop-server" style="font-size:12px;color:#aaa;display:block;margin-bottom:4px">Server address</label>
+    <input type="text" id="coop-server" placeholder="ws://localhost:3000" autocomplete="off"
+           style="width:100%;background:#161b22;border:1px solid #444;color:#fff;padding:8px 12px;font-family:monospace;font-size:13px;border-radius:3px;margin-bottom:12px">
+    <div id="coop-join-row" style="display:none">
+      <label for="coop-code" style="font-size:12px;color:#aaa;display:block;margin-bottom:4px">Session code</label>
+      <input type="text" id="coop-code" placeholder="ABC123" maxlength="8" autocomplete="off"
+             style="width:100%;background:#161b22;border:1px solid #444;color:#fff;padding:8px 12px;font-family:monospace;font-size:18px;letter-spacing:.2em;text-transform:uppercase;border-radius:3px;margin-bottom:12px">
+    </div>
+    <div id="coop-host-code" style="display:none;text-align:center;margin-bottom:14px">
+      <div style="font-size:11px;color:#888;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Your session code — share with friends</div>
+      <div id="coop-code-display" style="font-size:32px;letter-spacing:.3em;color:#d4af37;font-family:monospace;font-weight:bold"></div>
+    </div>
+    <div id="coop-status" style="font-size:12px;color:#888;min-height:16px;margin-bottom:10px"></div>
+    <div class="row" style="gap:8px">
+      <button id="coop-confirm" aria-label="Connect">Connect</button>
+      <button class="skip" id="coop-cancel" aria-label="Cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Error Display ─────────────────────────────────────── -->
 <div id="err-box" role="alertdialog" aria-modal="true" aria-labelledby="err-title" aria-describedby="err-msg">
   <div id="err-inner">
@@ -182,6 +235,15 @@ window.addEventListener("unhandledrejection",function(e){
   document.getElementById("err-msg").textContent="Promise error: "+((e.reason&&e.reason.stack)?e.reason.stack:String(e.reason));
   document.getElementById("err-box").classList.add("show");
 });
+</script>
+
+<!-- Service Worker registration (PWA offline support + Xbox PWA) -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').catch(function(){});
+  });
+}
 </script>
 
 <!-- Main entry (ES module, no Phaser) -->
@@ -264,6 +326,55 @@ window.addEventListener("unhandledrejection",function(e){
       document.getElementById("btn-continue").disabled = false;
     }
   } catch(e){}
+
+  /* ── Co-op modal ── */
+  var coopModal = document.getElementById("coop-modal");
+  var coopMode  = "host"; // "host" | "join"
+
+  function openCoopModal(mode) {
+    coopMode = mode;
+    document.getElementById("coop-join-row").style.display   = mode === "join" ? "block" : "none";
+    document.getElementById("coop-host-code").style.display  = "none";
+    document.getElementById("coop-status").textContent       = "";
+    document.getElementById("coop-confirm").textContent      = mode === "host" ? "Host Game" : "Join Game";
+    var savedServer = localStorage.getItem("aethoria_coop_server") || "";
+    document.getElementById("coop-server").value = savedServer;
+    coopModal.style.display = "flex";
+    setTimeout(function(){ document.getElementById("coop-server").focus(); }, 50);
+  }
+
+  document.getElementById("btn-host").onclick = function(){ openCoopModal("host"); };
+  document.getElementById("btn-join").onclick = function(){ openCoopModal("join"); };
+
+  document.getElementById("coop-cancel").onclick = function(){
+    coopModal.style.display = "none";
+    document.getElementById("btn-host").focus();
+  };
+
+  document.getElementById("coop-confirm").onclick = function() {
+    var serverUrl = document.getElementById("coop-server").value.trim();
+    if (!serverUrl) { document.getElementById("coop-status").textContent = "Enter a server address."; return; }
+    if (!serverUrl.startsWith("ws")) serverUrl = "ws://" + serverUrl;
+    localStorage.setItem("aethoria_coop_server", serverUrl);
+    var code = coopMode === "join" ? document.getElementById("coop-code").value.trim().toUpperCase() : null;
+    if (coopMode === "join" && !code) { document.getElementById("coop-status").textContent = "Enter a session code."; return; }
+    // Dispatch event — CoopClient.js picks this up after the game starts
+    document.getElementById("coop-status").textContent = "Connecting…";
+    window._coopIntent = { mode: coopMode, serverUrl: serverUrl, code: code };
+    // Start game then connect
+    if (window._gameCoopConnect) {
+      window._gameCoopConnect(window._coopIntent);
+    } else {
+      // Game not started yet — store intent, game will act on it after startGame()
+      document.getElementById("coop-status").textContent = "Starting game, then connecting…";
+      document.getElementById("btn-start").click();
+    }
+  };
+
+  coopModal.addEventListener("keydown", function(e){
+    if(!coopModal.style.display || coopModal.style.display === "none") return;
+    if(e.key === "Escape") document.getElementById("coop-cancel").click();
+  });
 })();
 </script>
 </body>
