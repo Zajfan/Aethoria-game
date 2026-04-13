@@ -360,9 +360,11 @@ export class Player3D extends Entity3D {
     const curX  = Math.floor(this.position.x / TILE);
     const curZ  = Math.floor(this.position.z / TILE);
 
-    // Combined world-tile + NPC-body blockage check
+    // Combined world-tile + NPC-body + building blockage check
     const blocked = (tx, tz, wx, wz) =>
-      this.world.isBlocked(tx, tz) || this._collidesWithNPC(wx, wz, npcs);
+      this.world.isBlocked(tx, tz) ||
+      this._collidesWithNPC(wx, wz, npcs) ||
+      this._collidesWithBuilding(wx, wz);
 
     if (!blocked(tileX, tileZ, nx, nz)) {
       this.position.x = nx;
@@ -379,6 +381,10 @@ export class Player3D extends Entity3D {
         this.velocity.set(0, 0, 0);
       }
     }
+  }
+
+  _collidesWithBuilding(wx, wz) {
+    return this.world?.collidesWithBuilding?.(wx, wz, this._collisionRadius) ?? false;
   }
 
   /**

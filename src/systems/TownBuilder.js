@@ -482,7 +482,7 @@ export class TownBuilder {
    * @param {number} cx  World-space centre X (= MAP_W / 2)
    * @param {number} cz  World-space centre Z (= MAP_H / 2)
    */
-  build(scene3d, cx, cz) {
+  build(scene3d, cx, cz, world3d = null) {
     const TS = CONFIG.WORLD_3D.TILE_SIZE;  // 4 world units per tile
     const place = (group, ox, oz, ry = 0) => {
       // cx/cz are tile coords; scale to world space and spread offsets by TS
@@ -501,6 +501,11 @@ export class TownBuilder {
       });
       scene3d.add(group);
       this._meshes.push(group);
+      // Register AABB collider so the player can't walk through this structure
+      if (world3d) {
+        const box = new THREE.Box3().setFromObject(group);
+        world3d.addBuildingCollider(box.min.x, box.min.z, box.max.x, box.max.z);
+      }
     };
 
     // ── Northern district ─────────────────────────────────────────────────
@@ -578,6 +583,10 @@ export class TownBuilder {
     archH.position.set(cx * TS + TS / 2, 7.2 * TS, cz * TS + TS / 2 + 25 * TS);
     scene3d.add(archH);
     this._meshes.push(archH);
+    if (world3d) {
+      const archBox = new THREE.Box3().setFromObject(archH);
+      world3d.addBuildingCollider(archBox.min.x, archBox.min.z, archBox.max.x, archBox.max.z);
+    }
     // Gate portcullis (decorative)
     const portcullis = mkBox(5.5 * TS, 5.5 * TS, 0.15 * TS, MATS.ironDark);
     portcullis.position.set(cx * TS + TS / 2, 3.5 * TS, cz * TS + TS / 2 + 25 * TS);

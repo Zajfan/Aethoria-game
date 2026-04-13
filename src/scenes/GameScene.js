@@ -741,7 +741,7 @@ export class GameScene {
 
     // 8b. Build Hearthmoor town structures (buildings, market, fountain, etc.)
     this.townBuilder = new TownBuilder();
-    this.townBuilder.build(this.scene3d, cx, cz);
+    this.townBuilder.build(this.scene3d, cx, cz, this.world3d);
 
     // 9. Dungeon portal (80 tiles east, 20 tiles north of center — outside safe zone)
     this._buildDungeonPortal(cx, cz);

@@ -132,6 +132,10 @@ export class World3D {
     this._ambientLight = null;
     this._hemiLight    = null;
 
+    // Building / prop AABB colliders registered by TownBuilder and other systems.
+    // Each entry: { minX, minZ, maxX, maxZ }
+    this._buildingColliders = [];
+
     this._setupLighting();
   }
 
@@ -214,6 +218,37 @@ export class World3D {
     return CONFIG.BLOCKED_TILES.includes(this._mapData[tz]?.[tx]);
   }
 
+  /**
+   * Register an AABB building collider (world-space coordinates).
+   * Called by TownBuilder after placing each group.
+   * @param {number} minX @param {number} minZ @param {number} maxX @param {number} maxZ
+   */
+  addBuildingCollider(minX, minZ, maxX, maxZ) {
+    this._buildingColliders.push({ minX, minZ, maxX, maxZ });
+  }
+
+  /** Remove all registered building colliders (on scene dispose). */
+  clearBuildingColliders() {
+    this._buildingColliders = [];
+  }
+
+  /**
+   * Circle-vs-AABB test for building collision.
+   * Returns true if a circle at (wx, wz) with the given radius overlaps any building.
+   * @param {number} wx @param {number} wz @param {number} radius
+   */
+  collidesWithBuilding(wx, wz, radius) {
+    for (const b of this._buildingColliders) {
+      // Clamp point to AABB, then check distance to clamped point
+      const nearX = Math.max(b.minX, Math.min(b.maxX, wx));
+      const nearZ = Math.max(b.minZ, Math.min(b.maxZ, wz));
+      const dx = wx - nearX;
+      const dz = wz - nearZ;
+      if (dx * dx + dz * dz < radius * radius) return true;
+    }
+    return false;
+  }
+
   setTimeOfDay(t) {
     // t: 0=midnight, 0.5=noon, 1=midnight
     const phase  = t * Math.PI * 2;
@@ -265,6 +300,7 @@ export class World3D {
       });
     }
     this._chunks.clear();
+    this.clearBuildingColliders();
     for (const geo of Object.values(this._geos)) geo.dispose();
     for (const mat of Object.values(this._mats)) mat.dispose();
   }
