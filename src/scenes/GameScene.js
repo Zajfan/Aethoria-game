@@ -1066,18 +1066,29 @@ export class GameScene {
     bus.on('playerDead', () => {
       this.audio?.sfxPlayerHit();
       this.achievements?.track('deaths');
-      this.hud?.logMsg('You have fallen! Respawning…', '#ff6666');
-      setTimeout(() => {
+
+      const doRespawn = () => {
         const cx = Math.floor(MAP_W / 2);
         const cz = Math.floor(MAP_H / 2);
-        this.player.isDead       = false;
-        this.player.stats.hp     = this.player.stats.maxHp;
-        this.player.attackTarget = null;
-        this.player.position.set(cx + 0.5, 0, cz + 0.5);
-        this.player.group.position.copy(this.player.position);
-        this.camera.snapTo(this.player.position);
-        bus.emit('statsChanged', this.player.stats);
-      }, 1800);
+        const p  = this.player;
+        if (!p) return;
+        // Reset death state
+        p.isDead          = false;
+        p._deathFalling   = false;
+        p._deathFallAngle = 0;
+        p.group.rotation.z = 0;
+        p.group.position.y = 0;
+        p.attackTarget    = null;
+        // Restore HP to 40% so player can't immediately die again
+        p.stats.hp = Math.max(1, Math.floor(p.stats.maxHp * 0.40));
+        p.position.set(cx + 0.5, 0, cz + 0.5);
+        p.group.position.copy(p.position);
+        this.camera.snapTo(p.position);
+        bus.emit('statsChanged', p.stats);
+        this.hud?.logMsg('You wake near the hearthfire. HP restored to 40%.', '#ff8866');
+      };
+
+      this.hud?.showDeathScreen(doRespawn, 5);
     });
 
     // v0.6 — Region entered notification + ambient music change

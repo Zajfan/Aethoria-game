@@ -3568,6 +3568,118 @@ export class HUD {
     }
   }
 
+  // ── Death screen ──────────────────────────────────────────────────────────────
+
+  /**
+   * Show a full-screen "YOU DIED" overlay with a respawn countdown.
+   * @param {Function} onRespawn  Called when the player respawns (button or timer).
+   * @param {number}   [delaySec=4]  Auto-respawn after this many seconds.
+   */
+  showDeathScreen(onRespawn, delaySec = 4) {
+    // Remove any stale instance
+    document.getElementById('hud-death')?.remove();
+    if (this._deathTimer) { clearTimeout(this._deathTimer); this._deathTimer = null; }
+
+    const ov = document.createElement('div');
+    ov.id = 'hud-death';
+    ov.style.cssText = `
+      position:fixed; inset:0; z-index:10000;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      background:rgba(40,0,0,0);
+      pointer-events:all;
+      transition:background 0.7s;
+    `;
+    document.body.appendChild(ov);
+
+    // Fade background in
+    requestAnimationFrame(() => { ov.style.background = 'rgba(20,0,0,0.90)'; });
+
+    // "YOU DIED" title
+    const title = document.createElement('div');
+    title.textContent = 'YOU DIED';
+    title.style.cssText = `
+      font-family:'Courier New',monospace;
+      font-size:72px; letter-spacing:14px;
+      color:#cc1111;
+      text-shadow:0 0 40px rgba(255,40,40,0.9), 0 0 100px rgba(180,0,0,0.5);
+      margin-bottom:18px;
+      opacity:0; transform:scale(1.15);
+      transition:opacity 0.9s 0.3s, transform 0.9s 0.3s;
+    `;
+    ov.appendChild(title);
+
+    const sub = document.createElement('div');
+    sub.textContent = 'Returning to Hearthmoor…';
+    sub.style.cssText = `
+      font-family:'Courier New',monospace; font-size:12px; letter-spacing:4px;
+      color:#662222; margin-bottom:40px;
+      opacity:0; transition:opacity 0.7s 0.7s;
+    `;
+    ov.appendChild(sub);
+
+    // Respawn progress bar
+    const barWrap = document.createElement('div');
+    barWrap.style.cssText = `
+      width:220px; height:3px; background:#330000; border-radius:2px;
+      margin-bottom:28px; opacity:0; transition:opacity 0.5s 0.9s;
+      overflow:hidden;
+    `;
+    const bar = document.createElement('div');
+    bar.style.cssText = `
+      height:100%; width:100%; background:#aa1111; border-radius:2px;
+      transition:width ${delaySec}s linear;
+    `;
+    barWrap.appendChild(bar);
+    ov.appendChild(barWrap);
+
+    // Respawn button
+    const btn = document.createElement('button');
+    btn.textContent = '⚡  RESPAWN NOW';
+    btn.style.cssText = `
+      padding:11px 28px;
+      font-family:'Courier New',monospace; font-size:12px; letter-spacing:3px;
+      background:#180000; border:1px solid #882222; color:#cc3333;
+      border-radius:4px; cursor:pointer;
+      opacity:0; transition:opacity 0.5s 1s, background 0.15s, color 0.15s;
+    `;
+    btn.onmouseover = () => { btn.style.background = '#2a0808'; btn.style.color = '#ff5555'; };
+    btn.onmouseout  = () => { btn.style.background = '#180000'; btn.style.color = '#cc3333'; };
+    ov.appendChild(btn);
+
+    // Trigger element fades after one frame
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        title.style.opacity   = '1';
+        title.style.transform = 'scale(1)';
+        sub.style.opacity     = '1';
+        barWrap.style.opacity = '1';
+        btn.style.opacity     = '1';
+        // Start progress bar drain
+        setTimeout(() => { bar.style.width = '0%'; }, 80);
+      }, 100);
+    });
+
+    let dismissed = false;
+    const dismiss = () => {
+      if (dismissed) return;
+      dismissed = true;
+      if (this._deathTimer) { clearTimeout(this._deathTimer); this._deathTimer = null; }
+      ov.style.transition = 'opacity 0.5s';
+      ov.style.opacity = '0';
+      ov.style.pointerEvents = 'none';
+      setTimeout(() => ov.remove(), 600);
+      onRespawn?.();
+    };
+
+    btn.onclick = dismiss;
+    this._deathTimer = setTimeout(dismiss, delaySec * 1000);
+  }
+
+  hideDeathScreen() {
+    document.getElementById('hud-death')?.remove();
+    if (this._deathTimer) { clearTimeout(this._deathTimer); this._deathTimer = null; }
+  }
+
   // ── Per-frame update ──────────────────────────────────────────────────────────
 
   /**
@@ -3637,7 +3749,9 @@ export class HUD {
       document.getElementById('hud-gathering'),
       document.getElementById('hud-slayer'),
       document.getElementById('hud-pause'),
+      document.getElementById('hud-death'),
     ].forEach(el => el?.parentNode?.removeChild(el));
+    if (this._deathTimer) { clearTimeout(this._deathTimer); this._deathTimer = null; }
 
     // Remove mobile controls
     this._mobileEls?.forEach(el => el?.parentNode?.removeChild(el));

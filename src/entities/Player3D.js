@@ -203,6 +203,12 @@ export class Player3D extends Entity3D {
 
   /** @param {number} delta  Seconds since last frame */
   update(delta, npcs) {
+    // Death fall animation — runs even while dead
+    if (this._deathFalling) {
+      this._deathFallAngle = Math.min(Math.PI / 2, (this._deathFallAngle ?? 0) + delta * 2.8);
+      this.group.rotation.z = this._deathFallAngle;
+      if (this.group.position.y > -0.25) this.group.position.y -= delta * 0.6;
+    }
     if (this.isDead) return;
 
     const deltaMs = delta * 1000;
@@ -498,7 +504,9 @@ export class Player3D extends Entity3D {
     this.eventBus.emit('damage', this.position.x, this.position.y, actual, '#ff6666');
 
     if (this.stats.hp <= 0) {
-      this.isDead = true;
+      this.isDead        = true;
+      this._deathFalling = true;
+      this._deathFallAngle = 0;
       this.eventBus.emit('playerDead');
     }
     this.eventBus.emit('statsChanged', this.stats);

@@ -875,8 +875,19 @@ export class DungeonScene3D {
     });
 
     bus.on('playerDead', () => {
-      this.hud?.logMsg('You have fallen in the dungeon…', '#ff4444');
-      setTimeout(() => this._exitDungeon(), 1600);
+      const doExit = () => {
+        // Reset fall animation before exiting so saved player data is clean
+        if (this.player) {
+          this.player._deathFalling   = false;
+          this.player._deathFallAngle = 0;
+          this.player.group.rotation.z = 0;
+          this.player.group.position.y = 0;
+          this.player.isDead = false;
+          this.player.stats.hp = Math.max(1, Math.floor(this.player.stats.maxHp * 0.40));
+        }
+        this._exitDungeon();
+      };
+      this.hud?.showDeathScreen(doExit, 5);
     });
 
     bus.on('playerSlam', ({ x, z, range, dmg }) => {
