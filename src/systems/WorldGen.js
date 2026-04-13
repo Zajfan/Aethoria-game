@@ -45,17 +45,19 @@ export class WorldGen {
     const cx = Math.floor(W / 2);
     const cy = Math.floor(H / 2);
 
-    // Town clearing — also flatten elevation so it sits level
-    this._carveTown(data, elevMap, cx, cy, 13);
+    // Town clearing — 5× bigger radius (was 13, now 34)
+    this._carveTown(data, elevMap, cx, cy, 34);
 
-    // Paths
-    this._path(data, cx, cy, cx+28, cy,    T.PATH);
-    this._path(data, cx, cy, cx-24, cy+12, T.PATH);
-    this._path(data, cx, cy, cx+10, cy+30, T.PATH);
-    this._path(data, cx, cy, cx,    cy-26, T.PATH);
+    // Paths — extend to match larger town and explore more of the map
+    this._path(data, cx, cy, cx+65,  cy,     T.PATH);
+    this._path(data, cx, cy, cx-58,  cy+25,  T.PATH);
+    this._path(data, cx, cy, cx+22,  cy+70,  T.PATH);
+    this._path(data, cx, cy, cx,     cy-62,  T.PATH);
+    this._path(data, cx, cy, cx+40,  cy-50,  T.PATH);
+    this._path(data, cx, cy, cx-45,  cy-35,  T.PATH);
 
-    // Dungeon entrance
-    this._carveDungeon(data, elevMap, cx+50, cy-10, 8);
+    // Dungeon entrance (pushed further out to stay outside town)
+    this._carveDungeon(data, elevMap, cx+80, cy-20, 10);
 
     return { data, elevMap };
   }
@@ -110,23 +112,25 @@ export class WorldGen {
     const cy = Math.floor(d.length    / 2);
     const spawns = [];
     let tries = 0;
-    while (spawns.length < count && tries < count * 15) {
+    // Keep enemies well outside the expanded town (safe zone radius = 40)
+    while (spawns.length < count && tries < count * 20) {
       const x = Math.floor(Math.random() * (d[0].length - 8)) + 4;
       const y = Math.floor(Math.random() * (d.length    - 8)) + 4;
       const dist = Math.sqrt((x-cx)**2 + (y-cy)**2);
-      if (!blocked.has(d[y][x]) && dist > 18) spawns.push({ x, y });
+      if (!blocked.has(d[y][x]) && dist > 50) spawns.push({ x, y });
       tries++;
     }
     return spawns;
   }
 
   getNPCSpawns(cx, cy) {
+    // Spread across the larger town area
     return [
-      { x: cx-4, y: cy-4 },
-      { x: cx+4, y: cy-4 },
-      { x: cx-4, y: cy+4 },
-      { x: cx+4, y: cy+4 },
-      { x: cx,   y: cy-7 },
+      { x: cx-10, y: cy-10 },   // Elder Lyra (near town hall)
+      { x: cx+10, y: cy-8  },   // Gareth     (forge district)
+      { x: cx-12, y: cy+8  },   // Mira        (herb garden)
+      { x: cx+8,  y: cy+10 },   // Dorin       (market)
+      { x: cx,    y: cy-16 },   // Capt. Vel   (north gate)
     ];
   }
 

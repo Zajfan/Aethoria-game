@@ -45,6 +45,10 @@ import { SlayerSystem }       from '../systems/SlayerSystem.js';
 const MAP_W = 256;
 const MAP_H = 256;
 
+// Town safe-zone radius — enemies that enter this distance from the map centre
+// are immediately repelled / killed by the town guards.
+const TOWN_SAFE_R = 40;
+
 // ── Phaser-compat proxy (used by legacy systems that call scene.events / scene.time) ─
 
 class SceneProxy {
@@ -526,9 +530,11 @@ export class GameScene {
     this.hud = null;
 
     this._disposed       = false;
+    this._paused         = false;
     this._xpBoostMult    = 1.0;
     this._hpRegenPerSec  = 0;
     this._onCanvasClick  = this._onCanvasClick.bind(this);
+    this._onKeyDown      = this._onKeyDown.bind(this);
     this._overlay        = () => document.getElementById('ui-overlay') || document.body;
   }
 
@@ -724,10 +730,11 @@ export class GameScene {
     // 7. Spawn 60 enemies
     this._spawnEnemies(gen, 60);
 
-    // 8. Spawn NPCs
+    // 8. Spawn NPCs + town guards
     this._spawnNPCs(gen);
+    this._spawnTownGuards(cx, cz);
 
-    // 9. Dungeon portal (50 tiles east, 10 tiles north of center)
+    // 9. Dungeon portal (80 tiles east, 20 tiles north of center — outside safe zone)
     this._buildDungeonPortal(cx, cz);
 
     // v0.7 — Saltmere dungeon portal (near Shattered Coast settlement)
@@ -738,8 +745,9 @@ export class GameScene {
     // 10. Event wiring
     this._setupEvents();
 
-    // 11. Click handler for attack / loot / shard
+    // 11. Click handler for attack / loot / shard + ESC for pause
     this.renderer.canvas.addEventListener('click', this._onCanvasClick);
+    window.addEventListener('keydown', this._onKeyDown);
 
     // 12. Ambient audio
     setTimeout(() => this.audio.startAmbience('day'), 800);
@@ -803,6 +811,61 @@ export class GameScene {
   }
 
   /**
+   * Spawn 8 visible town guards around the Hearthmoor perimeter.
+   * Guards are simple NPC-style entities — they don't walk, but their presence
+   * (and the safe-zone kill logic in update()) creates the safe zone effect.
+   */
+  _spawnTownGuards(cx, cz) {
+    this._guardMeshes = [];
+    const R = TOWN_SAFE_R - 4;   // guards stand just inside the safe zone edge
+    const COUNT = 8;
+
+    const guardMat  = new THREE.MeshLambertMaterial({ color: 0x4488cc });
+    const armorMat  = new THREE.MeshLambertMaterial({ color: 0x2255aa });
+    const helmetMat = new THREE.MeshLambertMaterial({ color: 0x1a3a88 });
+    const skinMat   = new THREE.MeshLambertMaterial({ color: 0xddaa88 });
+
+    for (let i = 0; i < COUNT; i++) {
+      const angle = (i / COUNT) * Math.PI * 2;
+      const gx    = cx + Math.cos(angle) * R + 0.5;
+      const gz    = cz + Math.sin(angle) * R + 0.5;
+
+      const group = new THREE.Group();
+
+      // Body
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.75, 0.35), armorMat);
+      body.position.y = 1.0; group.add(body);
+      // Legs
+      [-0.14, 0.14].forEach(lx => {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.6, 0.3), guardMat);
+        leg.position.set(lx, 0.4, 0); group.add(leg);
+      });
+      // Arms
+      [-0.44, 0.44].forEach(ax => {
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.6, 0.28), armorMat);
+        arm.position.set(ax, 1.0, 0); group.add(arm);
+      });
+      // Head
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), skinMat);
+      head.position.y = 1.58; group.add(head);
+      // Helmet
+      const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.26, 0.48), helmetMat);
+      helmet.position.y = 1.75; group.add(helmet);
+      // Spear
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.2, 6), new THREE.MeshLambertMaterial({ color: 0x886644 }));
+      shaft.position.set(0.55, 1.3, 0); group.add(shaft);
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 6), new THREE.MeshLambertMaterial({ color: 0xaaaacc }));
+      tip.position.set(0.55, 2.55, 0); group.add(tip);
+
+      group.position.set(gx, 0, gz);
+      group.rotation.y = angle + Math.PI; // face inward
+      group.traverse(m => { if (m.isMesh) m.castShadow = true; });
+      this.scene3d.add(group);
+      this._guardMeshes.push(group);
+    }
+  }
+
+  /**
    * Register gathering nodes from CONFIG.GATHER_REGIONS around world centre.
    * Nodes are placed at approximate biome-appropriate positions.
    */
@@ -833,8 +896,8 @@ export class GameScene {
   }
 
   _buildDungeonPortal(cx, cz) {
-    const px = (cx + 50) + 0.5;
-    const pz = (cz - 10) + 0.5;
+    const px = (cx + 80) + 0.5;
+    const pz = (cz - 20) + 0.5;
 
     // Torus geometry
     const geo = new THREE.TorusGeometry(1.2, 0.15, 8, 32);
@@ -1748,11 +1811,36 @@ export class GameScene {
     }
   }
 
+  // ── Keyboard handler (ESC pause) ─────────────────────────────────────────────
+
+  _onKeyDown(e) {
+    if (e.key === 'Escape') {
+      // Don't interfere if any modal/dialogue is open
+      if (this.hud?.invOpen || this.hud?.skillOpen || this.hud?._dlgPanel?.classList.contains('open')) {
+        return;
+      }
+      this._paused = !this._paused;
+      this.hud?.showPauseMenu(this._paused, () => {
+        // Resume callback
+        this._paused = false;
+        this.hud?.showPauseMenu(false);
+      }, () => {
+        // Save & quit callback
+        this._doSave().then(() => {
+          this._paused = false;
+          this.hud?.showPauseMenu(false);
+          window.location.reload();
+        });
+      });
+    }
+  }
+
   // ── Main update ──────────────────────────────────────────────────────────────
 
   /** @param {number} delta seconds since last frame */
   update(delta) {
     if (this._disposed || !this.player) return;
+    if (this._paused) return;   // game loop frozen while paused
     this._totalTime += delta;
 
     // Keep camera reference fresh on player
@@ -1784,7 +1872,9 @@ export class GameScene {
     const tp = this.world3d.worldToTile(this.player.position.x, this.player.position.z);
     this.world3d.updateVisibleChunks(tp.x, tp.z);
 
-    // Enemies — update AI, track kills
+    // Enemies — update AI, track kills, enforce safe zone
+    const townCX = MAP_W / 2;
+    const townCZ = MAP_H / 2;
     this.enemies.forEach(e => {
       if (!e._cameraSet) {
         e.setCamera(this.camera.threeCamera);
@@ -1796,6 +1886,20 @@ export class GameScene {
         AIMemory.recordKill(e._data?.name || 'enemy');
         this.achievements?.track('kills');
         this.audio?.sfxKill();
+      }
+      // Town safe zone — guards instantly kill any enemy that enters the perimeter
+      if (!e.isDead) {
+        const dx = e.position.x - townCX;
+        const dz = e.position.z - townCZ;
+        if (dx * dx + dz * dz < TOWN_SAFE_R * TOWN_SAFE_R) {
+          if (!e._guardWarned) {
+            e._guardWarned = true;
+            this.hud?.logMsg('A town guard drives back the ' + (e._data?.name ?? 'enemy') + '!', '#88bbff');
+          }
+          // Instant kill — guards dispatch any intruder immediately
+          e.stats.hp = 0;
+          e._die?.(null);
+        }
       }
       e.update(delta, this.player);
     });
@@ -2001,6 +2105,7 @@ export class GameScene {
     this._disposed = true;
 
     this.renderer.canvas.removeEventListener('click', this._onCanvasClick);
+    window.removeEventListener('keydown', this._onKeyDown);
 
     this._sceneProxy?.dispose();
     this.worldEvents?.dispose();
@@ -2023,6 +2128,17 @@ export class GameScene {
 
     this._floatTexts.forEach(ft => ft.el.parentNode?.removeChild(ft.el));
     this._floatTexts = [];
+
+    // Town guard meshes
+    this._guardMeshes?.forEach(g => {
+      this.scene3d.remove(g);
+      g.traverse(obj => {
+        if (!obj.isMesh) return;
+        obj.geometry?.dispose();
+        obj.material?.dispose();
+      });
+    });
+    this._guardMeshes = [];
 
     if (this._portalMesh) {
       this.scene3d.remove(this._portalMesh);

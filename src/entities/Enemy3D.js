@@ -860,8 +860,13 @@ export class Enemy3D extends Entity3D {
     this.isDead   = false;
     this.state    = S.IDLE;
     this.pTimer   = 0;
+    this._guardWarned = false;
 
-    this.position.copy(this.spawnPos);
+    // Offset respawn from spawn point by ±6 tiles so enemies don't pop up
+    // exactly where they were killed
+    const ox = (Math.random() - 0.5) * 12;
+    const oz = (Math.random() - 0.5) * 12;
+    this.position.set(this.spawnPos.x + ox, 0, this.spawnPos.z + oz);
     this.group.position.copy(this.position);
 
     // Restore opacity

@@ -3486,6 +3486,88 @@ export class HUD {
     this.refreshQuests();
   }
 
+  // ── Pause menu ────────────────────────────────────────────────────────────────
+
+  /**
+   * Show or hide the pause overlay.
+   * @param {boolean}       show
+   * @param {Function|null} onResume   Called when player clicks Resume
+   * @param {Function|null} onQuit     Called when player clicks Save & Quit
+   */
+  showPauseMenu(show, onResume = null, onQuit = null) {
+    // Build the overlay lazily
+    if (!this._pauseOverlay) {
+      const ov = document.createElement('div');
+      ov.id = 'hud-pause';
+      ov.style.cssText = `
+        position:fixed; inset:0; z-index:9000;
+        display:none;
+        background:rgba(0,0,0,0.72);
+        backdrop-filter:blur(3px);
+        flex-direction:column; align-items:center; justify-content:center;
+        gap:0;
+      `;
+
+      const box = document.createElement('div');
+      box.style.cssText = `
+        background:rgba(8,10,20,0.96);
+        border:1px solid #334455;
+        border-radius:8px;
+        padding:40px 56px;
+        text-align:center;
+        min-width:320px;
+      `;
+
+      const title = document.createElement('div');
+      title.textContent = '// PAUSED';
+      title.style.cssText = `
+        font-family:'Courier New',monospace;
+        font-size:22px;
+        color:#aaddff;
+        letter-spacing:6px;
+        margin-bottom:32px;
+      `;
+      box.appendChild(title);
+
+      const btnStyle = `
+        display:block; width:100%; margin-bottom:14px;
+        padding:12px 24px;
+        font-family:'Courier New',monospace; font-size:13px; letter-spacing:2px;
+        border-radius:4px; cursor:pointer; transition:all 0.15s;
+      `;
+
+      this._pauseResumeBtn = document.createElement('button');
+      this._pauseResumeBtn.textContent = '▶  RESUME';
+      this._pauseResumeBtn.style.cssText = btnStyle +
+        'background:#0a2a10;border:1px solid #44aa55;color:#55dd66;';
+      box.appendChild(this._pauseResumeBtn);
+
+      this._pauseSaveQuitBtn = document.createElement('button');
+      this._pauseSaveQuitBtn.textContent = '💾  SAVE & RETURN TO MENU';
+      this._pauseSaveQuitBtn.style.cssText = btnStyle +
+        'background:#0a1a2a;border:1px solid #4488aa;color:#55aacc;';
+      box.appendChild(this._pauseSaveQuitBtn);
+
+      const hint = document.createElement('div');
+      hint.textContent = 'Press ESC to resume';
+      hint.style.cssText = 'color:#334455;font-size:10px;font-family:monospace;letter-spacing:2px;margin-top:8px;';
+      box.appendChild(hint);
+
+      ov.appendChild(box);
+      document.body.appendChild(ov);
+      this._pauseOverlay = ov;
+    }
+
+    if (show) {
+      this._pauseOverlay.style.display = 'flex';
+      // Wire buttons for this invocation
+      this._pauseResumeBtn.onclick  = onResume;
+      this._pauseSaveQuitBtn.onclick = onQuit;
+    } else {
+      this._pauseOverlay.style.display = 'none';
+    }
+  }
+
   // ── Per-frame update ──────────────────────────────────────────────────────────
 
   /**
@@ -3554,6 +3636,7 @@ export class HUD {
       document.getElementById('hud-trade'),
       document.getElementById('hud-gathering'),
       document.getElementById('hud-slayer'),
+      document.getElementById('hud-pause'),
     ].forEach(el => el?.parentNode?.removeChild(el));
 
     // Remove mobile controls
