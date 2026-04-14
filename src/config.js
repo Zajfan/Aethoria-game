@@ -1,7 +1,7 @@
 export const CONFIG = {
   TILE_SIZE: 32,
-  MAP_WIDTH:  512,
-  MAP_HEIGHT: 512,
+  MAP_WIDTH:  4096,
+  MAP_HEIGHT: 4096,
 
   // 3D world settings (Three.js units)
   WORLD_3D: {

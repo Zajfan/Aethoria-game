@@ -1,11 +1,11 @@
 /**
  * RegionSystem.js — Aethoria v0.6
  *
- * Defines 5 named regions mapped onto the 512×512 world tile grid.
+ * Defines 5 named regions mapped onto the 4096×4096 world tile grid.
  * Detects which region the player is currently in and fires events
  * when they cross a boundary.
  *
- * Regions (centre = tile 256,256 = map centre = Hearthmoor):
+ * Regions (centre = tile 2048,2048 = map centre = Hearthmoor):
  *   HEARTHMOOR   — the village and its immediate surroundings
  *   ELANDOR      — rolling plains north and west
  *   WHISPERING   — fog-shrouded marshlands south-east
@@ -87,15 +87,15 @@ export const REGIONS = {
   },
 };
 
-// ── Region boundary definitions (tile coordinate ranges on 512×512 map) ───────
-// Centre = 256,256 = Hearthmoor
+// ── Region boundary definitions (tile coordinate ranges on 4096×4096 map) ────
+// Centre = 2048,2048 = Hearthmoor
 
 const REGION_ZONES = [
-  { id: 'HEARTHMOOR', cx: 256, cz: 256, radius: 44  },   // tight circle around town
-  { id: 'ELANDOR',    cx: 160, cz: 160, radius: 110 },   // NW quadrant plains
-  { id: 'WHISPERING', cx: 340, cz: 340, radius: 90  },   // SE quadrant marshes
-  { id: 'ASHVEIL',    cx: 380, cz: 120, radius: 80  },   // NE volcanic peaks
-  { id: 'SHATTERED',  cx: 140, cz: 400, radius: 80  },   // SW coastal cliffs
+  { id: 'HEARTHMOOR', cx: 2048, cz: 2048, radius: 352  }, // tight circle around town
+  { id: 'ELANDOR',    cx: 1280, cz: 1280, radius: 880  }, // NW quadrant plains
+  { id: 'WHISPERING', cx: 2720, cz: 2720, radius: 720  }, // SE quadrant marshes
+  { id: 'ASHVEIL',    cx: 3040, cz:  960, radius: 640  }, // NE volcanic peaks
+  { id: 'SHATTERED',  cx: 1120, cz: 3200, radius: 640  }, // SW coastal cliffs
 ];
 
 // ── RegionSystem ──────────────────────────────────────────────────────────────

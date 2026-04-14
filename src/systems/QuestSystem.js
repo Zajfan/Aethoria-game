@@ -230,43 +230,44 @@ export class QuestSystem {
   // ── Waypoint estimation ───────────────────────────────────────────────────
 
   _estimateWaypoint(type, fill, worldCtx) {
-    const cx = 256, cz = 256;  // map centre = Hearthmoor (512×512 map)
+    const cx = Math.floor(CONFIG.MAP_WIDTH  / 2);  // map centre = Hearthmoor
+    const cz = Math.floor(CONFIG.MAP_HEIGHT / 2);
     const act = worldCtx?.act ?? 0;
 
     if (type === 'KILL') {
-      // Point toward known enemy zones — scaled for 512×512 map
+      // Point toward known enemy zones — scaled for 4096×4096 map
       const zones = {
-        goblin:  { x: cx + 110, z: cz + 40  },
-        wolf:    { x: cx - 120, z: cz - 90  },
-        skeleton:{ x: cx + 150, z: cz - 40  },
-        troll:   { x: cx - 140, z: cz + 110 },
-        bandit:  { x: cx - 130, z: cz - 120 },
-        spider:  { x: cx + 120, z: cz + 130 },
-        wraith:  { x: cx + 160, z: cz + 150 },
-        golem:   { x: cx + 190, z: cz - 160 },
-        drake:   { x: cx + 196, z: cz - 170 },
+        goblin:  { x: cx +  880, z: cz +  320 },
+        wolf:    { x: cx -  960, z: cz -  720 },
+        skeleton:{ x: cx + 1200, z: cz -  320 },
+        troll:   { x: cx - 1120, z: cz +  880 },
+        bandit:  { x: cx - 1040, z: cz -  960 },
+        spider:  { x: cx +  960, z: cz + 1040 },
+        wraith:  { x: cx + 1280, z: cz + 1200 },
+        golem:   { x: cx + 1520, z: cz - 1280 },
+        drake:   { x: cx + 1568, z: cz - 1360 },
       };
       const enemyKey = (fill.enemy ?? '').toLowerCase();
-      return zones[enemyKey] ?? { x: cx + 110 + Math.random()*60, z: cz + 100 + Math.random()*60 };
+      return zones[enemyKey] ?? { x: cx + 880 + Math.random()*480, z: cz + 800 + Math.random()*480 };
     }
 
     if (type === 'COLLECT') {
-      // Items found in various regions — scaled for 512×512 map
+      // Items found in various regions — scaled for 4096×4096 map
       const itemZones = {
-        hide:    { x: cx - 120, z: cz - 90  },
-        fang:    { x: cx - 116, z: cz - 84  },
-        bones:   { x: cx + 150, z: cz - 40  },
-        gem:     { x: cx - 150, z: cz + 130 },
-        crystal: { x: cx + 176, z: cz - 140 },
-        herb:    { x: cx + 90,  z: cz + 110 },
-        dragonscale: { x: cx + 196, z: cz - 164 },
+        hide:        { x: cx -  960, z: cz -  720 },
+        fang:        { x: cx -  928, z: cz -  672 },
+        bones:       { x: cx + 1200, z: cz -  320 },
+        gem:         { x: cx - 1200, z: cz + 1040 },
+        crystal:     { x: cx + 1408, z: cz - 1120 },
+        herb:        { x: cx +  720, z: cz +  880 },
+        dragonscale: { x: cx + 1568, z: cz - 1312 },
       };
-      return itemZones[fill.item] ?? { x: cx + 100, z: cz - 100 };
+      return itemZones[fill.item] ?? { x: cx + 800, z: cz - 800 };
     }
 
     if (type === 'EXPLORE') {
-      if (act >= 3) return { x: cx + 80, z: cz - 20 }; // dungeon portal
-      return { x: cx + 100, z: cz - 30 };
+      if (act >= 3) return { x: cx + 640, z: cz - 160 }; // dungeon portal
+      return { x: cx + 800, z: cz - 240 };
     }
 
     if (type === 'TALK') {

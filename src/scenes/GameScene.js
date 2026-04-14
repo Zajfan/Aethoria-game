@@ -44,9 +44,10 @@ import { TownBuilder }        from '../systems/TownBuilder.js';
 import { CoopClient }        from '../systems/CoopClient.js';
 import { RemotePlayer3D }    from '../entities/RemotePlayer3D.js';
 
-// Map dimensions — 512×512 gives a true open world (4× the area of v0.7's 256×256)
-const MAP_W = 512;
-const MAP_H = 512;
+// Map dimensions — driven by CONFIG so changing MAP_WIDTH/MAP_HEIGHT in config.js
+// is the single source of truth. Current setting: 4096×4096 (16 km per side).
+const MAP_W = CONFIG.MAP_WIDTH;
+const MAP_H = CONFIG.MAP_HEIGHT;
 
 // World scale — must match CONFIG.WORLD_3D.TILE_SIZE (= 4)
 // Evaluated after module-level imports so CONFIG is available.

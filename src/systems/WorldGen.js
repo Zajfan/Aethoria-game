@@ -48,27 +48,27 @@ export class WorldGen {
     // Town clearing — 5× bigger radius
     this._carveTown(data, elevMap, cx, cy, 34);
 
-    // Paths — long radial roads reaching all four quadrants of 512×512 map
-    this._path(data, cx, cy, cx+130, cy,      T.PATH);   // East road
-    this._path(data, cx, cy, cx-116, cy+50,   T.PATH);   // SW road
-    this._path(data, cx, cy, cx+44,  cy+140,  T.PATH);   // SE road
-    this._path(data, cx, cy, cx,     cy-124,  T.PATH);   // North road
-    this._path(data, cx, cy, cx+80,  cy-100,  T.PATH);   // NE road
-    this._path(data, cx, cy, cx-90,  cy-70,   T.PATH);   // NW road
-    this._path(data, cx, cy, cx-100, cy+110,  T.PATH);   // Far SW road
-    this._path(data, cx, cy, cx+115, cy+85,   T.PATH);   // Far SE road
+    // Paths — long radial roads reaching all four quadrants of 4096×4096 map
+    this._path(data, cx, cy, cx+1040, cy,       T.PATH);  // East road
+    this._path(data, cx, cy, cx-928,  cy+400,   T.PATH);  // SW road
+    this._path(data, cx, cy, cx+352,  cy+1120,  T.PATH);  // SE road
+    this._path(data, cx, cy, cx,      cy-992,   T.PATH);  // North road
+    this._path(data, cx, cy, cx+640,  cy-800,   T.PATH);  // NE road
+    this._path(data, cx, cy, cx-720,  cy-560,   T.PATH);  // NW road
+    this._path(data, cx, cy, cx-800,  cy+880,   T.PATH);  // Far SW road
+    this._path(data, cx, cy, cx+920,  cy+680,   T.PATH);  // Far SE road
 
     // Main dungeon entrance — Ashveil direction
-    this._carveDungeon(data, elevMap, cx+80,  cy-20,  10);
+    this._carveDungeon(data, elevMap, cx+640,  cy-160,  10);
 
     // Secondary settlements — small carved clearings far from town
-    this._carveTown(data, elevMap, cx-90,  cy-70,  10);  // Elandor outpost (NW)
-    this._carveTown(data, elevMap, cx+90,  cy+90,  10);  // Marsh camp (SE)
-    this._carveTown(data, elevMap, cx+110, cy-80,  8);   // Ashveil forge (NE)
+    this._carveTown(data, elevMap, cx-720,  cy-560,  10);  // Elandor outpost (NW)
+    this._carveTown(data, elevMap, cx+720,  cy+720,  10);  // Marsh camp (SE)
+    this._carveTown(data, elevMap, cx+880,  cy-640,  8);   // Ashveil forge (NE)
 
     // Extra dungeon ruins scattered across the map
-    this._carveDungeon(data, elevMap, cx-100, cy+110, 8); // Shattered crypt (SW)
-    this._carveDungeon(data, elevMap, cx+100, cy+70,  8); // Marsh tomb (SE)
+    this._carveDungeon(data, elevMap, cx-800, cy+880, 8);  // Shattered crypt (SW)
+    this._carveDungeon(data, elevMap, cx+800, cy+560, 8);  // Marsh tomb (SE)
 
     return { data, elevMap };
   }
@@ -146,8 +146,8 @@ export class WorldGen {
   }
 
   getSaltmereSpawns(W, H) {
-    const sx = Math.floor(W * 0.28);  // ~143 on 512×512
-    const sz = Math.floor(H * 0.78);  // ~399 on 512×512
+    const sx = Math.floor(W * 0.28);  // ~1147 on 4096×4096
+    const sz = Math.floor(H * 0.78);  // ~3195 on 4096×4096
     return [
       { x: sx-3, y: sz-3 },   // NPC idx 5 — Sister Vashe
       { x: sx+3, y: sz-2 },   // NPC idx 6 — Master Theron
