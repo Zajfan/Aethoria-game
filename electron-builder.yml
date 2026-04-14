@@ -7,7 +7,7 @@ directories:
   buildResources: build-resources
   output: release
 
-# Files to include in the packaged app
+# Files to include in the packaged Electron app
 files:
   - electron/**
   - package.json
@@ -18,9 +18,10 @@ files:
   - "!lore"
   - "!quests"
   - "!assets"
+  - "!server"
 
-# The Vite-built game lives here; packaged as an extraResource
-# so main.js can locate it via process.resourcesPath
+# Vite-built game bundled as an extra resource so electron/main.js
+# can locate it at process.resourcesPath/dist
 extraResources:
   - from: dist
     to: dist
@@ -30,13 +31,12 @@ extraResources:
 # ── Windows ────────────────────────────────────────────────────────────────────
 win:
   icon: build-resources/icon.ico
-  target:
-    - target: nsis        # Full installer (recommended for end users)
-      arch: [x64, ia32, arm64]
-    - target: portable    # Single .exe, no install required
-      arch: [x64]
-  publisherName: "The No-hands Company"
   requestedExecutionLevel: asInvoker
+  target:
+    - target: nsis       # Full installer (.exe setup wizard)
+      arch: [x64, ia32, arm64]
+    - target: portable   # Single-file .exe, no install needed
+      arch: [x64]
 
 nsis:
   oneClick: false
@@ -50,19 +50,20 @@ nsis:
 linux:
   icon: build-resources/icons/
   category: Game
-  target:
-    - target: AppImage    # Universal, runs on any Linux
-      arch: [x64, arm64]
-    - target: deb         # Debian/Ubuntu
-      arch: [x64, arm64]
-    - target: rpm         # Fedora/RHEL
-      arch: [x64, arm64]
-    - target: snap        # Snap Store
-      arch: [x64]
   maintainer: "The No-hands Company"
   description: "Aethoria — Solo & Co-op Open World RPG"
+  target:
+    - target: AppImage   # Universal — runs on any distro without install
+      arch: [x64, arm64]
+    - target: deb        # Debian / Ubuntu / Linux Mint
+      arch: [x64, arm64]
+    - target: rpm        # Fedora / RHEL / openSUSE
+      arch: [x64, arm64]
 
 # ── macOS ──────────────────────────────────────────────────────────────────────
+# NOTE: macOS builds must be run on a Mac. Cross-compiling from Linux is
+# unsupported by Apple's toolchain. The config is kept here so `npm run dist:mac`
+# works when executed on a macOS machine.
 mac:
   icon: build-resources/icon.icns
   category: public.app-category.games
@@ -72,7 +73,7 @@ mac:
   entitlementsInherit: build-resources/entitlements.mac.plist
   target:
     - target: dmg
-      arch: [x64, arm64]   # arm64 = Apple Silicon native
+      arch: [x64, arm64]
     - target: zip
       arch: [x64, arm64]
 
@@ -88,7 +89,7 @@ dmg:
       y: 280
       type: file
 
-# ── Auto-update (optional — configure a publish provider when ready) ───────────
+# ── Auto-update (configure a publish provider when ready) ─────────────────────
 # publish:
 #   provider: github
 #   owner: Zajfan
