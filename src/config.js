@@ -965,13 +965,91 @@ export const CONFIG = {
   ],
 
   // ── Gathering node world positions ────────────────────────────────────────────
-  // Relative to map centre (128, 128). These are approximate spawn regions.
+  // Absolute tile coordinates (0-4095). Map centre = tile 2048,2048.
+  // Each position spawns one instance of every node type for that skill.
+  // Biome guidance: mining→rocky/mountain, woodcut→forest, fishing→coastal/water,
+  //   herbalism→grassland/marsh, hunting→open land.
   GATHER_REGIONS: {
-    mining:    [{ x:155, z:100 }, { x:162, z:88  }, { x:170, z:105 }],
-    woodcut:   [{ x:100, z:140 }, { x:110, z:155 }, { x:95,  z:148 }],
-    fishing:   [{ x:120, z:160 }, { x:135, z:168 }, { x:128, z:145 }],
-    herbalism: [{ x:148, z:150 }, { x:140, z:160 }, { x:155, z:158 }],
-    hunting:   [{ x:90,  z:110 }, { x:80,  z:125 }, { x:98,  z:100 }],
+    mining: [
+      // Ashveil volcanic highlands (NE)
+      { x:2950, z: 850 }, { x:3100, z: 700 }, { x:3280, z:1050 },
+      { x:3150, z:1280 }, { x:2820, z:1150 }, { x:3400, z: 950 },
+      // Rocky hills Elandor (NW)
+      { x:1200, z:1100 }, { x:1040, z: 920 }, { x:1350, z: 720 },
+      { x: 900, z:1300 }, { x:1500, z: 980 },
+      // Shattered coastal cliffs (SW)
+      { x: 720, z:2900 }, { x: 900, z:3100 }, { x:1200, z:3300 },
+      // Eastern wilderness mountains
+      { x:3400, z:2000 }, { x:3600, z:2400 }, { x:3500, z:1650 },
+      // Northern rocky ridges
+      { x:1700, z: 600 }, { x:2100, z: 550 }, { x:2500, z: 700 },
+    ],
+    woodcut: [
+      // Elandor forests (NW quadrant)
+      { x:1200, z:1200 }, { x:1050, z:1400 }, { x:1420, z:1020 },
+      { x:1650, z:1600 }, { x: 950, z:1600 }, { x:1300, z: 500 },
+      // Whispering Marshes tree cover (SE)
+      { x:2800, z:2200 }, { x:2600, z:2800 }, { x:3050, z:2650 },
+      { x:3200, z:3000 }, { x:2500, z:2500 },
+      // Northern forest belt
+      { x:1800, z: 500 }, { x:2250, z: 450 }, { x:2600, z: 600 },
+      // Eastern forest
+      { x:3200, z:1800 }, { x:3500, z:2100 },
+      // Western forest
+      { x: 700, z:1400 }, { x: 600, z:1850 }, { x: 800, z:2450 },
+      // Southern forest
+      { x:1800, z:3200 }, { x:2250, z:3000 },
+    ],
+    fishing: [
+      // Shattered Coast (SW)
+      { x: 700, z:3000 }, { x: 900, z:3250 }, { x:1100, z:3500 },
+      { x: 600, z:3420 }, { x:1300, z:3600 },
+      // Eastern coast
+      { x:3500, z:1800 }, { x:3650, z:2050 }, { x:3700, z:2350 },
+      // Northern lake
+      { x:1650, z: 800 }, { x:1900, z: 620 }, { x:2200, z: 720 },
+      // Western inlet
+      { x: 600, z:2600 }, { x: 500, z:2200 }, { x: 450, z:1800 },
+      // Whispering Marshes deep water
+      { x:2900, z:2550 }, { x:3100, z:2820 }, { x:2700, z:3100 },
+      // Southern coast
+      { x:1600, z:3750 }, { x:2100, z:3700 }, { x:2600, z:3600 },
+    ],
+    herbalism: [
+      // Near Hearthmoor
+      { x:1750, z:1850 }, { x:2300, z:2200 }, { x:1900, z:2350 },
+      // Elandor meadows
+      { x:1200, z:1600 }, { x:1050, z:1800 }, { x:1420, z:1400 },
+      { x: 950, z:2050 }, { x:1300, z:2250 },
+      // Whispering bogs (void herbs)
+      { x:2600, z:2450 }, { x:2850, z:2650 }, { x:3000, z:2850 },
+      { x:2450, z:2900 },
+      // Ashveil foothills (rare void-touched herbs)
+      { x:2900, z:1550 }, { x:3100, z:1650 },
+      // Southwest meadow
+      { x: 800, z:2050 }, { x:1050, z:2300 }, { x:1200, z:2650 },
+      // Southern herb fields
+      { x:1600, z:3050 }, { x:2100, z:2700 },
+      // Far north
+      { x:1200, z: 420 }, { x: 520, z:1250 },
+    ],
+    hunting: [
+      // Elandor open plains
+      { x:1200, z:1250 }, { x:1020, z:1050 }, { x:1650, z:1050 },
+      { x:1850, z:1650 }, { x:1400, z: 800 },
+      // Ashveil hunting grounds
+      { x:2780, z:1050 }, { x:3020, z:1350 }, { x:3350, z: 820 },
+      // Shattered Coast game
+      { x: 750, z:2850 }, { x: 950, z:3050 }, { x:1450, z:3200 },
+      // Eastern wilderness
+      { x:3250, z:1650 }, { x:3450, z:1900 }, { x:3600, z:2650 },
+      // Far north plains
+      { x:1450, z: 480 }, { x:2050, z: 380 }, { x:2600, z: 520 },
+      // Western open land
+      { x: 420, z:2050 }, { x: 650, z:1650 }, { x: 420, z:1250 },
+      // Far south
+      { x:2000, z:3650 }, { x:2650, z:3450 },
+    ],
   },
 
   // ── NPC personal quest chains ─────────────────────────────────────────────────

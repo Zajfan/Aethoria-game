@@ -737,8 +737,8 @@ export class GameScene {
       this.shardSystem.restoreState(ids);
     }
 
-    // 7. Spawn 150 enemies across the 512×512 map
-    this._spawnEnemies(gen, 150);
+    // 7. Spawn 800 enemies across the 4096×4096 map
+    this._spawnEnemies(gen, 800);
 
     // 8. Spawn NPCs + town guards
     this._spawnNPCs(gen);
@@ -1964,9 +1964,9 @@ export class GameScene {
     if (this._enemyRespawnTimer > 45) {  // every 45 seconds
       this._enemyRespawnTimer = 0;
       const dead = this.enemies.filter(e => e.isDead).length;
-      if (dead > 15 && this.mapData) {
+      if (dead > 80 && this.mapData) {
         const gen = new WorldGen();
-        const toSpawn = Math.min(dead, 20);
+        const toSpawn = Math.min(dead, 80);
         const spawns  = gen.getEnemySpawns(this.mapData, toSpawn);
         const allTypes= Object.keys(CONFIG.ENEMY_TYPES);
         const playerLv= this.player?.stats?.level ?? 1;

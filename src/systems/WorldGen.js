@@ -48,7 +48,7 @@ export class WorldGen {
     // Town clearing — 5× bigger radius
     this._carveTown(data, elevMap, cx, cy, 34);
 
-    // Paths — long radial roads reaching all four quadrants of 4096×4096 map
+    // ── Primary roads from Hearthmoor ────────────────────────────────────────
     this._path(data, cx, cy, cx+1040, cy,       T.PATH);  // East road
     this._path(data, cx, cy, cx-928,  cy+400,   T.PATH);  // SW road
     this._path(data, cx, cy, cx+352,  cy+1120,  T.PATH);  // SE road
@@ -58,17 +58,49 @@ export class WorldGen {
     this._path(data, cx, cy, cx-800,  cy+880,   T.PATH);  // Far SW road
     this._path(data, cx, cy, cx+920,  cy+680,   T.PATH);  // Far SE road
 
-    // Main dungeon entrance — Ashveil direction
-    this._carveDungeon(data, elevMap, cx+640,  cy-160,  10);
+    // ── Extended roads connecting outer settlements ───────────────────────────
+    // NW road extension → Ironhaven
+    this._path(data, cx-720, cy-560, cx-750, cy-900, T.PATH);
+    // NE road extension → Thornwall Keep
+    this._path(data, cx+640, cy-800, cx+1100, cy-1000, T.PATH);
+    // SE road → Deepfen Village
+    this._path(data, cx+352, cy+1120, cx+800, cy+900, T.PATH);
+    // East road extension → Crossroads Station
+    this._path(data, cx+1040, cy, cx+1400, cy-200, T.PATH);
+    // West spur → Ironfang Stronghold
+    this._path(data, cx-928, cy+400, cx-1100, cy+200, T.PATH);
+    // North road extension → Frostwatch
+    this._path(data, cx, cy-992, cx, cy-1600, T.PATH);
 
-    // Secondary settlements — small carved clearings far from town
-    this._carveTown(data, elevMap, cx-720,  cy-560,  10);  // Elandor outpost (NW)
-    this._carveTown(data, elevMap, cx+720,  cy+720,  10);  // Marsh camp (SE)
-    this._carveTown(data, elevMap, cx+880,  cy-640,  8);   // Ashveil forge (NE)
+    // ── Main dungeon entrance (Ashveil direction) ─────────────────────────────
+    this._carveDungeon(data, elevMap, cx+640,   cy-160,   10); // Ashveil Depths
 
-    // Extra dungeon ruins scattered across the map
-    this._carveDungeon(data, elevMap, cx-800, cy+880, 8);  // Shattered crypt (SW)
-    this._carveDungeon(data, elevMap, cx+800, cy+560, 8);  // Marsh tomb (SE)
+    // ── Settlements ───────────────────────────────────────────────────────────
+    this._carveTown(data, elevMap, cx-720,   cy-560,  10); // Elandor outpost (NW)
+    this._carveTown(data, elevMap, cx+720,   cy+720,  10); // Marsh camp (SE)
+    this._carveTown(data, elevMap, cx+880,   cy-640,   8); // Ashveil forge (NE)
+    this._carveTown(data, elevMap, cx-750,   cy-900,  12); // Ironhaven — mining settlement (NW)
+    this._carveTown(data, elevMap, cx+800,   cy+900,  10); // Deepfen Village — fishing (SE)
+    this._carveTown(data, elevMap, cx+1100,  cy-1000,  9); // Thornwall Keep — ruined fortress (NE)
+    this._carveTown(data, elevMap, cx+1400,  cy-200,  10); // Crossroads Station — trade hub (E)
+    this._carveTown(data, elevMap, cx-1100,  cy+200,   9); // Ironfang Stronghold — mercenaries (W)
+    this._carveTown(data, elevMap, cx-800,   cy+600,   9); // Verdant Grove — druid sanctuary (SW)
+    this._carveTown(data, elevMap, cx-820,   cy+1400,  8); // Fisherman's Cove — coastal (S)
+    this._carveTown(data, elevMap, cx+900,   cy+700,   8); // Marshwarden Outpost (SE)
+    this._carveTown(data, elevMap, cx,       cy-1600,  7); // Frostwatch — far north outpost
+    this._carveTown(data, elevMap, cx-400,   cy-1200,  7); // Coldhollow — northern village
+
+    // ── Dungeon entrances ─────────────────────────────────────────────────────
+    this._carveDungeon(data, elevMap, cx-800,   cy+880,   8); // Shattered crypt (SW)
+    this._carveDungeon(data, elevMap, cx+800,   cy+560,   8); // Marsh tomb (SE)
+    this._carveDungeon(data, elevMap, cx-1200,  cy-1000,  9); // Frozen Tomb — deep NW
+    this._carveDungeon(data, elevMap, cx+1500,  cy-1300,  9); // Void Citadel entrance — far NE
+    this._carveDungeon(data, elevMap, cx+1100,  cy-900,   8); // Dragon's Maw — near Thornwall
+    this._carveDungeon(data, elevMap, cx+300,   cy+500,   8); // Old City Sewers — SE of town
+    this._carveDungeon(data, elevMap, cx+600,   cy+700,   9); // The Necropolis — undead king
+    this._carveDungeon(data, elevMap, cx-500,   cy-700,   8); // Corrupted Temple — NW wilderness
+    this._carveDungeon(data, elevMap, cx+1300,  cy+600,   8); // Crystal Caverns — east
+    this._carveDungeon(data, elevMap, cx-1400,  cy+1000,  8); // Ancient Vault — far SW
 
     return { data, elevMap };
   }
